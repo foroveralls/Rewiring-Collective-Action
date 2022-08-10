@@ -1175,13 +1175,13 @@ def drawAvgNumberOfAgreeingFriends(models, pltNr = 1):
     plt.plot(avgAvg, color=mypalette[pltNr-1])
 
 #for testing only
-start = time.time()
-#for i in range(10):
-model = simulate(10, args)
-end = time.time()
-mins = (end - start) / 60
-sec = (end - start) % 60
-print(f'Runtime was complete: {mins:5.0f} mins {sec}s\n')
+# start = time.time()
+# #for i in range(10):
+# model = simulate(10, args)
+# end = time.time()
+# mins = (end - start) / 60
+# sec = (end - start) % 60
+# print(f'Runtime was complete: {mins:5.0f} mins {sec}s\n')
 #if timesteps == 0 or timesteps == 10:
 #drawClusteredModel(model)
 

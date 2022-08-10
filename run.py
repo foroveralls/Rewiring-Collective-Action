@@ -15,8 +15,8 @@
 import os
 import sys
 
-sys.path.append('C:\/Users\everall\Documents\Python\Projects\It-s_how_we_talk_that_matters')
-os.chdir('C:\/Users\everall\Documents\Python\Projects\It-s_how_we_talk_that_matters')
+#sys.path.append('C:\/Users\everall\Documents\Python\Projects\It-s_how_we_talk_that_matters')
+#os.chdir('C:\/Users\everall\Documents\Python\Projects\It-s_how_we_talk_that_matters')
 
 from multiprocessing import Pool
 import models 
