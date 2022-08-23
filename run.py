@@ -20,7 +20,6 @@ import sys
 
 from multiprocessing import Pool
 import models 
-import numpy as np
 import random
 import matplotlib
 import matplotlib.pyplot as plt
@@ -30,7 +29,6 @@ from copy import deepcopy
 #import pygraphviz as pgv
 from statistics import stdev, mean
 import imageio
-import networkx as nx
 from scipy.stats import truncnorm
 from itertools import repeat
 import time
@@ -61,7 +59,7 @@ if  __name__ ==  '__main__':
     pathFig = '/Figs'
     pathData = '/Output'
     
-    modelargs=models_checks.getargs()  # requires models.py to be imported
+    modelargs= models_checks.getargs()  # requires models.py to be imported
     runs = 2   ## has to be even for multiple runs also n is actually n-1 because I'm lazy
 
     ### comment out all below for single run
