@@ -414,18 +414,18 @@ class Model:
                return nodeIndex
                
                    
-               if rewired == True: #links are only broken if a link is established
-                   
-                   init_neighbours =  list(self.graph.adj[nodeIndex].keys())
-                   if(len(init_neighbours) == 0):
-                       return nodeIndex
-             
-                   else:
-                       #print('breaking a link')
-                       breaklinkNeighbourIndex = init_neighbours[random.randint(0, len(init_neighbours)-1)]
-                       self.graph.remove_edge(nodeIndex, breaklinkNeighbourIndex)
-       
-    
+           if rewired == True: #links are only broken if a link is established
+                
+                init_neighbours =  list(self.graph.adj[nodeIndex].keys())
+                if(len(init_neighbours) == 0):
+                    return nodeIndex
+            
+           else:
+                #print('breaking a link')
+                breaklinkNeighbourIndex = init_neighbours[random.randint(0, len(init_neighbours)-1)]
+                self.graph.remove_edge(nodeIndex, breaklinkNeighbourIndex)
+
+
     def bridgerewiring(self, nodeIndex):
         #rewiring outside of ones own (opinion) cluster (we work with louvain clusters (=topological) but these become proxies for opinion clusters over time) -> time efficiency reason (see thesis)
         #we are looking at a deliberate algorithm that promotes faster dissolution of clusters (extreme case), non realistic

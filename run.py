@@ -103,7 +103,7 @@ if  __name__ ==  '__main__':
 
     #for run in range(runs-1) :
         
-    scenario_list = ["biased", "bridge"]
+    scenario_list = ["biased", ] #"bridge"]
     rewiring_list = ["diff", "same"]
     
     combined_list = list(product(scenario_list, rewiring_list))
