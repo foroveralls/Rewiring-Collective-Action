@@ -21,8 +21,8 @@ import sys
 #import seaborn as sns !! conda install
 #import pandas as pd !! conda install
 
-sys.path.append('C:/Users/lilli/Documents/UNI/USW-VWL/Bachelor thesis/project-collective-altruism_david/project-collective-altruism/data')
-os.chdir('C:/Users/lilli/Documents/UNI/USW-VWL/Bachelor thesis/project-collective-altruism_david/project-collective-altruism/data')
+sys.path.append('C:/Users/lilli/Documents/UNI/USW-VWL/Bachelor thesis/paper/github_paper/Output')
+os.chdir('C:/Users/lilli/Documents/UNI/USW-VWL/Bachelor thesis/paper/github_paper/Output')
 print(os.getcwd())
 
 import os
@@ -56,37 +56,46 @@ def linreg(x, y): ## snippet stolen from geeksforkeeks
   
     return(b0, b1) 
 
-randomrewiring05 = np.loadtxt('./randomrewiring0.5_nomin_nomax.csv', delimiter = ',')
-randomrewiring01 = np.loadtxt('./randomrewiring0.3.csv', delimiter = ',') #I don't have data sets for p=q=0.1 and 0.9, but add the right csv here
-randomrewiring09 = np.loadtxt('./randomrewiring0.7.csv', delimiter = ',')
-bridge_differentlink = np.loadtxt('./bridge_linkifdifferent1.csv', delimiter = ',')
-bridge_samelink = np.loadtxt('./bridge_linkifsame1.csv', delimiter = ',')
-biased_differentlink2 = np.loadtxt('./biased_linkifdifferent_2networksteps1.csv', delimiter = ',')
-biased_samelink2 = np.loadtxt('./biased_linkifsame_2networksteps1.csv', delimiter = ',')
+randomrewiring05 = np.loadtxt('./random_linkif_NA.csv', delimiter = ',')
+norewiring = np.loadtxt('./randomrewiring0.csv', delimiter = ',')
+#randomrewiring01 = np.loadtxt('./randomrewiring0.3.csv', delimiter = ',') #I don't have data sets for p=q=0.1 and 0.9, but add the right csv here
+#randomrewiring09 = np.loadtxt('./randomrewiring0.7.csv', delimiter = ',')
+bridge_differentlink = np.loadtxt('./bridge_linkif_diff.csv', delimiter = ',')
+bridge_samelink = np.loadtxt('./bridge_linkif_same.csv', delimiter = ',')
+biased_differentlink2 = np.loadtxt('./biased_linkif_diff.csv', delimiter = ',')
+biased_samelink2 = np.loadtxt('./biased_linkif_same.csv', delimiter = ',')
 
 statesrandomrewiring05 = randomrewiring05[:,0]
 statesstdrandomrewiring05 = randomrewiring05[:,1]
 clusterstdrandomrewiring05 = randomrewiring05[:,2]
 avgdegreerandomrewiring05 = randomrewiring05[:,3]
 stddegreerandomrewiring05 = randomrewiring05[:,4]
-# maxdegreerandomrewiring05 = randomrewiring05[:,6] #my data set for 0.5 is not complete so I have to comment these 2 out.
-# mindegreerandomrewiring05 = randomrewiring05[:,5]
+maxdegreerandomrewiring05 = randomrewiring05[:,6] 
+mindegreerandomrewiring05 = randomrewiring05[:,5]
 
-statesrandomrewiring01 = randomrewiring01[:,0]
-statesstdrandomrewiring01 = randomrewiring01[:,1]
-clusterstdrandomrewiring01 = randomrewiring01[:,2]
-avgdegreerandomrewiring01 = randomrewiring01[:,3]
-stddegreerandomrewiring01 = randomrewiring01[:,4]
-maxdegreerandomrewiring01 = randomrewiring01[:,6]
-mindegreerandomrewiring01 = randomrewiring01[:,5]
+statesnorewiring = norewiring[:,0]
+statesstdnorewiring = norewiring[:,1]
+clusterstdnorewiring = norewiring[:,2]
+avgdegreenorewiring = norewiring[:,3]
+stddegreenorewiring = norewiring[:,4]
+maxdegreenorewiring = norewiring[:,6] 
+mindegreenorewiring = norewiring[:,5]
 
-statesrandomrewiring09 = randomrewiring09[:,0]
-statesstdrandomrewiring09 = randomrewiring09[:,1]
-clusterstdrandomrewiring09 = randomrewiring09[:,2]
-avgdegreerandomrewiring09 = randomrewiring09[:,3]
-stddegreerandomrewiring09 = randomrewiring09[:,4]
-maxdegreerandomrewiring09 = randomrewiring09[:,6]
-mindegreerandomrewiring09 = randomrewiring09[:,5]
+# statesrandomrewiring01 = randomrewiring01[:,0]
+# statesstdrandomrewiring01 = randomrewiring01[:,1]
+# clusterstdrandomrewiring01 = randomrewiring01[:,2]
+# avgdegreerandomrewiring01 = randomrewiring01[:,3]
+# stddegreerandomrewiring01 = randomrewiring01[:,4]
+# maxdegreerandomrewiring01 = randomrewiring01[:,6]
+# mindegreerandomrewiring01 = randomrewiring01[:,5]
+
+# statesrandomrewiring09 = randomrewiring09[:,0]
+# statesstdrandomrewiring09 = randomrewiring09[:,1]
+# clusterstdrandomrewiring09 = randomrewiring09[:,2]
+# avgdegreerandomrewiring09 = randomrewiring09[:,3]
+# stddegreerandomrewiring09 = randomrewiring09[:,4]
+# maxdegreerandomrewiring09 = randomrewiring09[:,6]
+# mindegreerandomrewiring09 = randomrewiring09[:,5]
 
 statesbiased_samelink = biased_samelink2[:,0]
 statesstdbiased_samelink = biased_samelink2[:,1]
@@ -128,8 +137,10 @@ xaxis = np.array(list(range(len(statesrandomrewiring05)))) / systemsize #this is
 #I don't have a full data set for 0.5, but in this figure I guess we would show p=q=0.5
 #?? add probability variations right away or do one figure with simple graph and one with more probabilities tested?
 figtype, ax =  plt.subplots()
-ax.plot(xaxis,statesrandomrewiring05,label="random rewiring", color = 'blue', linestyle = '-') #0.3
-ax.plot(xaxis,statesstdrandomrewiring05,label="SD random rewiring", color = 'blue', linestyle = '--') #0.3
+ax.plot(xaxis,statesrandomrewiring05,label="random rewiring", color = 'blue', linestyle = '-')
+ax.plot(xaxis,statesstdrandomrewiring05,label="SD random rewiring", color = 'blue', linestyle = '--') 
+ax.plot(xaxis,statesnorewiring,label="no rewiring", color = 'orange', linestyle = '-')
+ax.plot(xaxis,statesstdnorewiring,label="SD no rewiring", color = 'orange', linestyle = '--') 
 ax.set(xlabel='time [timestep / system size]',ylabel='cooperativity')
 ax.legend(loc = 'lower right')
 ax.yaxis.set_major_locator(ticker.MultipleLocator(0.25)) #ticker sets the little ticks on the axes
@@ -140,28 +151,28 @@ ax.xaxis.grid(True, linestyle='dotted') #makes dotted lines in the background
 ax.yaxis.grid(True, linestyle='dotted')
 ax.set_ylim([-1,1])
 ax.set_xlim([0,50])
-figtype.savefig('1_random_rewiring_03') 
+figtype.savefig('1_random_rewiring_05') 
 
-#fig2 cooperation + SD random rewiring 0.1, 0.5, 0.9
-#?? add probability variations right away or do one figure with simple graph and one with more probabilities tested?
-figtype, ax =  plt.subplots()
-ax.plot(xaxis,statesrandomrewiring05,label= 'p=q=0.3', color = 'blue', linestyle = '-') #0.5
-ax.plot(xaxis,statesstdrandomrewiring05,label="SD p=q=0.3", color = 'blue', linestyle = '--') #0.5
-ax.plot(xaxis,statesrandomrewiring01,label="p=q=0.1", color = 'orange', linestyle = '-') #0.1
-ax.plot(xaxis,statesstdrandomrewiring01,label="SD p=q=0.1", color = 'orange', linestyle = '--') #0.1
-ax.plot(xaxis,statesrandomrewiring09,label="p=q=0.9", color = 'magenta', linestyle = '-') #0.9
-ax.plot(xaxis,statesstdrandomrewiring09,label="SD p=q=0.9", color = 'magenta', linestyle = '--') #0.9
-ax.set(xlabel='time [timestep / system size]',ylabel='cooperativity')
-ax.legend(loc = 'lower right')
-ax.yaxis.set_major_locator(ticker.MultipleLocator(0.25)) #ticker sets the little ticks on the axes
-ax.yaxis.set_minor_locator(ticker.MultipleLocator(0.05))
-ax.xaxis.set_major_locator(ticker.MultipleLocator(10))
-ax.xaxis.set_minor_locator(ticker.MultipleLocator(2.5))
-ax.xaxis.grid(True, linestyle='dotted') #makes dotted lines in the background
-ax.yaxis.grid(True, linestyle='dotted')
-ax.set_ylim([-1,1])
-ax.set_xlim([0,50])
-figtype.savefig('2_random_rewiring_01_05_09')
+# #fig2 cooperation + SD random rewiring 0.1, 0.5, 0.9
+# #?? add probability variations right away or do one figure with simple graph and one with more probabilities tested?
+# figtype, ax =  plt.subplots()
+# ax.plot(xaxis,statesrandomrewiring05,label= 'p=q=0.3', color = 'blue', linestyle = '-') #0.5
+# ax.plot(xaxis,statesstdrandomrewiring05,label="SD p=q=0.3", color = 'blue', linestyle = '--') #0.5
+# ax.plot(xaxis,statesrandomrewiring01,label="p=q=0.1", color = 'orange', linestyle = '-') #0.1
+# ax.plot(xaxis,statesstdrandomrewiring01,label="SD p=q=0.1", color = 'orange', linestyle = '--') #0.1
+# ax.plot(xaxis,statesrandomrewiring09,label="p=q=0.9", color = 'magenta', linestyle = '-') #0.9
+# ax.plot(xaxis,statesstdrandomrewiring09,label="SD p=q=0.9", color = 'magenta', linestyle = '--') #0.9
+# ax.set(xlabel='time [timestep / system size]',ylabel='cooperativity')
+# ax.legend(loc = 'lower right')
+# ax.yaxis.set_major_locator(ticker.MultipleLocator(0.25)) #ticker sets the little ticks on the axes
+# ax.yaxis.set_minor_locator(ticker.MultipleLocator(0.05))
+# ax.xaxis.set_major_locator(ticker.MultipleLocator(10))
+# ax.xaxis.set_minor_locator(ticker.MultipleLocator(2.5))
+# ax.xaxis.grid(True, linestyle='dotted') #makes dotted lines in the background
+# ax.yaxis.grid(True, linestyle='dotted')
+# ax.set_ylim([-1,1])
+# ax.set_xlim([0,50])
+# figtype.savefig('2_random_rewiring_01_05_09')
 
 #fig3 results biased rewiring vs. random rewiring
 #?? call it biased_same, or just biased?
