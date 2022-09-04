@@ -19,7 +19,6 @@ import sys
 #os.chdir('C:\/Users\everall\Documents\Python\Projects\It-s_how_we_talk_that_matters')
 
 from multiprocessing import Pool
-import models 
 import random
 import matplotlib
 import matplotlib.pyplot as plt
