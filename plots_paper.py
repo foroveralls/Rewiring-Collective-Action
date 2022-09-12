@@ -56,10 +56,13 @@ def linreg(x, y): ## snippet stolen from geeksforkeeks
   
     return(b0, b1) 
 
-randomrewiring05 = np.loadtxt('./randomrewiring0.5_nomin_nomax.csv', delimiter = ',') #old from my thesis, change to new data!
+randomrewiring05 = np.loadtxt('./random_p_rewiring_0.5.csv', delimiter = ',') 
+randomrewiring05old = np.loadtxt('./randomrewiring0.5_nomin_nomax.csv', delimiter = ',') #old from my thesis - for comparison
 norewiring = np.loadtxt('./randomrewiring0.csv', delimiter = ',')
-randomrewiring01 = np.loadtxt('./randomrewiring0.3.csv', delimiter = ',') #old from thesis, change to new data! I don't have data sets for p=q=0.1 and 0.9, but add the right csv here
-randomrewiring09 = np.loadtxt('./randomrewiring0.7.csv', delimiter = ',') #this are prelim csv from my thesis runs atm
+randomrewiring01 = np.loadtxt('./random_p_rewiring_0.1.csv', delimiter = ',') 
+#randomrewiring09 = np.loadtxt('./randomrewiring0.7.csv', delimiter = ',') 
+randomrewiring03 = np.loadtxt('./randomrewiring0.3.csv', delimiter = ',') #old from my thesis - for comparison
+randomrewiring07 = np.loadtxt('./randomrewiring0.7.csv', delimiter = ',') #old from my thesis - for comparison
 bridge_differentlink = np.loadtxt('./bridge_linkif_diff.csv', delimiter = ',')
 bridge_samelink = np.loadtxt('./bridge_linkif_same.csv', delimiter = ',')
 biased_differentlink2 = np.loadtxt('./biased_linkif_diff.csv', delimiter = ',')
@@ -70,8 +73,16 @@ statesstdrandomrewiring05 = randomrewiring05[:,1]
 clusterstdrandomrewiring05 = randomrewiring05[:,2]
 avgdegreerandomrewiring05 = randomrewiring05[:,3]
 stddegreerandomrewiring05 = randomrewiring05[:,4]
-# maxdegreerandomrewiring05 = randomrewiring05[:,6] 
-# mindegreerandomrewiring05 = randomrewiring05[:,5]
+maxdegreerandomrewiring05 = randomrewiring05[:,6] 
+mindegreerandomrewiring05 = randomrewiring05[:,5]
+
+statesrandomrewiring05old = randomrewiring05old[:,0]
+statesstdrandomrewiring05old = randomrewiring05old[:,1]
+clusterstdrandomrewiring05old = randomrewiring05old[:,2]
+avgdegreerandomrewiring05old = randomrewiring05old[:,3]
+stddegreerandomrewiring05old = randomrewiring05old[:,4]
+# maxdegreerandomrewiring05old = randomrewiring05old[:,6] 
+# mindegreerandomrewiring05old = randomrewiring05old[:,5]
 
 statesnorewiring = norewiring[:,0]
 statesstdnorewiring = norewiring[:,1]
@@ -89,13 +100,29 @@ stddegreerandomrewiring01 = randomrewiring01[:,4]
 maxdegreerandomrewiring01 = randomrewiring01[:,6]
 mindegreerandomrewiring01 = randomrewiring01[:,5]
 
-statesrandomrewiring09 = randomrewiring09[:,0]
-statesstdrandomrewiring09 = randomrewiring09[:,1]
-clusterstdrandomrewiring09 = randomrewiring09[:,2]
-avgdegreerandomrewiring09 = randomrewiring09[:,3]
-stddegreerandomrewiring09 = randomrewiring09[:,4]
-maxdegreerandomrewiring09 = randomrewiring09[:,6]
-mindegreerandomrewiring09 = randomrewiring09[:,5]
+# statesrandomrewiring09 = randomrewiring09[:,0]
+# statesstdrandomrewiring09 = randomrewiring09[:,1]
+# clusterstdrandomrewiring09 = randomrewiring09[:,2]
+# avgdegreerandomrewiring09 = randomrewiring09[:,3]
+# stddegreerandomrewiring09 = randomrewiring09[:,4]
+# maxdegreerandomrewiring09 = randomrewiring09[:,6]
+# mindegreerandomrewiring09 = randomrewiring09[:,5]
+
+statesrandomrewiring03 = randomrewiring03[:,0]
+statesstdrandomrewiring03 = randomrewiring03[:,1]
+clusterstdrandomrewiring03 = randomrewiring03[:,2]
+avgdegreerandomrewiring03 = randomrewiring03[:,3]
+stddegreerandomrewiring03 = randomrewiring03[:,4]
+maxdegreerandomrewiring03 = randomrewiring03[:,6]
+mindegreerandomrewiring03 = randomrewiring03[:,5]
+
+statesrandomrewiring07 = randomrewiring07[:,0]
+statesstdrandomrewiring07 = randomrewiring07[:,1]
+clusterstdrandomrewiring07 = randomrewiring07[:,2]
+avgdegreerandomrewiring07 = randomrewiring07[:,3]
+stddegreerandomrewiring07 = randomrewiring07[:,4]
+maxdegreerandomrewiring07 = randomrewiring07[:,6]
+mindegreerandomrewiring07 = randomrewiring07[:,5]
 
 statesbiased_samelink = biased_samelink2[:,0]
 statesstdbiased_samelink = biased_samelink2[:,1]
@@ -133,36 +160,16 @@ xaxis = np.array(list(range(len(statesrandomrewiring05)))) / systemsize #this is
 
 #plotting cooperativity and SD cooperativity
 
-# #fig1 cooperation + SD random rewiring
-# #I don't have a full data set for 0.5, but in this figure I guess we would show p=q=0.5
-# #?? add probability variations right away or do one figure with simple graph and one with more probabilities tested?
-# figtype, ax =  plt.subplots()
-# ax.plot(xaxis,statesrandomrewiring05,label="random rewiring p=q=0.5", color = 'blue', linestyle = '-')
-# ax.plot(xaxis,statesstdrandomrewiring05,label="SD random rewiring p=q=0.5", color = 'blue', linestyle = '--') 
-# ax.plot(xaxis,statesnorewiring,label="no rewiring", color = 'orange', linestyle = '-')
-# ax.plot(xaxis,statesstdnorewiring,label="SD no rewiring", color = 'orange', linestyle = '--') 
-# ax.set(xlabel='time [timestep / system size]',ylabel='cooperativity')
-# ax.legend(loc = 'lower right')
-# ax.yaxis.set_major_locator(ticker.MultipleLocator(0.25)) #ticker sets the little ticks on the axes
-# ax.yaxis.set_minor_locator(ticker.MultipleLocator(0.05))
-# ax.xaxis.set_major_locator(ticker.MultipleLocator(10))
-# ax.xaxis.set_minor_locator(ticker.MultipleLocator(2.5))
-# ax.xaxis.grid(True, linestyle='dotted') #makes dotted lines in the background
-# ax.yaxis.grid(True, linestyle='dotted')
-# ax.set_ylim([-1,1])
-# ax.set_xlim([0,50])
-# figtype.savefig('1_random_rewiring_05_new.svg') 
-
-#fig2 cooperation + SD random rewiring 0.1, 0.5, 0.9
-#?? add probability variations right away or do one figure with simple graph and one with more probabilities tested?
+#check
 figtype, ax =  plt.subplots()
 ax.plot(xaxis,statesnorewiring,label="no rewiring", color = 'orange', linestyle = '-')
 ax.plot(xaxis,statesrandomrewiring05,label= 'p=q=0.5', color = 'red', linestyle = '-') #0.5
-ax.plot(xaxis,statesstdrandomrewiring05,label="SD p=q=0.5", color = 'red', linestyle = '--') #0.5
-ax.plot(xaxis,statesrandomrewiring01,label="p=q=0.3", color = 'lightsalmon', linestyle = '-') #change to 0.1!
-ax.plot(xaxis,statesstdrandomrewiring01,label="SD p=q=0.3", color = 'lightsalmon', linestyle = '--') #change to 0.1!
-ax.plot(xaxis,statesrandomrewiring09,label="p=q=0.7", color = 'saddlebrown', linestyle = '-') #0.9
-ax.plot(xaxis,statesstdrandomrewiring09,label="SD p=q=0.7", color = 'saddlebrown', linestyle = '--') #0.9
+ax.plot(xaxis,statesrandomrewiring01,label="p=q=0.1", color = 'lightsalmon', linestyle = '-') #0.1
+# ax.plot(xaxis,statesrandomrewiring09,label="p=q=0.9", color = 'saddlebrown', linestyle = '-') #0.9
+ax.plot(xaxis,statesrandomrewiring05old,label= 'p=q=0.5 old', color = 'blue', linestyle = '-') #0.5OLD
+ax.plot(xaxis,statesrandomrewiring03,label="p=q=0.3 old", color = 'green', linestyle = '-') #0.3
+ax.plot(xaxis,statesrandomrewiring07,label="p=q=0.7 old", color = 'turquoise', linestyle = '-') #0.7
+# ax.plot(xaxis,statesstdrandomrewiring09,label="SD p=q=0.9", color = 'saddlebrown', linestyle = '--') #0.9
 ax.set(xlabel='time [timestep / system size]',ylabel='cooperativity')
 ax.legend(loc = 'lower right')
 ax.yaxis.set_major_locator(ticker.MultipleLocator(0.25)) #ticker sets the little ticks on the axes
@@ -173,17 +180,14 @@ ax.xaxis.grid(True, linestyle='dotted') #makes dotted lines in the background
 ax.yaxis.grid(True, linestyle='dotted')
 ax.set_ylim([-1,1])
 ax.set_xlim([0,50])
-figtype.savefig('2_random_rewiring_01_05_09.pdf')
+#figtype.savefig('check_old-data_new-data.pdf')
 
-#fig3 results biased rewiring vs. random rewiring
-#?? call it biased_same, or just biased?
+# #fig1 cooperation + SD random rewiring
 figtype, ax =  plt.subplots()
-# ax.plot(xaxis,statesrandomrewiring05,label="random rewiring", color = 'blue', linestyle = '-') #0.5
-# ax.plot(xaxis,statesstdrandomrewiring05,label="SD random rewiring", color = 'blue', linestyle = '--') #0.5
 ax.plot(xaxis,statesnorewiring,label="no rewiring", color = 'orange', linestyle = '-')
 ax.plot(xaxis,statesstdnorewiring,label="SD no rewiring", color = 'orange', linestyle = '--') 
-ax.plot(xaxis, statesbiased_samelink, label = "biased_same", color = 'green', linestyle = '-') #if_same
-ax.plot(xaxis, statesstdbiased_samelink, label = "SD biased_same", color = 'green', linestyle = '--') #if_same
+ax.plot(xaxis,statesrandomrewiring05,label="random rewiring p=q=0.5", color = 'blue', linestyle = '-')
+ax.plot(xaxis,statesstdrandomrewiring05,label="SD random rewiring p=q=0.5", color = 'blue', linestyle = '--') 
 ax.set(xlabel='time [timestep / system size]',ylabel='cooperativity')
 ax.legend(loc = 'lower right')
 ax.yaxis.set_major_locator(ticker.MultipleLocator(0.25)) #ticker sets the little ticks on the axes
@@ -194,27 +198,70 @@ ax.xaxis.grid(True, linestyle='dotted') #makes dotted lines in the background
 ax.yaxis.grid(True, linestyle='dotted')
 ax.set_ylim([-1,1])
 ax.set_xlim([0,50])
-#figtype.savefig('3_biased_vs_randomrewiring')
+#figtype.savefig('1_random_rewiring_05_new.pdf') 
 
-# #fig4 results bridge rewiring vs. random rewiring
-# figtype, ax =  plt.subplots()
-# # ax.plot(xaxis,statesrandomrewiring05,label="random rewiring", color = 'blue', linestyle = '-') #0.5
-# # ax.plot(xaxis,statesstdrandomrewiring05,label="SD random rewiring", color = 'blue', linestyle = '--') #0.5
-# ax.plot(xaxis,statesnorewiring,label="no rewiring", color = 'orange', linestyle = '-')
-# ax.plot(xaxis,statesstdnorewiring,label="SD no rewiring", color = 'orange', linestyle = '--') 
-# ax.plot(xaxis, statesbridge_differentlink, label = "bridge_different", color = 'blue', linestyle = '-') #if_different
-# ax.plot(xaxis, statesstdbridge_differentlink, label = "SD bridge_different", color = 'blue', linestyle = '--') #if_different
-# ax.set(xlabel='time [timestep / system size]',ylabel='cooperativity')
-# ax.legend(loc = 'lower right')
-# ax.yaxis.set_major_locator(ticker.MultipleLocator(0.25)) #ticker sets the little ticks on the axes
-# ax.yaxis.set_minor_locator(ticker.MultipleLocator(0.05))
-# ax.xaxis.set_major_locator(ticker.MultipleLocator(10))
-# ax.xaxis.set_minor_locator(ticker.MultipleLocator(2.5))
-# ax.xaxis.grid(True, linestyle='dotted') #makes dotted lines in the background
-# ax.yaxis.grid(True, linestyle='dotted')
-# ax.set_ylim([-1,1])
-# ax.set_xlim([0,50])
-# #figtype.savefig('4_bridge_vs_randomrewiring')
+#fig2 cooperation + SD random rewiring 0.1, 0.5, 0.9
+figtype, ax =  plt.subplots()
+ax.plot(xaxis,statesnorewiring,label="no rewiring", color = 'orange', linestyle = '-')
+ax.plot(xaxis,statesstdnorewiring,label="SD no rewiring", color = 'orange', linestyle = '--')
+ax.plot(xaxis,statesrandomrewiring05,label= 'p=q=0.5', color = 'red', linestyle = '-') #0.5
+ax.plot(xaxis,statesstdrandomrewiring05,label="SD p=q=0.5", color = 'red', linestyle = '--') #0.5
+ax.plot(xaxis,statesrandomrewiring01,label="p=q=0.1", color = 'lightsalmon', linestyle = '-') #0.1
+ax.plot(xaxis,statesstdrandomrewiring01,label="SD p=q=0.1", color = 'lightsalmon', linestyle = '--') #0.1
+# ax.plot(xaxis,statesrandomrewiring09,label="p=q=0.9", color = 'saddlebrown', linestyle = '-') #0.9
+# ax.plot(xaxis,statesstdrandomrewiring09,label="SD p=q=0.9", color = 'saddlebrown', linestyle = '--') #0.9
+ax.set(xlabel='time [timestep / system size]',ylabel='cooperativity')
+ax.legend(loc = 'lower right')
+ax.yaxis.set_major_locator(ticker.MultipleLocator(0.25)) #ticker sets the little ticks on the axes
+ax.yaxis.set_minor_locator(ticker.MultipleLocator(0.05))
+ax.xaxis.set_major_locator(ticker.MultipleLocator(10))
+ax.xaxis.set_minor_locator(ticker.MultipleLocator(2.5))
+ax.xaxis.grid(True, linestyle='dotted') #makes dotted lines in the background
+ax.yaxis.grid(True, linestyle='dotted')
+ax.set_ylim([-1,1])
+ax.set_xlim([0,50])
+#figtype.savefig('2_random_rewiring_01_05_09.pdf')
+
+#fig3 results biased rewiring vs. random rewiring
+#?? call it biased(same), or just biased?
+figtype, ax =  plt.subplots()
+# ax.plot(xaxis,statesrandomrewiring05,label="random rewiring", color = 'red', linestyle = '-') #0.5
+# ax.plot(xaxis,statesstdrandomrewiring05,label="SD random rewiring", color = 'red', linestyle = '--') #0.5
+ax.plot(xaxis,statesnorewiring,label="no rewiring", color = 'orange', linestyle = '-')
+ax.plot(xaxis,statesstdnorewiring,label="SD no rewiring", color = 'orange', linestyle = '--') 
+ax.plot(xaxis, statesbiased_samelink, label = "biased(same)", color = 'green', linestyle = '-') #if_same
+ax.plot(xaxis, statesstdbiased_samelink, label = "SD biased(same)", color = 'green', linestyle = '--') #if_same
+ax.set(xlabel='time [timestep / system size]',ylabel='cooperativity')
+ax.legend(loc = 'lower right')
+ax.yaxis.set_major_locator(ticker.MultipleLocator(0.25)) #ticker sets the little ticks on the axes
+ax.yaxis.set_minor_locator(ticker.MultipleLocator(0.05))
+ax.xaxis.set_major_locator(ticker.MultipleLocator(10))
+ax.xaxis.set_minor_locator(ticker.MultipleLocator(2.5))
+ax.xaxis.grid(True, linestyle='dotted') #makes dotted lines in the background
+ax.yaxis.grid(True, linestyle='dotted')
+ax.set_ylim([-1,1])
+ax.set_xlim([0,50])
+#figtype.savefig('3_biased_vs_randomrewiring.pdf')
+
+#fig4 results bridge rewiring vs. random rewiring
+figtype, ax =  plt.subplots()
+# ax.plot(xaxis,statesrandomrewiring05,label="random rewiring", color = 'red', linestyle = '-') #0.5
+# ax.plot(xaxis,statesstdrandomrewiring05,label="SD random rewiring", color = 'red', linestyle = '--') #0.5
+ax.plot(xaxis,statesnorewiring,label="no rewiring", color = 'orange', linestyle = '-')
+ax.plot(xaxis,statesstdnorewiring,label="SD no rewiring", color = 'orange', linestyle = '--') 
+ax.plot(xaxis, statesbridge_differentlink, label = "bridge(different)", color = 'blue', linestyle = '-') #if_different
+ax.plot(xaxis, statesstdbridge_differentlink, label = "SD bridge(different)", color = 'blue', linestyle = '--') #if_different
+ax.set(xlabel='time [timestep / system size]',ylabel='cooperativity')
+ax.legend(loc = 'lower right')
+ax.yaxis.set_major_locator(ticker.MultipleLocator(0.25)) #ticker sets the little ticks on the axes
+ax.yaxis.set_minor_locator(ticker.MultipleLocator(0.05))
+ax.xaxis.set_major_locator(ticker.MultipleLocator(10))
+ax.xaxis.set_minor_locator(ticker.MultipleLocator(2.5))
+ax.xaxis.grid(True, linestyle='dotted') #makes dotted lines in the background
+ax.yaxis.grid(True, linestyle='dotted')
+ax.set_ylim([-1,1])
+ax.set_xlim([0,50])
+#figtype.savefig('4_bridge_vs_randomrewiring.pdf')
 
 #fig5 bridge vs biased with rewiring as baseline
 #! change random rewiring to no rewiring? or additionally?
@@ -222,8 +269,8 @@ figtype, ax = plt.subplots(2,2)
 figtype.set_size_inches(14, 10.5)
 line_labels = ['random rewiring', 'SD random rewiring', 'bridge_same', 'SD bridge_same', 'biased_same', 'SD biased_same', 'bridge_different', 'SD bridge_different', 'biased_different', 'SD biased_different']
 
-# l1=ax[0, 0].plot(xaxis,statesrandomrewiring05,label="random rewiring", color = 'orange', linestyle = '-')[0]
-# l2=ax[0,0].plot(xaxis,statesstdrandomrewiring05,label="SD random rewiring", color = 'orange', linestyle = '--')[0]
+# l1=ax[0, 0].plot(xaxis,statesrandomrewiring05,label="random rewiring", color = 'red', linestyle = '-')[0]
+# l2=ax[0,0].plot(xaxis,statesstdrandomrewiring05,label="SD random rewiring", color = 'red', linestyle = '--')[0]
 ax[0,0].plot(xaxis,statesnorewiring,label="no rewiring", color = 'orange', linestyle = '-')
 ax[0,0].plot(xaxis,statesstdnorewiring,label="SD no rewiring", color = 'orange', linestyle = '--')
 l3=ax[0,0].plot(xaxis, statesbridge_samelink, label = "bridge(same)", color = 'magenta', linestyle = '-')[0] #if_same
@@ -232,18 +279,18 @@ l5=ax[0,0].plot(xaxis, statesbiased_samelink, label = "biased(same)", color = 'g
 l6=ax[0,0].plot(xaxis, statesstdbiased_samelink, label = "SD biased(same)", color = 'green', linestyle = '--')[0] #if_same
 ax[0,0].legend(loc = 'lower right')
 
+# ax[0, 1].plot(xaxis,statesrandomrewiring05,label="random rewiring", color = 'red', linestyle = '-')
+# ax[0,1].plot(xaxis,statesstdrandomrewiring05,label="SD random rewiring", color = 'red', linestyle = '--')
 ax[0,1].plot(xaxis,statesnorewiring,label="no rewiring", color = 'orange', linestyle = '-')
 ax[0,1].plot(xaxis,statesstdnorewiring,label="SD no rewiring", color = 'orange', linestyle = '--')
 l7=ax[0,1].plot(xaxis, statesbridge_differentlink, label = "bridge(different)", color = 'blue', linestyle = '-')[0] #if_different
 l8=ax[0,1].plot(xaxis, statesstdbridge_differentlink, label = "SD bridge(different)", color = 'blue', linestyle = '--')[0] #if_different
 l9=ax[0,1].plot(xaxis, statesbiased_differentlink, label = "biased(different)", color = 'turquoise', linestyle = '-')[0] #if_different
 l10=ax[0,1].plot(xaxis, statesstdbiased_differentlink, label = "SD biased(different)", color = 'turquoise', linestyle = '--')[0] #if_different
-# ax[0, 1].plot(xaxis,statesrandomrewiring05,label="random rewiring", color = 'orange', linestyle = '-')
-# ax[0,1].plot(xaxis,statesstdrandomrewiring05,label="SD random rewiring", color = 'orange', linestyle = '--')
 ax[0,1].legend(loc = 'lower right')
 
-# ax[1, 0].plot(xaxis,statesrandomrewiring05,label="random rewiring", color = 'orange', linestyle = '-')
-# ax[1,0].plot(xaxis,statesstdrandomrewiring05,label="SD random rewiring", color = 'orange', linestyle = '--')
+# ax[1, 0].plot(xaxis,statesrandomrewiring05,label="random rewiring", color = 'red', linestyle = '-')
+# ax[1,0].plot(xaxis,statesstdrandomrewiring05,label="SD random rewiring", color = 'red', linestyle = '--')
 ax[1,0].plot(xaxis,statesnorewiring,label="no rewiring", color = 'orange', linestyle = '-')
 ax[1,0].plot(xaxis,statesstdnorewiring,label="SD no rewiring", color = 'orange', linestyle = '--')
 ax[1,0].plot(xaxis, statesbiased_samelink, label = "biased(same)", color = 'green', linestyle = '-') #if_same
@@ -252,8 +299,8 @@ ax[1,0].plot(xaxis, statesbiased_differentlink, label = "biased(different)", col
 ax[1,0].plot(xaxis, statesstdbiased_differentlink, label = "SD biased(different)", color = 'turquoise', linestyle = '--') #if_different
 ax[1,0].legend(loc = 'lower right')
 
-# ax[1, 1].plot(xaxis,statesrandomrewiring05,label="random rewiring", color = 'orange', linestyle = '-')
-# ax[1,1].plot(xaxis,statesstdrandomrewiring05,label="SD random rewiring", color = 'orange', linestyle = '--')
+# ax[1, 1].plot(xaxis,statesrandomrewiring05,label="random rewiring", color = 'red', linestyle = '-')
+# ax[1,1].plot(xaxis,statesstdrandomrewiring05,label="SD random rewiring", color = 'red', linestyle = '--')
 ax[1,1].plot(xaxis,statesnorewiring,label="no rewiring", color = 'orange', linestyle = '-')
 ax[1,1].plot(xaxis,statesstdnorewiring,label="SD no rewiring", color = 'orange', linestyle = '--')
 ax[1,1].plot(xaxis, statesbridge_samelink, label = "bridge(same)", color = 'magenta', linestyle = '-') #if_same
@@ -298,7 +345,7 @@ for ax in ax.flat:
 #            fontsize = 20
 #            )
 
-figtype.savefig('5_biased_vs_bridgerewiring.pdf')
+#figtype.savefig('5_biased_vs_bridgerewiring.pdf')
 
 #fig6 final comparison of all algorithms
 figtype, ax =  plt.subplots()
@@ -318,4 +365,4 @@ ax.xaxis.grid(True, linestyle='dotted') #makes dotted lines in the background
 ax.yaxis.grid(True, linestyle='dotted')
 ax.set_ylim([-1,1])
 ax.set_xlim([0,50])
-figtype.savefig('6_all_rewiring_algorithms.pdf')
+#figtype.savefig('6_all_rewiring_algorithms.pdf')
