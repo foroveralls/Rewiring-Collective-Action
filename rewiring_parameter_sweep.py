@@ -114,7 +114,7 @@ if  __name__ ==  '__main__':
         argList = []
         
         ## You can specify simulation parameters here. If they are not set here, they will default to some values set in models.py
-        argList.append({"rewiringAlgorithim": i, "breaklinkprob": v,
+        argList.append({"rewiringAlgorithm": i, "breaklinkprob": v,
                         "establishlinkprob": v})
         #argList.append({"influencers" : 0, "type" : "cl"})
        

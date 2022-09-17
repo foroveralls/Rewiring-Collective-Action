@@ -8,10 +8,7 @@
 
 import numpy as np
 import random
-import matplotlib.pyplot as plt
-import matplotlib.colors as col
 from copy import deepcopy
-import seaborn as sns
 from statistics import stdev, mean
 import imageio
 import networkx as nx
@@ -55,7 +52,7 @@ politicalClimate = 0.05
 newPoliticalClimate = 1*politicalClimate # we can change the political climate mid run
 stubbornness = 0.6
 degree = 8 
-timesteps= 50000  #timesteps = 50000
+timesteps= 50000#50000 
 continuous = True
 skew = -0.25
 initSD = 0.15
@@ -71,7 +68,7 @@ clustering = 0.5 # CSF clustering in louvain algorithm
 breaklinkprob = 1
 rewiringMode = "diff"
 establishlinkprob = 1 # breaklinkprob and establishlinkprob are used in random rewiring. Are always chosen to be the same to keep average degree constant!
-rewiringAlgorithm = 'biased' #None, random, biased, bridge
+rewiringAlgorithm = 'bridge' #None, random, biased, bridge
 #the rewiringAlgorithm variable was meant to enable to do multiple runs at once. However the loop where the specification 
 #given in the ArgList in run.py file overrules what is given in line 65 does not work. Unclear why. 
 #long story short. All changes to breaklinkprob, establishlinkprob and rewiringAlgorithm have to be specified here in the models file
@@ -306,13 +303,19 @@ class Model:
         
         adjacency = list(self.graph.adj[node_new].keys())
         
-        #make sure node doesn't conect back to itself
-        adjacency.remove(node)
-        neighbour_node = random.sample(adjacency, 1)[0]
-        
-        self.graph.add_edge(node, neighbour_node, weight = weight)
-        
+        if len(adjacency) > 1:
+            #make sure node doesn't conect back to itself
+            adjacency.remove(node)
+            
+            print(adjacency)
+            neighbour_node = random.sample(adjacency, 1)[0]
+            
+            print(neighbour_node)
+            self.graph.add_edge(node, neighbour_node, weight = weight)
+         
+            
         return 
+    
         
         
     #this takes too long currently
@@ -326,7 +329,24 @@ class Model:
         clustering = nx.average_clustering(self.graph)
         
         return clustering, sw_property
+    
+ 
+    def find_2_steps(self, nodeIndex):
         
+        adjacency = list(self.graph.adj[nodeIndex].keys())
+        total_neighbours = []
+        
+        for i in adjacency:
+            adjacency_two = list(self.graph.adj[i].keys())
+            total_neighbours+= adjacency_two
+        
+        #removing nodeIndex
+        total_neighbours = [x for x in total_neighbours if x != nodeIndex]
+        
+        assert nodeIndex not in total_neighbours, "index in list"
+        
+        return total_neighbours 
+    
     
     def randomrewiring(self, nodeIndex):
             
@@ -379,13 +399,32 @@ class Model:
         non_neighbors = []
         non_neighbors.append([k for k in nx.non_neighbors(self.graph,nodeIndex)])
         non_neighbors = non_neighbors[0]
-           
-        for k in non_neighbors: #! what if somebody has no neighbors!!
-            #this is probably not the fastest way, maybe shorter way to check if there is a path with max length x
-            paths = nx.all_simple_paths(self.graph, source=nodeIndex, target=k, cutoff=2)
-            #cutoff defines the number of network steps to look for possible new friends. cutoff=2 it is possible for agent i to rewire to friends of friends
-            if len(list(paths)) > 0:
-                potentialfriends.append(k)
+        #print("first neighbours: ", non_neighbors)
+        
+        #finding neighbors
+        total_neighbours = self.find_2_steps(nodeIndex)
+        #print(total_neighbours) 
+        
+        #removing duplicates
+        res = [*set(total_neighbours)]
+        
+        print(res)
+        
+        potentialfriends = set(non_neighbors).intersection(set(res))
+        
+        print(potentialfriends)
+        
+    
+            
+            
+        
+        #replaced this with fastercode above
+        # for k in non_neighbors: #! what if somebody has no neighbors!!
+        #     #this is probably not the fastest way, maybe shorter way to check if there is a path with max length x
+        #     paths = nx.all_simple_paths(self.graph, source=nodeIndex, target=k, cutoff=2)
+        #     #cutoff defines the number of network steps to look for possible new friends. cutoff=2 it is possible for agent i to rewire to friends of friends
+        #     if len(list(paths)) > 0:
+        #         potentialfriends.append(k)
                    
         rewired = False #only if a link is established a link is broken hence we need a variable telling us whether a link has been established
         #print(rewired)
@@ -420,10 +459,10 @@ class Model:
                 if(len(init_neighbours) == 0):
                     return nodeIndex
             
-           else:
-                #print('breaking a link')
-                breaklinkNeighbourIndex = init_neighbours[random.randint(0, len(init_neighbours)-1)]
-                self.graph.remove_edge(nodeIndex, breaklinkNeighbourIndex)
+                else:
+                     #print('breaking a link')
+                     breaklinkNeighbourIndex = init_neighbours[random.randint(0, len(init_neighbours)-1)]
+                     self.graph.remove_edge(nodeIndex, breaklinkNeighbourIndex)
 
 
     def bridgerewiring(self, nodeIndex):
@@ -432,8 +471,7 @@ class Model:
         #links are established for sure if agents disagree in their opinion, no link is established if they agree;
         #again this could be refined by introducing probability functions
         #links are only broken is a link is established (see above in biasedrewiring)
-      
-        
+              
         if(self.partition == None): #louvain is already used in first step of runSim, this is just to set the variable equal to the partition in the function as well.
             partition = findClusters(self.graph)
         else:
@@ -466,14 +504,17 @@ class Model:
             node_state = self.check_node_state(node, partnerOutCluster)
             
             rewiring_mode = args["rewiringMode"]
+        
             
             if node_state in "different" and rewiring_mode in "diff":
-                self.rewire(nodeIndex, partnerOutCluster) 
+                self.rewire(nodeIndex, partnerOutClusterIndex) 
                 rewired = True
+    
                       
             elif node_state in "same" and rewiring_mode in "same":
-                self.rewire(nodeIndex, partnerOutCluster) 
+                self.rewire(nodeIndex, partnerOutClusterIndex) 
                 rewired = True
+    
               
             else:
                 return nodeIndex
@@ -489,8 +530,10 @@ class Model:
                     breaklinkNeighbourIndex = init_neighbours[random.randint(0, len(init_neighbours)-1)]
                         
                     self.graph.remove_edge(nodeIndex, breaklinkNeighbourIndex)
-#------------------------------------------------------------------------------------        
-        
+    #------------------------------------------------------------------------------------        
+            if "Agent" in self.graph:
+                print("stop_3")
+          
         return nodeIndex
 
 
@@ -588,7 +631,10 @@ class Model:
 
     def countCooperatorRatio(self):
         count = 0
-        for node in self.graph:
+        
+        #print(list(self.graph.nodes))
+        for node in self.graph.nodes:
+            #print(node)
             if self.graph.nodes[node]['agent'].state > 0:
                 count+=1
         return count/len(self.graph)
@@ -658,6 +704,8 @@ class Model:
 
         
         for i in range(timesteps):
+            
+            #print(list(self.graph))
             
             #if (i == 0) :
             #    reduce_grid(self)
@@ -1175,13 +1223,13 @@ def drawAvgNumberOfAgreeingFriends(models, pltNr = 1):
     plt.plot(avgAvg, color=mypalette[pltNr-1])
 
 #for testing only
-#start = time.time()
+start = time.time()
 #for i in range(10):
-#model = simulate(10, args)
-#end = time.time()
-#mins = (end - start) / 60
-#sec = (end - start) % 60
-#print(f'Runtime was complete: {mins:5.0f} mins {sec}s\n')
+model = simulate(10, args)
+end = time.time()
+mins = (end - start) / 60
+sec = (end - start) % 60
+print(f'Runtime was complete: {mins:5.0f} mins {sec}s\n')
 #if timesteps == 0 or timesteps == 10:
 #drawClusteredModel(model)
 
