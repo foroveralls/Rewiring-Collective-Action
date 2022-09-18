@@ -19,7 +19,6 @@ import sys
 #os.chdir('C:\/Users\everall\Documents\Python\Projects\It-s_how_we_talk_that_matters')
 
 from multiprocessing import Pool
-import models 
 import random
 import matplotlib
 import matplotlib.pyplot as plt
@@ -103,14 +102,14 @@ if  __name__ ==  '__main__':
 
     #for run in range(runs-1) :
         
-    scenario_list = ["biased"] #"bridge"]
+    scenario_list = ["biased", "bridge"]
     rewiring_list = ["diff", "same"]
     
     combined_list = list(product(scenario_list, rewiring_list))
     #combined_list.append(("random", "NA"))
     
     for i, v in combined_list:
-        print(i, v)
+        #print(i, v)
         
         print("Started iteration: ", f"{i}_{v}")
 
@@ -124,8 +123,8 @@ if  __name__ ==  '__main__':
 
         for j in range(len(argList)):
             sim = pool.starmap(models_checks.simulate, zip(range(numberOfSimulations), repeat(argList[j])))
-            
-
+            #print(sim[0])
+            #print(sim[0].algo)
             
             fname = f'./Output/{i}_linkif_{v}.csv'
             models_checks.saveavgdata(sim, fname)

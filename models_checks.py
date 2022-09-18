@@ -88,7 +88,7 @@ def getargs():
 
 def simulate(i, newArgs): #RG for random graph (used for testing)
     setArgs(newArgs)
-    global args
+    #global args
 
     # random number generators
     friendshipWeightGenerator = get_truncated_normal(args["friendship"], args["friendshipSD"], 0, 1) 
@@ -232,6 +232,9 @@ class Model:
 
         node.consider(chosenNeighbour, weight, self.politicalClimate)
         
+        
+        rewiringAlgorithm = args["rewiringAlgorithm"]
+        self.algo = rewiringAlgorithm
         #the same random agent rewires after interacting:
         if rewiringAlgorithm != None: 
             if rewiringAlgorithm == 'random':
@@ -240,6 +243,7 @@ class Model:
                 self.biasedrewiring(nodeIndex)
             elif rewiringAlgorithm == 'bridge':
                 self.bridgerewiring(nodeIndex)
+    
         
         #print('ending interaction')
         return nodeIndex
@@ -349,11 +353,16 @@ class Model:
     
     
     def randomrewiring(self, nodeIndex):
-            
+        
+               
            # print('starting random rewiring')
             
             #reseting rewired value
             rewired_rand = False 
+            
+            establishlinkprob = args["establishlinkprob"]
+            breaklinkprob = args["breaklinkprob"]
+            self.probs  = establishlinkprob, breaklinkprob
                 
             non_neighbors = []
             non_neighbors.append([k for k in nx.non_neighbors(self.graph, nodeIndex)])
@@ -408,11 +417,11 @@ class Model:
         #removing duplicates
         res = [*set(total_neighbours)]
         
-        print(res)
+        #print(res)
         
         potentialfriends = set(non_neighbors).intersection(set(res))
         
-        print(potentialfriends)
+        #print(potentialfriends)
         
     
             
@@ -441,6 +450,7 @@ class Model:
            node_state = self.check_node_state(node, establishlinkNeighbor)
            
            rewiring_mode = args["rewiringMode"]
+           
            if node_state in "different" and rewiring_mode in "diff":
                self.rewire(nodeIndex, establishlinkNeighborIndex) 
                rewired = True
@@ -1223,14 +1233,32 @@ def drawAvgNumberOfAgreeingFriends(models, pltNr = 1):
     plt.plot(avgAvg, color=mypalette[pltNr-1])
 
 #for testing only
-start = time.time()
-#for i in range(10):
-model = simulate(10, args)
-end = time.time()
-mins = (end - start) / 60
-sec = (end - start) % 60
-print(f'Runtime was complete: {mins:5.0f} mins {sec}s\n')
+# start = time.time()
+# #for i in range(10):
+# model = simulate(10, args)
+# end = time.time()
+# mins = (end - start) / 60
+# sec = (end - start) % 60
+# print(f'Runtime was complete: {mins:5.0f} mins {sec}s\n')
 #if timesteps == 0 or timesteps == 10:
 #drawClusteredModel(model)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
