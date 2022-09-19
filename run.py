@@ -123,7 +123,7 @@ if  __name__ ==  '__main__':
 
         for j in range(len(argList)):
             sim = pool.starmap(models_checks.simulate, zip(range(numberOfSimulations), repeat(argList[j])))
-            #print(sim[0])
+
             #print(sim[0].algo)
             
             fname = f'./Output/{i}_linkif_{v}.csv'

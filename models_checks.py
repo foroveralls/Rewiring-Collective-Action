@@ -66,9 +66,9 @@ friendshipSD = 0.15
 clustering = 0.5 # CSF clustering in louvain algorithm
 #new variables:
 breaklinkprob = 1
-rewiringMode = "diff"
+rewiringMode = "None"
 establishlinkprob = 1 # breaklinkprob and establishlinkprob are used in random rewiring. Are always chosen to be the same to keep average degree constant!
-rewiringAlgorithm = 'bridge' #None, random, biased, bridge
+rewiringAlgorithm = 'None' #None, random, biased, bridge
 #the rewiringAlgorithm variable was meant to enable to do multiple runs at once. However the loop where the specification 
 #given in the ArgList in run.py file overrules what is given in line 65 does not work. Unclear why. 
 #long story short. All changes to breaklinkprob, establishlinkprob and rewiringAlgorithm have to be specified here in the models file
@@ -311,10 +311,10 @@ class Model:
             #make sure node doesn't conect back to itself
             adjacency.remove(node)
             
-            print(adjacency)
+            #print(adjacency)
             neighbour_node = random.sample(adjacency, 1)[0]
             
-            print(neighbour_node)
+            #print(neighbour_node)
             self.graph.add_edge(node, neighbour_node, weight = weight)
          
             

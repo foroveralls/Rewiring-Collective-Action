@@ -1,54 +1,6 @@
-biased diff
 Started iteration:  biased_diff
-biased same
 Started iteration:  biased_same
-bridge diff
 Started iteration:  bridge_diff
-bridge same
 Started iteration:  bridge_same
-random NA
-Started iteration:  random_NA
-Runtime was complete: 17775 mins 40.315762519836426s
+Runtime was complete:   663 mins 47.75235104560852s
 
-Traceback (most recent call last):
-  File "/home/joe/It-s_how_we_talk_that_matters/run.py", line 22, in <module>
-    import models 
-  File "/home/joe/It-s_how_we_talk_that_matters/models.py", line 1, in <module>
-    import numpy as np
-ModuleNotFoundError: No module named 'numpy'
-biased diff
-Started iteration:  biased_diff
-biased same
-Started iteration:  biased_same
-random NA
-Started iteration:  random_NA
-Runtime was complete:  9307 mins 23.856374979019165s
-
-Traceback (most recent call last):
-  File "/home/joe/It-s_how_we_talk_that_matters/rewiring_parameter_sweep.py", line 22, in <module>
-    import models 
-ModuleNotFoundError: No module named 'models'
-Traceback (most recent call last):
-  File "/home/joe/It-s_how_we_talk_that_matters/rewiring_parameter_sweep.py", line 22, in <module>
-    import models 
-ModuleNotFoundError: No module named 'models'
-Traceback (most recent call last):
-  File "/home/joe/It-s_how_we_talk_that_matters/rewiring_parameter_sweep.py", line 22, in <module>
-    import models 
-ModuleNotFoundError: No module named 'models'
-Traceback (most recent call last):
-  File "rewiring_parameter_sweep.py", line 22, in <module>
-    import models 
-ModuleNotFoundError: No module named 'models'
-Traceback (most recent call last):
-  File "rewiring_parameter_sweep.py", line 22, in <module>
-    import models 
-ModuleNotFoundError: No module named 'models'
-Traceback (most recent call last):
-  File "rewiring_parameter_sweep.py", line 22, in <module>
-    import models 
-ModuleNotFoundError: No module named 'models'
-Traceback (most recent call last):
-  File "rewiring_parameter_sweep.py", line 22, in <module>
-    import models 
-ModuleNotFoundError: No module named 'models'
