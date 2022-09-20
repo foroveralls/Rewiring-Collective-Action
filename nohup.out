@@ -4,3 +4,8 @@ Started iteration:  bridge_diff
 Started iteration:  bridge_same
 Runtime was complete:   663 mins 47.75235104560852s
 
+Started iteration:  random_0.1
+Started iteration:  random_0.5
+Started iteration:  random_0.9
+Runtime was complete:   358 mins 2.7552788257598877s
+
