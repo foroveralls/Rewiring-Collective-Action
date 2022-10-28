@@ -9,3 +9,17 @@ Started iteration:  random_0.5
 Started iteration:  random_0.9
 Runtime was complete:   358 mins 2.7552788257598877s
 
+Started iteration:  random_0.5_stubbornness_0.1
+Started iteration:  random_0.5_stubbornness_0.325
+Started iteration:  random_0.5_stubbornness_0.55
+Started iteration:  random_0.5_stubbornness_0.775
+Started iteration:  random_0.5_stubbornness_1.0
+Runtime was complete:   333 mins 35.59323215484619s
+
+Started iteration:  random_0.5_politicalClimate_0.01
+Started iteration:  random_0.5_politicalClimate_0.0325
+Started iteration:  random_0.5_politicalClimate_0.05500000000000001
+Started iteration:  random_0.5_politicalClimate_0.0775
+Started iteration:  random_0.5_politicalClimate_0.1
+Runtime was complete:   335 mins 27.850883722305298s
+
