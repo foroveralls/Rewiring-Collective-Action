@@ -32,7 +32,7 @@ sys.path.insert(0, currentdir)
 
 #change params here
 file_extension = "csv"
-parameter = "politicalClimate"
+parameter = "stubbornness" #"politicalClimate"
 
 
 # stipulating regex pattern to get the parameter value from the file name string
@@ -76,48 +76,49 @@ trajec_melt = runs_array.melt(id_vars="param", value_vars="state")
 
 # %% convergence checks defining functions
 
-# estimate_q taken from Scientific computing with python caam
-def estimate_q_np(eps):
-    """
-    estimate rate of convergence q from sequence esp
-    """
-    x = np.arange(len(eps)-1)
-    y = np.log(np.abs(np.diff(np.log(eps))))
-    line = np.polyfit(x, y, 1)  # fit degree 1 polynomial
-    q = np.exp(line[0])  # find q
-    return q, line, y
 
+def linreg(x, y): ## snippet stolen from geeksforkeeks
+    x = np.array(x)
+    y = np.array(y)
     
+    n = np.size(x) 
+     
+    mx, my = np.mean(x), np.mean(y) 
+  
+    ssxy = np.sum(y*x) - n*my*mx 
+    ssxx = np.sum(x*x) - n*mx*mx 
+  
+    b1 = ssxy / ssxx 
+    b0 = my - b1*mx 
+  
+    return(b0, b1) 
+
+def estimate_q(trajec, loc=None, regwin = 10):
     
-
-def estimate_q(eps, loc=None, regwin=100):
-
-    def step(x_i, x):
-
-        x_i, x = np.log([x_i, x])
-
-        y = np.log(np.abs(x_i - x))
-
-        return y
-
-    x = np.arange(len(eps) - 1)
-    y = []
-
+    x = np.arange(len(trajec) - 1)
+    y = trajec 
+    
     if loc != None:
         # regression window
         x = x[loc-regwin: loc+regwin+1]
         print(f"estimating q for +- {regwin} around loc: {loc}")
-
-    for i in x:
-        y.append(step(eps[i+1], eps[i]))
-
+        y = trajec[loc-regwin: loc+regwin+1]
+    
     y, x = np.asarray([y, x])
 
+     
     idx = np.isfinite(x) & np.isfinite(y)
-    line = np.polyfit(x[idx], y[idx], 1)  # fit degree 1 polynomial
-    q = np.exp(line[0])  # find q
-
-    return q, line, y, x
+    
+    assert x[idx].ndim == y[idx].ndim, "arrays different dimensions"
+    
+    #line = np.polyfit(x[idx], y[idx], 1)  # fit degree 1 polynomial
+    line = linreg(x, y)
+    q= line[1]
+    
+    #q = np.exp(line[0])  # find q
+    rate = -q/(trajec[loc]-1)
+    
+    return rate, line, y, x 
 
 #test = estimate_q(eps_trunc)
 
@@ -145,6 +146,9 @@ def find_inflection(seq):
     #find points where sign changes
     infls = np.where(np.diff(np.sign(d2)))[0]
     
+    if len(infls) == 0:
+        return False 
+    
     assert infls[1] > 5000 and infls[1] < 20000, "inflection point calculation failed"
     
     return infls[1]
@@ -163,9 +167,6 @@ def calc_eps_trunc(x_n, x_star):
 
 trajec_eps = trajec_melt.groupby("param")
 
-#make a copy so we don't break anything
-trajec_melt_eps = trajec_melt.copy()
-
 #sorry that this is running so slow I will make it faster if I get time#
 #runtime will be around 15 minutes for 1 parameter sweep
 
@@ -176,41 +177,27 @@ inflection_list = []
 for group_name, trajec in trajec_eps:
     
     root_i = trajec.index[-1]
-    print(trajec_melt_eps.loc[root_i, "value"])
-    root = trajec_melt_eps.loc[root_i, "value"]
     
-    inflection_old = find_root(list(trajec["value"]))
     inflection_x = find_inflection(list(trajec["value"]))
-    print(inflection_old, inflection_x)
-    inflection_list.append(inflection_x)
     
-    for i in trajec.index:
-        trajec_melt_eps.loc[i, "value"] = calc_eps_trunc(trajec.loc[i, "value"], root)
-    
-    
-    seq_calc_q = trajec_melt_eps[trajec.index[0]:root_i+1]["value"]
-    
-    rate_to_append = [trajec.iloc[1]["param"], 
-                      estimate_q(list(seq_calc_q), loc=inflection_x)[0]]
-    
+    #checking if trajectory isn't a constant 
+    if inflection_x:
+        print(inflection_x)
+        
+        inflection_list.append(inflection_x)
+        
+        seq_calc_q = trajec_melt[trajec.index[0]:root_i+1]["value"]
+        
+        rate_to_append = [trajec.iloc[1]["param"], 
+                          estimate_q(list(seq_calc_q), loc=inflection_x)[0]]
+    else:
+        rate_to_append = [trajec.iloc[1]["param"],0] 
+        
     rates_list.append(rate_to_append)
     
 #df to hold convergence rates
 rates = pd.DataFrame(rates_list, columns=["param", "rate"])
 
-
-# for i in range((len(seq))):
-#     eps.append(calc_eps_diff(seq[i], seq[i-1]))
-
-
-# eps_trunc = []
-
-
-# for i in range((len(seq)-1)):
-#     root = seq[-1]
-#     #ep, ep_n_i = list(itertools.starmap(calc_eps_trunc, [(seq[i], root), (seq[i+1], root)]))
-#     ep = calc_eps_trunc(seq[i], root)
-#     eps_trunc.append(ep)
 
 
 # %% plotting functions
@@ -219,17 +206,13 @@ rates = pd.DataFrame(rates_list, columns=["param", "rate"])
     
 #takes data frame of convergence rates for each parameter sweep 
 def rate_plot(rates_df, parameter):
-    rp = sns.scatterplot(data = rates_df, x ="param", y="rate")
-    plt.ylabel('rate')
+    sns.scatterplot(data = rates_df, x ="param", y="rate")
+    plt.ylabel('rate(x1000)')
     plt.xlabel(f"{parameter}")
-    plt.ylim(0.995, 1.005)
+    plt.savefig(f"./Figs/convergence_rate_{parameter}.pdf", 
+                 bbox_inches='tight', dpi = 300)
     plt.show()
-    #plt.title("q = {} convergence".format(estimate_q(epsilons)[0]))
-    # plt.savefig(f".Figs/convergence_rate_{parameter}.pdf", 
-    #             bbox_inches='tight', dpi = 300)
     
-    
-
 
 def reg_plot(epsilon_diffs, loc=None):
 
@@ -254,9 +237,9 @@ def trajec_plot(trajecs):
     sns.lineplot(data = trajecs, x = "idx", y="value", hue = "param")
     plt.ylabel('avg_coop')
     plt.xlabel("t")
+    plt.legend(title=f'{parameter}')
+    plt.savefig(f"./Figs/trajec_{parameter}.pdf", bbox_inches='tight', dpi = 300)
     plt.show()
-    plt.savefig(f".Figs/trajec_{parameter}.pdf", 
-                bbox_inches='tight', dpi = 300)
     
 def epsilon_plot(epsilons):
     sns.lineplot(data = epsilons, x = "idx", y="value", hue = "param")
@@ -266,23 +249,22 @@ def epsilon_plot(epsilons):
     plt.show()
 # %% plotting
 
-reg_plot(seq_calc_q, loc = inflection_x)
+#reg_plot(seq_calc_q, loc = inflection_x)
 
 # checking sequence
 #plt.plot(trajec["value"])
-
+rates["rate"] = rates["rate"]*1000
 #convergence rates
 rate_plot(rates, parameter)
 
 #fixing indexes for dataframes so they plot properly
 trajec_melt['idx'] = trajec_melt.groupby('param').cumcount() + 1
-trajec_melt_eps['idx'] = trajec_melt_eps.groupby('param').cumcount() + 1
 
 #avg_cooperation trajectories
 trajec_plot(trajec_melt)
 
 
 #plots the average errors of trajectories for each point x_i for all x in trajec
-epsilon_plot(trajec_melt_eps)
+#epsilon_plot(trajec_melt_eps)
 
 
