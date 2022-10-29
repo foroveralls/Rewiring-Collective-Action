@@ -111,7 +111,7 @@ if __name__ == '__main__':
         
         #for run in range(runs-1) :
             
-        scenario_list = ["random"]
+        scenario_list = ["biased", "bridge"]
         combined_list = list(product(scenario_list, param_vals))    
         
         for i, v in combined_list:
