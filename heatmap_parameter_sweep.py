@@ -22,6 +22,7 @@ from multiprocessing import Pool
 import random
 import matplotlib
 import matplotlib.pyplot as plt
+import pandas as pd
 #from networkx.drawing.nx_agraph import graphviz_layout, to_agraph
 from copy import deepcopy
 #import seaborn as sns
@@ -56,7 +57,7 @@ if __name__ == '__main__':
     #np.random.seed(1574705741)
     def param_sweep(parameter, param_vals):
         #Constants and Variables
-        numberOfSimulations = 80
+        numberOfSimulations = 50
         numberOfProcessors =  multiprocessing.cpu_count() #int(multiprocessing.cpu_count()*0.6) # CPUs to use for parallelization
         
         start = time.time()
@@ -114,6 +115,8 @@ if __name__ == '__main__':
         scenario_list = ["biased", "bridge"]
         combined_list = list(product(scenario_list, param_vals))    
         
+        end_states = []
+
         for i, v in combined_list:
             #print(i, v)
             
@@ -126,36 +129,38 @@ if __name__ == '__main__':
                             "establishlinkprob": 0.5})
            
             #print (argList)
-        
+            
             for j in range(len(argList)):
                 sim = pool.starmap(models_checks.simulate, zip(range(numberOfSimulations), repeat(argList[j])))
                 #print(sim[0].algo, sim[0].probs)
-        
-                fname = f'./Output/{i}_p_rewiring_0.5_{parameter}_{round(v, 2)}.csv'
-                models_checks.saveavgdata(sim, fname)
-            
-    
+                            
+                [end_states.append([y.states[-1], parameter, i, v]) for y in sim]
+                
+                
         end = time.time()
         mins = (end - start) / 60
         sec = (end - start) % 60
         print(f'Runtime was complete: {mins:5.0f} mins {sec}s\n')
-        return
-    
-    
-        
-    
+        return end_states
+     
     #%% running sweep
-    
-    
-    parameters = ["stubbornness", "politicalClimate"] 
-    param_vals = [np.linspace(0.1,1,5), np.linspace(0.01, 0.1, 5)]
-    
 
+    
+    parameters = ["politicalClimate"] 
+    param_vals = [np.linspace(0.01, 0.03, 10)] #[np.linspace(0.1,1,10),
+    
+    output = []
     for i, j in zip(parameters, param_vals):    
-        param_sweep(i, j)
-  
-
-
+        test = param_sweep(i, j)
+        df = pd.DataFrame(test, columns = ["state", "parameter", "scenario", "value"])
+        output.append(df)
+        
+    runs_array = pd.concat(output)            
+    
+    fname = f'./Output/heatmap_sweep_{"_".join(str(x) for x in parameters)}.csv'
+    runs_array.to_csv(fname)
+    
+       
 
 
 

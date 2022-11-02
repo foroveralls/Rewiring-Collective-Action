@@ -32,7 +32,7 @@ sys.path.insert(0, currentdir)
 
 #change params here
 file_extension = "csv"
-parameter = "stubbornness" #"politicalClimate"
+parameter = "politicalClimate" #"politicalClimate"
 
 
 # stipulating regex pattern to get the parameter value from the file name string
@@ -46,7 +46,7 @@ file_list = os.listdir("./Output")
 
 # get list of relevant output files
 file_list = list(filter(
-    lambda x: file_extension in x and parameter in x, os.listdir("./Output")))
+    lambda x: file_extension in x and "heatmap" not in x and parameter in x, os.listdir("./Output")))
 
 # otherwise define it manually
 # file list =
