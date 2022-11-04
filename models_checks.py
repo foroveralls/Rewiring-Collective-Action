@@ -52,7 +52,7 @@ politicalClimate = 0.05
 newPoliticalClimate = 1*politicalClimate # we can change the political climate mid run
 stubbornness = 0.6
 degree = 8 
-timesteps= 50000 
+timesteps= 50#000 
 continuous = True
 skew = -0.25
 initSD = 0.15
@@ -60,7 +60,7 @@ mypalette = ["blue","red","green", "orange", "magenta","cyan","violet", "grey", 
 randomness = 0.10
 gridtype = 'cl' # this is actually set in run.py for some reason... overrides this
 gridsize = 33   # used for grid networks
-nwsize = 1089  # nwsize = 1089 used for CSF (Clustered scale free network) networks
+nwsize = 10#89  # nwsize = 1089 used for CSF (Clustered scale free network) networks
 friendship = 0.5
 friendshipSD = 0.15
 clustering = 0.5 # CSF clustering in louvain algorithm

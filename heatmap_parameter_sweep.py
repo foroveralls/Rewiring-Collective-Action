@@ -57,7 +57,7 @@ if __name__ == '__main__':
     #np.random.seed(1574705741)
     def param_sweep(parameter, param_vals):
         #Constants and Variables
-        numberOfSimulations = 50
+        numberOfSimulations = 100
         numberOfProcessors =  multiprocessing.cpu_count() #int(multiprocessing.cpu_count()*0.6) # CPUs to use for parallelization
         
         start = time.time()
@@ -112,7 +112,7 @@ if __name__ == '__main__':
         
         #for run in range(runs-1) :
             
-        scenario_list = ["biased", "bridge"]
+        scenario_list = ["random"]
         combined_list = list(product(scenario_list, param_vals))    
         
         end_states = []
@@ -147,7 +147,7 @@ if __name__ == '__main__':
 
     
     parameters = ["politicalClimate"] 
-    param_vals = [np.linspace(0.01, 0.03, 10)] #[np.linspace(0.1,1,10),
+    param_vals = [np.linspace(0.01, 0.03, 100)] #[np.linspace(0.1,1,10),
     
     output = []
     for i, j in zip(parameters, param_vals):    
@@ -158,7 +158,7 @@ if __name__ == '__main__':
     runs_array = pd.concat(output)            
     
     fname = f'./Output/heatmap_sweep_{"_".join(str(x) for x in parameters)}.csv'
-    runs_array.to_csv(fname)
+    runs_array.to_csv(fname, index=False)
     
        
 
