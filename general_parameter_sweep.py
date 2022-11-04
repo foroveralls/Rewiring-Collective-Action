@@ -147,7 +147,7 @@ if __name__ == '__main__':
     #%% running sweep
     
     
-    parameters = ["stubbornness", "politicalClimate"] 
+    parameters = ["stubbornness", "politicalClimate", "friendship"] 
     param_vals = [np.linspace(0.1,1,5), np.linspace(0.01, 0.1, 5)]
     
 
