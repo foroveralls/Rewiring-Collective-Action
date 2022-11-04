@@ -123,7 +123,7 @@ if __name__ == '__main__':
             
             ## You can specify simulation parameters here. If they are not set here, they will default to some values set in models.py
             argList.append({"rewiringAlgorithm": i, parameter:v, "breaklinkprob": 0.5,
-                            "establishlinkprob": 0.5})
+                            "establishlinkprob": 0.5, "rewiring_mode": "diff"})
            
             #print (argList)
         
@@ -131,7 +131,7 @@ if __name__ == '__main__':
                 sim = pool.starmap(models_checks.simulate, zip(range(numberOfSimulations), repeat(argList[j])))
                 #print(sim[0].algo, sim[0].probs)
         
-                fname = f'./Output/{i}_p_rewiring_0.5_{parameter}_{round(v, 2)}.csv'
+                fname = f'./Output/{i}_{parameter}_{round(v, 2)}.csv'
                 models_checks.saveavgdata(sim, fname)
             
     
@@ -147,7 +147,7 @@ if __name__ == '__main__':
     #%% running sweep
     
     
-    parameters = ["stubbornness", "politicalClimate"] 
+    parameters = ["stubbornness", "politicalClimate", "friendship"] 
     param_vals = [np.linspace(0.1,1,5), np.linspace(0.01, 0.1, 5)]
     
 

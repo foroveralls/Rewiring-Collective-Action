@@ -32,8 +32,10 @@ sys.path.insert(0, currentdir)
 
 #change params here
 file_extension = "csv"
+scenario ="bridge"
 parameter = "politicalClimate" #"politicalClimate"
 
+conds = [file_extension, scenario, parameter]
 
 # stipulating regex pattern to get the parameter value from the file name string
 def use_regex(input_text):
@@ -46,7 +48,7 @@ file_list = os.listdir("./Output")
 
 # get list of relevant output files
 file_list = list(filter(
-    lambda x: file_extension in x and "heatmap" not in x and parameter in x, os.listdir("./Output")))
+    lambda x: all(cond in x for cond in conds) and "heatmap" not in x, os.listdir("./Output")))
 
 # otherwise define it manually
 # file list =
@@ -209,8 +211,9 @@ def rate_plot(rates_df, parameter):
     sns.scatterplot(data = rates_df, x ="param", y="rate")
     plt.ylabel('rate(x1000)')
     plt.xlabel(f"{parameter}")
-    plt.savefig(f"./Figs/convergence_rate_{parameter}.pdf", 
+    plt.savefig(f"./Figs/convergence_rate_{scenario}_{parameter}.pdf", 
                  bbox_inches='tight', dpi = 300)
+    plt.title(f"convergence_rate_{scenario}_{parameter}")
     plt.show()
     
 
@@ -238,7 +241,8 @@ def trajec_plot(trajecs):
     plt.ylabel('avg_coop')
     plt.xlabel("t")
     plt.legend(title=f'{parameter}')
-    plt.savefig(f"./Figs/trajec_{parameter}.pdf", bbox_inches='tight', dpi = 300)
+    plt.savefig(f"./Figs/trajec_{scenario}_{parameter}.pdf", bbox_inches='tight', dpi = 300)
+    plt.title(f"trajectories_{scenario}_{parameter}")
     plt.show()
     
 def epsilon_plot(epsilons):
