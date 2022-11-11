@@ -123,7 +123,7 @@ if __name__ == '__main__':
             
             ## You can specify simulation parameters here. If they are not set here, they will default to some values set in models.py
             argList.append({"rewiringAlgorithm": i, parameter:v, "breaklinkprob": 0.5,
-                            "establishlinkprob": 0.5, "rewiring_mode": "diff"})
+                            "establishlinkprob": 0.5, "rewiring_Mode": "diff"})
            
             #print (argList)
         
