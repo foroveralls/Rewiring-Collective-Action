@@ -95,3 +95,27 @@ Started iteration:  bridge_0.5_politicalClimate_0.0775
 Started iteration:  bridge_0.5_politicalClimate_0.1
 Runtime was complete:   887 mins 7.405146598815918s
 
+Started iteration:  biased_0.5_stubbornness_0.1
+Started iteration:  biased_0.5_stubbornness_0.325
+Started iteration:  biased_0.5_stubbornness_0.55
+Started iteration:  biased_0.5_stubbornness_0.775
+Started iteration:  biased_0.5_stubbornness_1.0
+Started iteration:  bridge_0.5_stubbornness_0.1
+Started iteration:  bridge_0.5_stubbornness_0.325
+Started iteration:  bridge_0.5_stubbornness_0.55
+Started iteration:  bridge_0.5_stubbornness_0.775
+Started iteration:  bridge_0.5_stubbornness_1.0
+Runtime was complete:   914 mins 51.79568314552307s
+
+Started iteration:  biased_0.5_politicalClimate_0.01
+Started iteration:  biased_0.5_politicalClimate_0.0325
+Started iteration:  biased_0.5_politicalClimate_0.05500000000000001
+Started iteration:  biased_0.5_politicalClimate_0.0775
+Started iteration:  biased_0.5_politicalClimate_0.1
+Started iteration:  bridge_0.5_politicalClimate_0.01
+Started iteration:  bridge_0.5_politicalClimate_0.0325
+Started iteration:  bridge_0.5_politicalClimate_0.05500000000000001
+Started iteration:  bridge_0.5_politicalClimate_0.0775
+Started iteration:  bridge_0.5_politicalClimate_0.1
+Runtime was complete:   946 mins 55.83287739753723s
+
