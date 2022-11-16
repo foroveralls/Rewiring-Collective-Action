@@ -32,8 +32,8 @@ sys.path.insert(0, currentdir)
 
 #change params here
 file_extension = "csv"
-scenario ="bridge"
-parameter = "politicalClimate" #"politicalClimate"
+scenario ="random"
+parameter = "stubbornness" #"politicalClimate"
 
 conds = [file_extension, scenario, parameter]
 
@@ -148,12 +148,23 @@ def find_inflection(seq):
     #find points where sign changes
     infls = np.where(np.diff(np.sign(d2)))[0]
     
+    inf_min = 5000
+        
+    for i in infls:
+        
+        if i < inf_min:
+            continue
+        else: 
+            inf_ind = i
+            break
+    
     if len(infls) == 0:
         return False 
     
-    assert infls[1] > 5000 and infls[1] < 20000, "inflection point calculation failed"
-    
-    return infls[1]
+    print(inf_ind)
+    assert inf_ind > inf_min and inf_ind < 20000, "inflection point calculation failed"
+
+    return inf_ind 
 
 def calc_eps_diff(x_n, x_n_1):
     eps_k = abs(x_n-x_n_1)
@@ -184,7 +195,7 @@ for group_name, trajec in trajec_eps:
     
     #checking if trajectory isn't a constant 
     if inflection_x:
-        print(inflection_x)
+       # print(inflection_x)
         
         inflection_list.append(inflection_x)
         
