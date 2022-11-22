@@ -32,8 +32,8 @@ sys.path.insert(0, currentdir)
 
 #change params here
 file_extension = "csv"
-scenario ="random"
-parameter = "stubbornness" #"politicalClimate"
+scenario =    "bridge" #"bias"
+parameter =  "politicalClimate" #"stubbornness"
 
 conds = [file_extension, scenario, parameter]
 

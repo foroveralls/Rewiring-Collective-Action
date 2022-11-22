@@ -148,7 +148,7 @@ if __name__ == '__main__':
     
     
     parameters = ["stubbornness", "politicalClimate", "friendship"] 
-    param_vals = [np.linspace(0.01,0.1,5), np.linspace(0.01, 0.03, 5)]
+    param_vals = [np.linspace(0.01,0.1,5), np.linspace(0.001, 0.01, 5)]
     
 
     for i, j in zip(parameters, param_vals):    

@@ -146,8 +146,8 @@ if __name__ == '__main__':
     #%% running sweep
 
     
-    parameters = ["politicalClimate"] 
-    param_vals = [np.linspace(0.01, 0.03, 100)] #[np.linspace(0.1,1,10),
+    parameters = ["stubbornness"] 
+    param_vals = [np.linspace(0.08, 0.32, 100)] #[np.linspace(0.1,1,10),
     
     output = []
     for i, j in zip(parameters, param_vals):    
