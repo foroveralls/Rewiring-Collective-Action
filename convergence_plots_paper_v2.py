@@ -33,7 +33,7 @@ sys.path.insert(0, currentdir)
 #change params here
 file_extension = "csv"
 scenario =    "bridge" #"bias"
-parameter =  "politicalClimate" #"stubbornness"
+parameter =   "stubbornness"
 
 conds = [file_extension, scenario, parameter]
 
@@ -215,7 +215,7 @@ rates = pd.DataFrame(rates_list, columns=["param", "rate"])
 
 # %% plotting functions
 #change plot features here
-
+sns.set_theme() 
     
 #takes data frame of convergence rates for each parameter sweep 
 def rate_plot(rates_df, parameter):

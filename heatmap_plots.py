@@ -41,7 +41,7 @@ sys.path.insert(0, currentdir)
 
 #change params here
 file_extension = "csv"
-parameter = "politicalClimate" #"politicalClimate"
+parameter = "stubbornness" #"politicalClimate"
 
 
 # stipulating regex pattern to get the parameter value from the file name string
