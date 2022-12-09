@@ -17,6 +17,7 @@ from statistics import stdev, median, mean
 from scipy.ndimage import gaussian_filter1d
 import matplotlib.pyplot as plt
 import os as os
+import matplotlib.ticker as ticker
 import inspect
 import itertools
 import math
@@ -216,17 +217,27 @@ rates = pd.DataFrame(rates_list, columns=["param", "rate"])
 # %% plotting functions
 #change plot features here
 sns.set_theme() 
+sns.set(rc={'axes.facecolor':'white', 'figure.facecolor':'white', "axes.grid": True,
+            "grid.color": 'black', 'grid.linestyle': 'dotted', "axes.edgecolor": "black", "patch.edgecolor": "black",
+            "patch.linewidth": 0, "axes.spines.bottom": True, 
+            "grid.alpha": 0.5, "xtick.bottom": True, "ytick.left": True})
+
     
 #takes data frame of convergence rates for each parameter sweep 
 def rate_plot(rates_df, parameter):
-    sns.scatterplot(data = rates_df, x ="param", y="rate")
-    plt.ylabel('rate(x1000)')
-    plt.xlabel(f"{parameter}")
+    ax = sns.scatterplot(data = rates_df, x ="param", y="rate")
+    
+    ax.set_ylabel('rate(x1000)')
+    ax.set_xlabel(f"{parameter}")
+    ax.set_title(f"convergence_rate_{scenario}_{parameter}")
+    
+    # ax.xaxis.set_major_locator(ticker.MultipleLocator(5))
+    # ax.xaxis.set_major_formatter(ticker.ScalarFormatter())
     plt.savefig(f"./Figs/convergence_rate_{scenario}_{parameter}.pdf", 
                  bbox_inches='tight', dpi = 300)
-    plt.title(f"convergence_rate_{scenario}_{parameter}")
+    # ax.patch.set_edgecolor('black')  
+    # ax.patch.set_linewidth('1') 
     plt.show()
-    
 
 def reg_plot(epsilon_diffs, loc=None):
 
@@ -244,16 +255,25 @@ def reg_plot(epsilon_diffs, loc=None):
     plt.xlabel('k')
     plt.ylabel(r"$\delta_epsilon$")
     plt.title("q = {} convergence".format(q))
+    plt.xlim([0,50])
     plt.show()
     
 def trajec_plot(trajecs):
     #trajecs["param"] = trajecs["value"].astype
-    sns.lineplot(data = trajecs, x = "idx", y="value", hue = "param")
-    plt.ylabel('avg_coop')
-    plt.xlabel("t")
-    plt.legend(title=f'{parameter}')
-    plt.savefig(f"./Figs/trajec_{scenario}_{parameter}.pdf", bbox_inches='tight', dpi = 300)
-    plt.title(f"trajectories_{scenario}_{parameter}")
+    ax = sns.lineplot(data = trajecs, x = "idx", y="value", hue = "param")
+    ax.set_ylabel('cooperativity')
+    ax.set_xlabel("time [timestep / system size]")
+    #ax.set_legend(title=f'{parameter}')
+    ax.set_title(f"trajectories_{scenario}_{parameter}")
+    ax.xaxis.set_minor_locator(ticker.MultipleLocator(2.5))
+    ax.xaxis.set_major_locator(ticker.MultipleLocator(10))
+    ax.yaxis.set_major_locator(ticker.MultipleLocator(0.25)) #ticker sets the little ticks on the axes
+    ax.yaxis.set_minor_locator(ticker.MultipleLocator(0.05))
+    ax.legend(loc = 'top left', fontsize=12)
+    ax.set_xlim([0,50])
+    ax.xaxis.set_major_formatter(ticker.ScalarFormatter())
+    ax.yaxis.set_major_formatter(ticker.ScalarFormatter())
+    plt.savefig(f"./Figs/trajec_{scenario}_{parameter}.pdf", bbox_inches='tight', dpi = 300) 
     plt.show()
     
 def epsilon_plot(epsilons):
@@ -268,12 +288,26 @@ def epsilon_plot(epsilons):
 
 # checking sequence
 #plt.plot(trajec["value"])
+#filtering for custom rates
+rate_params = ["0.01", "0.1", "0.32", "0.55", "0.78"]
+
+
+rates["param"] = pd.to_numeric(rates["param"], downcast="float")
 rates["rate"] = rates["rate"]*1000
+rates = rates[rates.param.astype(str).isin(rate_params)]
 #convergence rates
 rate_plot(rates, parameter)
 
+
+#filtering params manually
+vals = ["0.01", "0.10", "0.32", "0.55", "0.78"]
+trajec_melt = trajec_melt[trajec_melt.param.astype(str).isin(vals)]
+
+
+
 #fixing indexes for dataframes so they plot properly
 trajec_melt['idx'] = trajec_melt.groupby('param').cumcount() + 1
+trajec_melt['idx'] = trajec_melt["idx"]/1089
 
 #avg_cooperation trajectories
 trajec_plot(trajec_melt)
