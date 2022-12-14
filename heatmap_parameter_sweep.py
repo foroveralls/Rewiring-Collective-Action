@@ -19,6 +19,7 @@ import sys
 #os.chdir('C:\/Users\everall\Documents\Python\Projects\It-s_how_we_talk_that_matters')
 
 from multiprocessing import Pool
+from datetime import date
 import random
 import matplotlib
 import matplotlib.pyplot as plt
@@ -147,7 +148,11 @@ if __name__ == '__main__':
 
     
     parameters = ["stubbornness"] 
-    param_vals = [np.linspace(0.01, 1.00, 100)] #[np.linspace(0.1,1,10),
+    param_vals = [np.linspace(0.01, 1.00, 300)] #[np.linspace(0.1,1,10),
+    
+    
+    today = date.today()
+    date = today.strftime("%b_%d_%Y")
     
     output = []
     for i, j in zip(parameters, param_vals):    
@@ -157,7 +162,7 @@ if __name__ == '__main__':
         
     runs_array = pd.concat(output)            
     
-    fname = f'./Output/heatmap_sweep_{"_".join(str(x) for x in parameters)}.csv'
+    fname = f'./Output/heatmap_sweep_{date}_{"_".join(str(x) for x in parameters)}.csv'
     runs_array.to_csv(fname, index=False)
     
        

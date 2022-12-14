@@ -75,9 +75,13 @@ sns.set(rc={'axes.facecolor':'black', 'figure.facecolor':'white', "axes.grid": F
 #bi.xaxis()
 bi_hist = sns.histplot(data = runs_array, stat = "probability", \
                         bins=100, cmap="inferno", \
-                       pthresh = 0.01 , pmax=0.9, x= "value", y = "state",cbar = True,
-                       cbar_kws={'ticks':MaxNLocator(5), 'format':'%.e'})
+                       pthresh = 0.00 , pmax=0.4, x= "value", y = "state",cbar = True,
+                       cbar_kws={'ticks':MaxNLocator(5),"label":"probability", 'format':'%.e'})
 plt.ticklabel_format(style='sci', axis='x', scilimits = (0,0))
+plt.title("Stubborness Parameter Sweep")
+plt.savefig(f"./Figs/heatmap_{parameter}.pdf", bbox_inches='tight', dpi = 300) 
+plt.show()
+
 
 #%% alternative
 
@@ -90,9 +94,13 @@ data = heatmap.T
 fig = plt.figure(figsize =(4,3))
 
 
+norm_data = (data -0) / np.sum(data, axis=0)[ np.newaxis,:]
 X, Y = np.meshgrid(xedges, yedges)
 
-plt.pcolormesh(X, Y, data)
+plt.pcolormesh(X, Y, norm_data, norm=colors.LogNorm(vmin=1./100,vmax=0.2))
+plt.colorbar()
+plt.ylabel("Final State")
+plt.ylim(-1,1.1)
 
 #img = ax.pcolormesh(xedges,yedges , (norm_data)+0.001,  cmap='viridis',norm=colors.LogNorm(vmin=1./100,
                                                                                   #  vmax=0.2)) 
