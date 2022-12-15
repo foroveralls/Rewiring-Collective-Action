@@ -162,7 +162,7 @@ if __name__ == '__main__':
         
     runs_array = pd.concat(output)            
     
-    fname = f'./Output/heatmap_sweep_{date}_{"_".join(str(x) for x in parameters)}.csv'
+    fname = f'./Output/heatmap_sweep_{date}_{scenario_list[0]}_{"_".join(str(x) for x in parameters)}.csv'
     runs_array.to_csv(fname, index=False)
     
        
