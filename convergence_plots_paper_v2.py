@@ -33,8 +33,8 @@ sys.path.insert(0, currentdir)
 
 #change params here
 file_extension = "csv"
-scenario =    "bridge" #"bias"
-parameter =   "stubbornness"
+scenario =  "bias" #bridge" #"bias"
+parameter =    "stubbornness"#"politicalClimate" #"stubbornness" #
 
 conds = [file_extension, scenario, parameter]
 
@@ -217,6 +217,7 @@ rates = pd.DataFrame(rates_list, columns=["param", "rate"])
 # %% plotting functions
 #change plot features here
 sns.set_theme() 
+#set the theme parameters for seaborn
 sns.set(rc={'axes.facecolor':'white', 'figure.facecolor':'white', "axes.grid": True,
             "grid.color": 'black', 'grid.linestyle': 'dotted', "axes.edgecolor": "black", "patch.edgecolor": "black",
             "patch.linewidth": 0, "axes.spines.bottom": True, 
@@ -224,6 +225,7 @@ sns.set(rc={'axes.facecolor':'white', 'figure.facecolor':'white', "axes.grid": T
 
     
 #takes data frame of convergence rates for each parameter sweep 
+#Rate here
 def rate_plot(rates_df, parameter):
     ax = sns.scatterplot(data = rates_df, x ="param", y="rate")
     
@@ -257,7 +259,8 @@ def reg_plot(epsilon_diffs, loc=None):
     plt.title("q = {} convergence".format(q))
     plt.xlim([0,50])
     plt.show()
-    
+
+#Trajec here
 def trajec_plot(trajecs):
     #trajecs["param"] = trajecs["value"].astype
     ax = sns.lineplot(data = trajecs, x = "idx", y="value", hue = "param")
@@ -288,20 +291,23 @@ def epsilon_plot(epsilons):
 
 # checking sequence
 #plt.plot(trajec["value"])
+
 #filtering for custom rates
-rate_params = ["0.01", "0.1", "0.32", "0.55", "0.78"]
+#rate_params = ["0.01", "0.1", "0.32", "0.55", "0.78"]
 
 
 rates["param"] = pd.to_numeric(rates["param"], downcast="float")
 rates["rate"] = rates["rate"]*1000
-rates = rates[rates.param.astype(str).isin(rate_params)]
+#filter out dataframe based on above parameters, uncomment line below if filtering
+#rates = rates[rates.param.astype(str).isin(rate_params)]
 #convergence rates
 rate_plot(rates, parameter)
 
 
 #filtering params manually
-vals = ["0.01", "0.10", "0.32", "0.55", "0.78"]
-trajec_melt = trajec_melt[trajec_melt.param.astype(str).isin(vals)]
+#vals = ["0.01", "0.10", "0.32", "0.55", "0.78"]
+#filters out dataframe for above parameters, uncomment line below if filtering
+#trajec_melt = trajec_melt[trajec_melt.param.astype(str).isin(vals)]
 
 
 

@@ -113,7 +113,7 @@ if __name__ == '__main__':
         
         #for run in range(runs-1) :
             
-        scenario_list = ["random"]
+        scenario_list = ["bridge"]#["random"]
         combined_list = list(product(scenario_list, param_vals))    
         
         end_states = []
@@ -148,7 +148,7 @@ if __name__ == '__main__':
 
     
     parameters = ["stubbornness"] 
-    param_vals = [np.linspace(0.01, 1.00, 300)] #[np.linspace(0.1,1,10),
+    param_vals = [np.linspace(0.01, 1.00, 50)] #[np.linspace(0.1,1,10),
     
     
     today = date.today()
