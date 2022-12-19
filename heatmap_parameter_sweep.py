@@ -148,7 +148,7 @@ if __name__ == '__main__':
 
     
     parameters = ["stubbornness"] 
-    param_vals = [np.linspace(0.01, 1.00, 50)] #[np.linspace(0.1,1,10),
+    param_vals = [np.linspace(0.01, 0.32, 25)] #[np.linspace(0.1,1,10),
     
     
     today = date.today()
