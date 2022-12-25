@@ -80,11 +80,13 @@ sns.set(rc={'axes.facecolor':'black', 'figure.facecolor':'white', "axes.grid": F
 #bi.xaxis()
 bi_hist = sns.histplot(data = runs_array, stat = "probability", \
                         bins=100, cmap="inferno", \
-                       pthresh = 0.00 , pmax=0.4, x= "value", y = "final state",cbar = True,
+                       pthresh = 0.00 , pmax=0.4,cbar = True,x= "value", y = "state",
                        cbar_kws={'ticks':MaxNLocator(5),"label":"probability", 'format':'%.e'})
 plt.ticklabel_format(style='sci', axis='x', scilimits = (0,0))
-plt.title("Stubborness Parameter Sweep")
-plt.savefig(f"./Figs/heatmap_{parameter}.pdf", bbox_inches='tight', dpi = 300) 
+plt.xlabel('stubbornness') #, 
+plt.ylabel('cooperativity')
+#plt.title("Stubborness Parameter Sweep")
+plt.savefig(f"./Figs/heatmap_{parameter}.png", bbox_inches='tight', dpi = 300) 
 plt.show()
 
 
