@@ -38,13 +38,13 @@ sys.path.insert(0, currentdir)
 
 # %% import data and joining together
 
-sys.path.append('C:/Users/lilli/Documents/UNI/USW-VWL/Bachelor thesis/paper/github_paper')
-os.chdir('C:/Users/lilli/Documents/UNI/USW-VWL/Bachelor thesis/paper/github_paper')
-print(os.getcwd())
+# sys.path.append('C:/Users/lilli/Documents/UNI/USW-VWL/Bachelor thesis/paper/github_paper')
+# os.chdir('C:/Users/lilli/Documents/UNI/USW-VWL/Bachelor thesis/paper/github_paper')
+# print(os.getcwd())
 
 #change params here
 file_extension = "csv"
-parameter = "stubbornness" #"politicalClimate"
+parameter = "bridge_stubbornness" #"politicalClimate"
 
 
 # stipulating regex pattern to get the parameter value from the file name string
@@ -78,9 +78,8 @@ runs_array = pd.concat(joined)
 sns.set(rc={'axes.facecolor':'black', 'figure.facecolor':'white', "axes.grid": False})
 #bi= sns.scatterplot(data = runs_array, x= "value", y = "state")
 #bi.xaxis()
-bi_hist = sns.histplot(data = runs_array, stat = "probability", \
-                        bins=100, cmap="inferno", \
-                       pthresh = 0.00 , pmax=0.4, x= "value", y = "final state",cbar = True,
+bi_hist = sns.histplot(data = runs_array, stat = "probability", 
+                       bins=20, cmap="inferno", pthresh = 0.00 , pmax=0.4, x= "value", y = "state",cbar = True,
                        cbar_kws={'ticks':MaxNLocator(5),"label":"probability", 'format':'%.e'})
 plt.ticklabel_format(style='sci', axis='x', scilimits = (0,0))
 plt.title("Stubborness Parameter Sweep")
