@@ -390,3 +390,30 @@ Traceback (most recent call last):
   File "heatmap_parameter_sweep.py", line 165, in <module>
     fname = f'./Output/heatmap_sweep_{date}_{scenario_list[0]}_{"_".join(str(x) for x in parameters)}.csv'
 NameError: name 'scenario_list' is not defined
+Started iteration:  bridge_0.5_stubbornness_0.01
+Started iteration:  bridge_0.5_stubbornness_0.02291666666666667
+Started iteration:  bridge_0.5_stubbornness_0.035833333333333335
+Started iteration:  bridge_0.5_stubbornness_0.04875
+Started iteration:  bridge_0.5_stubbornness_0.06166666666666667
+Started iteration:  bridge_0.5_stubbornness_0.07458333333333332
+Started iteration:  bridge_0.5_stubbornness_0.0875
+Started iteration:  bridge_0.5_stubbornness_0.10041666666666667
+Started iteration:  bridge_0.5_stubbornness_0.11333333333333333
+Started iteration:  bridge_0.5_stubbornness_0.12625
+Started iteration:  bridge_0.5_stubbornness_0.13916666666666666
+Started iteration:  bridge_0.5_stubbornness_0.15208333333333335
+Started iteration:  bridge_0.5_stubbornness_0.165
+Started iteration:  bridge_0.5_stubbornness_0.17791666666666667
+Started iteration:  bridge_0.5_stubbornness_0.19083333333333335
+Started iteration:  bridge_0.5_stubbornness_0.20375000000000001
+Started iteration:  bridge_0.5_stubbornness_0.21666666666666667
+Started iteration:  bridge_0.5_stubbornness_0.22958333333333333
+Started iteration:  bridge_0.5_stubbornness_0.2425
+Started iteration:  bridge_0.5_stubbornness_0.2554166666666667
+Started iteration:  bridge_0.5_stubbornness_0.2683333333333333
+Started iteration:  bridge_0.5_stubbornness_0.28125
+Started iteration:  bridge_0.5_stubbornness_0.2941666666666667
+Started iteration:  bridge_0.5_stubbornness_0.3070833333333333
+Started iteration:  bridge_0.5_stubbornness_0.32
+Runtime was complete:  3228 mins 4.616196632385254s
+
