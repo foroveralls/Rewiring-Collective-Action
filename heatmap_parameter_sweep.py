@@ -113,7 +113,7 @@ if __name__ == '__main__':
         
         #for run in range(runs-1) :
             
-        scenario_list = ["bridge"]#["random"]
+        scenario_list =  ["random"] #["bridge"]
         combined_list = list(product(scenario_list, param_vals))    
         
         end_states = []
@@ -146,9 +146,9 @@ if __name__ == '__main__':
      
     #%% running sweep
 
-    scenario = "bridge"
+    scenario = "random"
     parameters = ["stubbornness"] 
-    param_vals = [np.linspace(0.01, 0.32, 25)] #[np.linspace(0.1,1,10),
+    param_vals = [np.linspace(0.01, 1.00, 300)] #[np.linspace(0.1,1,10),
     
     
     today = date.today()
