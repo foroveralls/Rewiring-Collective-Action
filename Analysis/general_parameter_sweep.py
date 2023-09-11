@@ -19,11 +19,9 @@ import sys
 #os.chdir('C:\/Users\everall\Documents\Python\Projects\It-s_how_we_talk_that_matters')
 
 from multiprocessing import Pool
-from datetime import date
 import random
 import matplotlib
 import matplotlib.pyplot as plt
-import pandas as pd
 #from networkx.drawing.nx_agraph import graphviz_layout, to_agraph
 from copy import deepcopy
 #import seaborn as sns
@@ -58,7 +56,7 @@ if __name__ == '__main__':
     #np.random.seed(1574705741)
     def param_sweep(parameter, param_vals):
         #Constants and Variables
-        numberOfSimulations = 100
+        numberOfSimulations = 80
         numberOfProcessors =  multiprocessing.cpu_count() #int(multiprocessing.cpu_count()*0.6) # CPUs to use for parallelization
         
         start = time.time()
@@ -113,11 +111,9 @@ if __name__ == '__main__':
         
         #for run in range(runs-1) :
             
-        scenario_list =  ["random"] #["bridge"]
+        scenario_list = ["biased", "bridge"]
         combined_list = list(product(scenario_list, param_vals))    
         
-        end_states = []
-
         for i, v in combined_list:
             #print(i, v)
             
@@ -127,45 +123,39 @@ if __name__ == '__main__':
             
             ## You can specify simulation parameters here. If they are not set here, they will default to some values set in models.py
             argList.append({"rewiringAlgorithm": i, parameter:v, "breaklinkprob": 0.5,
-                            "establishlinkprob": 0.5})
+                            "establishlinkprob": 0.5, "rewiringMode": "diff"})
            
             #print (argList)
-            
+        
             for j in range(len(argList)):
                 sim = pool.starmap(models_checks.simulate, zip(range(numberOfSimulations), repeat(argList[j])))
                 #print(sim[0].algo, sim[0].probs)
-                            
-                [end_states.append([y.states[-1], parameter, i, v]) for y in sim]
-                
-                
+        
+                fname = f'../Output/{i}_{parameter}_{round(v, 2)}.csv'
+                models_checks.saveavgdata(sim, fname)
+            
+    
         end = time.time()
         mins = (end - start) / 60
         sec = (end - start) % 60
         print(f'Runtime was complete: {mins:5.0f} mins {sec}s\n')
-        return end_states
-     
-    #%% running sweep
-
-    scenario = "random"
-    parameters = ["stubbornness"] 
-    param_vals = [np.linspace(0.01, 1.00, 300)] #[np.linspace(0.1,1,10),
+        return
     
     
-    today = date.today()
-    date = today.strftime("%b_%d_%Y")
-    
-    output = []
-    for i, j in zip(parameters, param_vals):    
-        test = param_sweep(i, j)
-        df = pd.DataFrame(test, columns = ["state", "parameter", "scenario", "value"])
-        output.append(df)
         
-    runs_array = pd.concat(output)            
     
-    fname = f'./Output/heatmap_sweep_{date}_{scenario}_{"_".join(str(x) for x in parameters)}.csv'
-    runs_array.to_csv(fname, index=False)
+    #%% running sweep
     
-       
+    
+    parameters = ["politicalClimate"] 
+    param_vals = [np.linspace(0.001, 0.01, 5)]
+    
+
+    for i, j in zip(parameters, param_vals):    
+        param_sweep(i, j)
+  
+
+
 
 
 

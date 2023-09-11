@@ -37,8 +37,8 @@ print(os.getcwd())
 
 #change params here
 file_extension = "csv"
-scenario =  "bias" #bridge" #"bias"
-parameter =    "politicalClimate"#"politicalClimate" #"stubbornness" #
+scenario =  "random" #bridge" #"bias"
+parameter =    "stubbornness"#"politicalClimate" #"stubbornness" #
 
 conds = [file_extension, scenario, parameter]
 
@@ -49,11 +49,11 @@ def use_regex(input_text):
     return pattern.search(input_text)
 
 
-file_list = os.listdir("./Output")
+file_list = os.listdir("../Output")
 
 # get list of relevant output files
 file_list = list(filter(
-    lambda x: all(cond in x for cond in conds) and "heatmap" not in x, os.listdir("./Output")))
+    lambda x: all(cond in x for cond in conds) and "heatmap" not in x, os.listdir("../Output")))
 
 # otherwise define it manually
 # file list =
@@ -234,12 +234,12 @@ def rate_plot(rates_df, parameter):
     ax = sns.scatterplot(data = rates_df, x ="param", y="rate")
     
     ax.set_ylabel('rate(x1000)')
-    ax.set_xlabel(f"{parameter}")
-    ax.set_title(f"convergence_rate_{scenario}_{parameter}")
+    ax.set_xlabel('stubbornness') #f"{parameter}"
+    #ax.set_title(f"convergence_rate_{scenario}_{parameter}")
     
     # ax.xaxis.set_major_locator(ticker.MultipleLocator(5))
     # ax.xaxis.set_major_formatter(ticker.ScalarFormatter())
-    plt.savefig(f"./Figs/convergence_rate_{scenario}_{parameter}.pdf", 
+    plt.savefig(f"../Figs/convergence_rate_{scenario}_{parameter}_v3.png", 
                  bbox_inches='tight', dpi = 300)
     # ax.patch.set_edgecolor('black')  
     # ax.patch.set_linewidth('1') 
@@ -267,20 +267,22 @@ def reg_plot(epsilon_diffs, loc=None):
 #Trajec here
 def trajec_plot(trajecs):
     #trajecs["param"] = trajecs["value"].astype
-    ax = sns.lineplot(data = trajecs, label = "phi = trajecs" ,  x = "idx", y="value", hue = "param") #, data = trajecs
+    ax = sns.lineplot(data = trajecs, x = "idx", y="value", hue = "param")
     ax.set_ylabel('cooperativity')
     ax.set_xlabel("time [timestep / system size]")
-    #ax.set_legend(title= "external field") #f'{parameter}'
+    #ax.set_legend(title=f'{parameter}')
     #ax.set_title(f"trajectories_{scenario}_{parameter}")
     ax.xaxis.set_minor_locator(ticker.MultipleLocator(2.5))
     ax.xaxis.set_major_locator(ticker.MultipleLocator(10))
     ax.yaxis.set_major_locator(ticker.MultipleLocator(0.25)) #ticker sets the little ticks on the axes
     ax.yaxis.set_minor_locator(ticker.MultipleLocator(0.05))
-    ax.legend(loc = 'upper left', fontsize=12, title = "external field")
+    #add label names according to values (see "param") and variable name (see Methods paper)
+    ax.legend(loc = 'lower right', fontsize=12, labels = ['\u03A6 = 0.01', '\u03A6 = 0.03', '\u03A6 = 0.06', '\u03A6 = 0.08', '\u03A6 = 0.10'] ) #['\u03A6 = 0.00', '\u03A6 = 0.01', '\u03A6 = 0.02', '\u03A6 = 0.03', '\u03A6 = 0.06', '\u03A6 = 0.08', '\u03A6 = 0.10'];labels = ['\u03A6 = 0.01', '\u03A6 = 0.03', '\u03A6 = 0.06', '\u03A6 = 0.08', '\u03A6 = 0.10']
     ax.set_xlim([0,50])
+    # ax.set_ylim([-1,3])
     ax.xaxis.set_major_formatter(ticker.ScalarFormatter())
     ax.yaxis.set_major_formatter(ticker.ScalarFormatter())
-    plt.savefig(f"./Figs/trajec_{scenario}_{parameter}.pdf", bbox_inches='tight', dpi = 300) 
+    plt.savefig(f"../Figs/trajec_{scenario}_{parameter}_v3.png", bbox_inches='tight', dpi = 300) 
     plt.show()
     
 def epsilon_plot(epsilons):
@@ -297,7 +299,7 @@ def epsilon_plot(epsilons):
 #plt.plot(trajec["value"])
 
 #filtering for custom rates
-rate_params = ["0.01", "0.1", "0.32", "0.55", "0.78"]
+#rate_params = ["0.01", "0.1", "0.32", "0.55", "0.78"]
 
 
 rates["param"] = pd.to_numeric(rates["param"], downcast="float")

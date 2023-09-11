@@ -125,7 +125,7 @@ if  __name__ ==  '__main__':
             #print(sim[0].algo, sim[0].probs)
 
             
-            fname = f'./Output/{i}_p_rewiring_{v}.csv'
+            fname = f'../Output/{i}_p_rewiring_{v}.csv'
             models_checks.saveavgdata(sim, fname)
 
     end = time.time()

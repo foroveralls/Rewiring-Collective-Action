@@ -156,7 +156,7 @@ if __name__ == '__main__':
     #saving graphs
     graphs = [g1, g2, g3]
     for i, v in enumerate(graphs):
-        v.savefig(f"./Figs/nw_analysis_g{i}_N_{models.nwsize}_tmax{models.timesteps}.png", dpi = 300, bbox_inchex = "tight")
+        v.savefig(f"../Figs/nw_analysis_g{i}_N_{models.nwsize}_tmax{models.timesteps}.png", dpi = 300, bbox_inchex = "tight")
     
     
     # plt.legend(labels = ["HK Clustering", "HK SmallWorld", "Default Clustering", "Default Small World"],
