@@ -21,6 +21,7 @@ sensitivity analyses are run by scripts ending in "..paramater_sweep". Results g
 
 ## Structure
 
+```
 ├── README.md
 ├── requirements_no_win.txt
 ├── Analysis
@@ -41,7 +42,8 @@ sensitivity analyses are run by scripts ending in "..paramater_sweep". Results g
 │   └── Various output files in CSV and PNG formats
 └── Output_backup
     └── Backup of output files
-	
+```
+
 ## Getting the code
 
 You can download a copy of all the files in this repository by cloning the
