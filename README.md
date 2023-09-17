@@ -10,7 +10,7 @@ This paper has been submitted for publication in Nature Human Behaviour.
 
 In this project, we use an agent based model where agents are embedded in a social network to analyse the effect of different rewiring strategies on the speed and magnitude of cooperative consensus formation, or depolariazion in social groups. We are interested in these dynamics because socio-political polarization is a major barrier to collective action problems such as climate change, which must urgently be addressed. We investigate rewiring algorithms representing random meetings, introduction by mutual acquaintances, and bridging between socially distant communities. We find that building lasting links between polarized individuals and communities can accelerate consensus formation when the sociopolitical environment is favourable. This strengthens the evidence that promoting connection between polarized communities could accelerate collective action on urgent global challenges.
 
-![](Figs/Network_evolution_original+random+local+bridge.pdf)
+![](Figs/all_compared.png)
 
 ## Software implementation
 
