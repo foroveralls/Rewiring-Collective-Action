@@ -30,14 +30,15 @@ import re
 #import seaborn as sns !! conda install
 #import pandas as pd !! conda install
 
-sys.path.append('/Users/lillifrei/Documents/Uni/Collective_Action_Paper/paper/github_paper/Output')
-os.chdir('/Users/lillifrei/Documents/Uni/Collective_Action_Paper/paper/github_paper/Output')
+sys.path.append('C:\/Users\everall\Documents\Python\Projects\It-s_how_we_talk_that_matters\Output')
+os.chdir('C:\/Users\everall\Documents\Python\Projects\It-s_how_we_talk_that_matters\Output')
+
 print(os.getcwd())
 
 import os
-files = [f for f in os.listdir('.') if os.path.isfile(f)]
-for f in files:
-    print(f)
+# files = [f for f in os.listdir('.') if os.path.isfile(f)]
+# for f in files:
+#     print(f)
 
 params = {'legend.fontsize': 'x-large',
           'axes.labelsize': 'x-large',
