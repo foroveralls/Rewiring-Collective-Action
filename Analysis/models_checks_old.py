@@ -111,8 +111,6 @@ def simulate(i, newArgs): #RG for random graph (used for testing)
         model = GridModel(gridsize, skew=args["skew"], doubleDegree =doubleDegree, friendshipWeightGenerator=friendshipWeightGenerator, initialStateGenerator=initialStateGenerator)
     elif(args["type"] == "rand"):
         model = RandomModel(nwsize, args["degree"], skew=args["skew"], friendshipWeightGenerator=friendshipWeightGenerator, initialStateGenerator=initialStateGenerator)
-    elif(args["type"] == "FB"):
-        model = 
     else:
         model = RandomModel(nwsize, args["degree"],  friendshipWeightGenerator=friendshipWeightGenerator, initialStateGenerator=initialStateGenerator)
   
@@ -873,13 +871,6 @@ class GridModel(Model):
             for i in indexes:
                 self.graph.nodes[i]['agent'].state = STATES[1]
 
-class EmpericalModel(Model):
-    def __init__(self, n, m, skew= 0, **kwargs):
-        super().__init__(**kwargs)
-
-        self.graph = 
-        self.populateModel(n, skew)
-        
 class ScaleFreeModel(Model):
     def __init__(self, n, m, skew= 0, **kwargs):
         super().__init__(**kwargs)

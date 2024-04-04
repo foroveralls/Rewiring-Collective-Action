@@ -148,7 +148,7 @@ def community_based_reduction(G, N):
         
         # Check connectivity and adjust if necessary
         if nx.is_connected(H):
-            if len(H) >= N * 0.85 and len(H) <= N * 1.15:  # Check if size is within 15% of N
+            if len(H) >= N * 0.85 and len(H) <= N * 1.10:  # Check if size is within 15% of N
                 break  # The graph meets our conditions
             else:
                 adjustment_factor -= 0.05  # Adjust sampling for size correction
@@ -165,6 +165,13 @@ def community_based_reduction(G, N):
     
     return H
 
+def remap(G1):
+    
+    node_mapping = {old_name: new_name for new_name, old_name in enumerate(G1.nodes())}
+    # Apply the mapping to the graph
+    G2 = nx.relabel_nodes(G1, node_mapping)
+    return G2
+
 def reduce_graph(G, N):
     
     subgraph = find_largest_component(G, N)
@@ -177,48 +184,42 @@ def reduce_graph(G, N):
 
 #%% run analysis
 
-stats_list, graph_list = [], []
+# stats_list, graph_list = [], []
 
-folder_path = "Data"
-for i in os.listdir(folder_path):
-    j = os.path.join(folder_path, i)
-    stat, graph = load_and_analyze_edges(j, network_type= i)
-    stats_list.append(stat); graph_list.append(graph)
+# folder_path = "Data"
+# for i in os.listdir(folder_path):
+#     j = os.path.join(folder_path, i)
+#     stat, graph = load_and_analyze_edges(j, network_type= i)
+#     stats_list.append(stat); graph_list.append(graph)
 
 #%%
 
 # components = list(nx.connected_components(graph[0]))
-N = 1000
-G_reduced_1 = find_largest_component(graph[0], 1000)
+# N = 1000
+# G_reduced_1 = find_largest_component(graph[0], 1000)
 
-G_reduced = community_based_reduction(G_reduced_1, N)
-
-
-nx.draw(G_reduced, node_size = 10)
+# G_reduced = community_based_reduction(G_reduced_1, N)
 
 
+#nx.draw(G_reduced, node_size = 10)
+#G = G_reduced
 
-G_reduced_connected = find_largest_component(G_reduced, 751)
-nx.draw(G_reduced_connected, node_size =15)
+#save graph
+#nx.write_gpickle(G, f'networks_processed/twitter_graph_N_{G.number_of_nodes()}.gpickle')
+#T = nx.read_gpickle("networks_processed/twitter_graph_N_891.gpickle")
+#%%
 
-#twitter_G = create_connected_subgraph(os.path.join(folder_path,"twitter"), N)
-
-
-
-
+edge_file = "Data/facebook_test/fb_edgelist.txt"
+df_edges = pd.read_csv(edge_file, delim_whitespace=True, header=None, names=['node1', 'node2'])
 
 
 
+# For Facebook or similar: create an undirected graph from edges
+G1 = nx.from_pandas_edgelist(df_edges, 'node1', 'node2')
+G1 = remap(G1)
+nx.write_gpickle(G1, f'networks_processed/twitter_graph_N_{G1.number_of_nodes()}.gpickle')
 
 
-# G_example = generate_network_from_file(file_path)
 
-# # Let's check the basic info of the generated graph to ensure it works correctly.
-# G_example_info = {
-#     'num_edges': G_example.number_of_edges(),
-#     'num_nodes': G_example.number_of_nodes(),
-#     'avg_degree': sum(dict(G_example.degree()).values()) / float(G_example.number_of_nodes()),
-#     'density': nx.density(G_example)
-# }
 
-# G_example_info
+

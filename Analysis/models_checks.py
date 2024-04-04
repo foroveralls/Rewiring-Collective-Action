@@ -6,8 +6,13 @@
 
 
 
+
+
 import numpy as np
 import random
+import sys 
+sys.path.append("..")
+import pandas as pd
 from copy import deepcopy
 from statistics import stdev, mean
 import imageio
@@ -21,13 +26,15 @@ from IPython.display import Image
 import time
 import matplotlib.patches as mpatches
 import dill
+import igraph as ig
+import leidenalg as la
 import math
 import matplotlib.pyplot as plt
 import seaborn as sns
+from Auxillary.DPAH import DPAH
 
 #random.seed(1574705741)    ## if you need to set a specific random seed put it here
 #np.random.seed(1574705741)
-
 #Helper functions
 
 def get_truncated_normal(mean=0, sd=1, low=0, upp=10):
@@ -54,7 +61,7 @@ politicalClimate = 0.05
 newPoliticalClimate = 1*politicalClimate # we can change the political climate mid run
 stubbornness = 0.6
 degree = 8 
-timesteps= 70000 
+timesteps= 1000 #70000 
 continuous = True
 skew = -0.25
 initSD = 0.15
@@ -62,7 +69,7 @@ mypalette = ["blue","red","green", "orange", "magenta","cyan","violet", "grey", 
 randomness = 0.10
 gridtype = 'cl' # this is actually set in run.py for some reason... overrides this
 gridsize = 33   # used for grid networks
-nwsize = 1089  # nwsize = 1089 used for CSF (Clustered scale free network) networks
+nwsize = 40 #1089  # nwsize = 1089 used for CSF (Clustered scale free network) networks
 friendship = 0.5
 friendshipSD = 0.15
 clustering = 0.5 # CSF clustering in louvain algorithm
@@ -76,6 +83,7 @@ rewiringAlgorithm = 'None' #None, random, biased, bridge
 #long story short. All changes to breaklinkprob, establishlinkprob and rewiringAlgorithm have to be specified here in the models file
 
 
+#print(os.getcwd())
 # the arguments provided in run.py overrides these values
 args = {"defectorUtility" : defectorUtility, 
         "politicalClimate" : politicalClimate, 
@@ -85,8 +93,11 @@ args = {"defectorUtility" : defectorUtility,
         "breaklinkprob" : breaklinkprob,
         "establishlinkprob" : establishlinkprob}
 
+#%% simulate 
 def getargs():
     return args
+
+
 
 def simulate(i, newArgs): #RG for random graph (used for testing)
     setArgs(newArgs)
@@ -99,21 +110,25 @@ def simulate(i, newArgs): #RG for random graph (used for testing)
 
     # network type to use, I always ran on a cl 
     if(args["type"] == "cl"):
-        #print("2")
         model =ClusteredPowerlawModel(nwsize, args["degree"], skew=args["skew"], friendshipWeightGenerator=friendshipWeightGenerator, initialStateGenerator=initialStateGenerator)
-        #print("3")
+  
     elif(args["type"] == "sf"):
         model = ScaleFreeModel(nwsize, args["degree"], skew=args["skew"], friendshipWeightGenerator=friendshipWeightGenerator, initialStateGenerator=initialStateGenerator)
     elif(args["type"] == "grid"):
         ind = [10,64, 82]
         if(args["degree"]>2): doubleDegree = True
         else:doubleDegree = False
-        model = GridModel(gridsize, skew=args["skew"], doubleDegree =doubleDegree, friendshipWeightGenerator=friendshipWeightGenerator, initialStateGenerator=initialStateGenerator)
+        model = GridModel(gridsize, skew=args["skew"], doubleDegree = doubleDegree, friendshipWeightGenerator=friendshipWeightGenerator, initialStateGenerator=initialStateGenerator)
     elif(args["type"] == "rand"):
         model = RandomModel(nwsize, args["degree"], skew=args["skew"], friendshipWeightGenerator=friendshipWeightGenerator, initialStateGenerator=initialStateGenerator)
+    elif(args["type"] == "FB"):
+        model = EmpiricalModel(f"../Pre_processing/networks_processed/{args['top_file']}", nwsize, args["degree"],  skew=args["skew"], friendshipWeightGenerator=friendshipWeightGenerator, initialStateGenerator=initialStateGenerator)
+    elif(args["type"] == "DPAH"):
+        #args degre a.k.a 'm' is just passed here as a dummy variable but does not affect the DPAH model
+        model = DPAHModel(nwsize, args["degree"], skew=args["skew"], friendshipWeightGenerator=friendshipWeightGenerator, initialStateGenerator=initialStateGenerator)
     else:
         model = RandomModel(nwsize, args["degree"],  friendshipWeightGenerator=friendshipWeightGenerator, initialStateGenerator=initialStateGenerator)
-  
+
     #model.addInfluencers(newArgs["influencers"], index=ind, hub=False, allSame=False)
     #saving clustering and small world coefficient
     #C_0, S_0 = model.property_checks(R_G)
@@ -129,7 +144,7 @@ def simulate(i, newArgs): #RG for random graph (used for testing)
     return model
 
 
-
+#%% Agent class 
 class Agent:
     def __init__(self, state, state2, stubbornness):
         self.state = state 
@@ -186,6 +201,7 @@ class Agent:
         else:
             print("Error state outside state range: ", newState)
 
+#%% Model 
 
 # this class contains functions and values partaining to the model, some of it is in use, some of it is not
 class Model:
@@ -250,6 +266,7 @@ class Model:
         #print('ending interaction')
         return nodeIndex
 
+#%%% Rewiring algorithms
 #rewiring--------------------------------------------------------------------------------
     
     def quick_sigma(self, test_graph, R_G, *args):
@@ -547,7 +564,14 @@ class Model:
                 print("stop_3")
           
         return nodeIndex
-
+    
+    
+    
+    
+    
+    
+    
+#%%% Statistics functions
 
     # the following two functions are for statistics
     def findNbAgreeingFriends(self, nodeIdx = None):
@@ -694,7 +718,13 @@ class Model:
     # this part actually runs the simulation
     def runSim(self, timesteps, groupInteract=False, drawModel = False, countNeighbours = False, gifname= 'trialtrial', clusters= True):
         if(self.partition ==None):
-            self.partition = community_louvain.best_partition(self.graph)
+            if nx.is_directed(self.graph):
+                
+                self.partition = la.find_partition(self.graph, la.ModularityVertexPartition)
+                
+            else:
+                
+                self.partition = community_louvain.best_partition(self.graph)
 
         if(drawModel):
             draw_model(self) #this would be supposed to draw the model before any interaction?
@@ -803,6 +833,8 @@ class Model:
         #self.pos = force_atlas2_layout(self.graph)
         self.pos = nx.spring_layout(self.graph)
 
+
+#%% Network topologies 
 # network types to use
 class GridModel(Model):
     def __init__(self, n, skew=0, doubleDegree=False, **kwargs):
@@ -871,10 +903,31 @@ class GridModel(Model):
             for i in indexes:
                 self.graph.nodes[i]['agent'].state = STATES[1]
 
+class EmpiricalModel(Model):
+    def __init__(self,  filename, n, m, skew= 0, **kwargs):
+        super().__init__(**kwargs)
+        self.graph = nx.read_gpickle(filename)
+       # np.savetxt("debug.txt", list(self.graph.nodes))
+        self.populateModel(n, skew)
+
+class DPAHModel(Model):
+    def __init__(self, n, m, skew= 0, **kwargs):
+        super().__init__(**kwargs)
+        #TODO: make these not hard-coded 
+        self.graph = DPAH(N = n,
+             fm=0.5, 
+             d=0.01, 
+             plo_M=2.5, 
+             plo_m=2.5, 
+             h_MM=0.5, 
+             h_mm=0.5, 
+             verbose=False)
+        self.populateModel(n, skew)
+
+        
 class ScaleFreeModel(Model):
     def __init__(self, n, m, skew= 0, **kwargs):
         super().__init__(**kwargs)
-
         self.graph = nx.barabasi_albert_graph(n, m)
         self.populateModel(n, skew)
 
@@ -904,8 +957,16 @@ def loadModels(filename):
         models = dill.load(f)
     return models
 
-def findClusters(model):
-    partition = community_louvain.best_partition(model.graph)
+def findClusters(G):
+    
+    if nx.is_directed(G):
+        
+        partition = la.find_partition(G, la.ModularityVertexPartition)
+        
+    else:
+        
+        partition = community_louvain.best_partition(G)
+
     return partition
 
     
@@ -967,10 +1028,14 @@ def drawClusteredModel(model):
     #plt.title("Snapshot of network with states and clusters")
     draw_model(model)#, outline=edge_col, partition = partition)
     
+    
+#%% Auxillary and data collection functions
   
 #-------- save data functions ---------
 
-def saveavgdata(models, filename):
+def saveavgdata(models, filename, args = args):
+
+    
     states = []
     sds = []
     for i in range(len(models)):
@@ -997,12 +1062,19 @@ def saveavgdata(models, filename):
     degreeSD = []
     mindegree_l = []
     maxdegree_l = []
-   
-    for i in range(len(models)):
+
+
+    num_models = len(models)
+    for i in range(num_models):
         degree.append(models[i].degrees)
         degreeSD.append(models[i].degreesSD)
         mindegree_l.append(models[i].mindegrees_l)
         maxdegree_l.append(models[i].maxdegrees_l)
+    
+    rewiring_a = np.full((timesteps, 1), args["rewiringAlgorithm"])
+    scenario_a = np.full((timesteps, 1), args["rewiringMode"])  # Adjust "rewiringMode" as needed
+    type_a = np.full((timesteps, 1), args["type"])
+    
     array = np.array(degree)
     mindegree_a = np.array(mindegree_l)
     maxdegree_a = np.array(maxdegree_l)
@@ -1010,11 +1082,14 @@ def saveavgdata(models, filename):
     avg_maxdegree = maxdegree_a.mean(axis=0)
     avgdegree = array.mean(axis=0)
     degreeSD = np.array(degreeSD).mean(axis=0)
-    outs = np.column_stack((outs,avgdegree, degreeSD, avg_mindegree, avg_maxdegree))
-    hstring += ',avgdegree.degreeSD.mindegree.maxdegree'
-   
-    np.savetxt(filename,outs,delimiter=',',header=hstring) 
     
+    #compiling arrays
+    outs = np.column_stack((avg, std, avgdegree, degreeSD, avg_mindegree, avg_maxdegree, rewiring_a, scenario_a, type_a))
+    #hstring += ',avgdegree.degreeSD.mindegree.maxdegree.scenario.rewiring.type'
+   
+    #np.savetxt(filename,outs,delimiter=',',header=hstring) 
+    return(outs)
+
 def savesubdata(models,filename):
     
     outs = []
