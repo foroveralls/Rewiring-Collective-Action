@@ -4,10 +4,6 @@
 # in bridge and biased rewiring agents establish links before breaking, random is opposite
 #switch code so 
 
-
-
-
-
 import numpy as np
 import random
 import sys 
@@ -32,6 +28,10 @@ import math
 import matplotlib.pyplot as plt
 import seaborn as sns
 from Auxillary.DPAH import DPAH
+from collections import Counter
+from fast_pagerank import pagerank_power
+from joblib import delayed
+from joblib import Parallel
 
 #random.seed(1574705741)    ## if you need to set a specific random seed put it here
 #np.random.seed(1574705741)
@@ -234,12 +234,13 @@ class Model:
         self.small_world_diff = []
 
     # picks a randon agent to perform an interaction with a random neighbour and then to rewire
-    def interact(self):
+    def interact(self, network_type = "undirected"):
         #print('starting interaction')
         nodeIndex = random.randint(0, len(self.graph) - 1)
         #print("in interact: ", nodeIndex)
         node = self.graph.nodes[nodeIndex]['agent']
-        
+     
+            
         neighbours =  list(self.graph.adj[nodeIndex].keys())
         if(len(neighbours) == 0):
             return nodeIndex
@@ -261,6 +262,8 @@ class Model:
                 self.biasedrewiring(nodeIndex)
             elif rewiringAlgorithm == 'bridge':
                 self.bridgerewiring(nodeIndex)
+            elif rewiringAlgorithm == "wtf":
+                self.wtf(nodeIndex)
     
         
         #print('ending interaction')
@@ -317,7 +320,7 @@ class Model:
         weight = get_truncated_normal(args["friendship"], args["friendshipSD"], 0, 1).rvs(1)[0]
         
         self.graph.add_edge(node_i, neighbour_i, weight = weight)
-        self.TF_step(node_i, neighbour_i, weight = weight)
+        #self.TF_step(node_i, neighbour_i, weight = weight)
          
         return 
 
@@ -421,8 +424,8 @@ class Model:
         #e.g the more alike they are, the higher the probability of establishing a link, vice versa
         #breaking a link only when a link is established is a good idea as the likelyhood of meeting like thinkers changes as the network evolves and it is an easy way to retain the average degree to not get isolated nodes etc
       
-        #print('starting biased rewiring')
-
+        #print('starting biased rewiring')        
+        
         potentialfriends = []
         non_neighbors = []
         non_neighbors.append([k for k in nx.non_neighbors(self.graph,nodeIndex)])
@@ -502,7 +505,7 @@ class Model:
         #links are only broken is a link is established (see above in biasedrewiring)
               
         if(self.partition == None): #louvain is already used in first step of runSim, this is just to set the variable equal to the partition in the function as well.
-            partition = findClusters(self.graph)
+            partition = findClusters(self.graph, self.community_detection_with_leidenalg)
         else:
             partition = self.partition
             
@@ -565,8 +568,60 @@ class Model:
           
         return nodeIndex
     
+    #def node2vec():
     
     
+    def wtf(self, nodeIndex):
+        EXT = '.gpickle'
+        TOPK = 10
+        nodes = self.graph.nodes()
+        A = nx.to_scipy_sparse_matrix(self.graph, nodes)
+        
+        def _ppr(node_index, A, p, top):
+            pp = np.zeros(A.shape[0])
+            pp[node_index] = A.shape[0]
+            pr = pagerank_power(A, p=p, personalize=pp)
+            pr = pr.argsort()[-top-1:][::-1]
+            #time.sleep(0.01)
+            return pr[pr!=node_index][:top]
+        
+        def get_circle_of_trust_per_node(A, p=0.85, top=10):
+            return np.array([_ppr(node_index, A, p, top) for node_index in np.arange(A.shape[0])])
+        
+        def frequency_by_circle_of_trust(A, cot_per_node=None, p=0.85, top=10):
+            results = cot_per_node if cot_per_node is not None else get_circle_of_trust_per_node(A, p, top)
+            unique_elements, counts_elements = np.unique(np.concatenate(results), return_counts=True)
+            del(results)
+            return [0 if node_index not in unique_elements else counts_elements[np.argwhere(unique_elements == node_index)[0, 0]] for node_index in np.arange(A.shape[0])]
+        
+        def _salsa(node_index, cot, A, top=10):
+            BG = nx.Graph()
+            BG.add_nodes_from(['h{}'.format(vi) for vi in cot], bipartite=0)  # hubs
+            edges = [('h{}'.format(vi), int(vj)) for vi in cot for vj in np.argwhere(A[vi,:] != 0 )[:,1]]
+            BG.add_nodes_from(set([e[1] for e in edges]), bipartite=1)  # authorities
+            BG.add_edges_from(edges)
+            centrality = Counter({n: c for n, c in nx.eigenvector_centrality_numpy(BG).items() if type(n) == int
+                                                                                               and n not in cot
+                                                                                               and n != node_index
+                                                                                               and n not in np.argwhere(A[node_index,:] != 0 )[:,1] })
+            del(BG)
+            #time.sleep(0.01)
+            return np.asarray([n for n, pev in centrality.most_common(top)])[:top]
+        
+        def frequency_by_who_to_follow(A, cot_per_node=None, p=0.85, top=10):
+            cot_per_node = cot_per_node if cot_per_node is not None else get_circle_of_trust_per_node(A, p, top)
+            results = np.array([_salsa(node_index, cot, A, top) for node_index, cot in enumerate(cot_per_node)])
+            unique_elements, counts_elements = np.unique(np.concatenate(results), return_counts=True)
+            del(results)
+            return [0 if node_index not in unique_elements else counts_elements[np.argwhere(unique_elements == node_index)[0, 0]] for node_index in np.arange(A.shape[0])]
+        
+        def wtf_small(A):
+            cot_per_node = get_circle_of_trust_per_node(A, p=0.85, top=TOPK)
+            wtf = frequency_by_who_to_follow(A, cot_per_node=cot_per_node, p=0.85, top=TOPK)
+            return wtf
+        
+        return wtf_small(A)
+
     
     
     
@@ -611,13 +666,15 @@ class Model:
 
 
         if(args["continuous"]):
+            #TODO: check if this doesn't just repeat itself 
             neighStates = [self.graph.nodes[n]['agent'].state for n in neighbours ]
             x = 1-abs((mean(neighStates)-nodeState))/2
             self.NbAgreeingFriends[nodeIndex] = x
             for node in neighbours:
                 nodeState = self.graph.nodes[node]['agent'].state
                 neighneigh = list(self.graph.adj[node])
-                neighStates = [self.graph.nodes[n]['agent'].state for n in neighneigh ]
+                neighStates = [self.graph.nodes[n]['agent'].state for n in neighneigh]
+                print(node)
                 x = 1-abs((mean(neighStates)-nodeState))/2
                 self.NbAgreeingFriends[node] = x
         else:
@@ -720,7 +777,8 @@ class Model:
         if(self.partition ==None):
             if nx.is_directed(self.graph):
                 
-                self.partition = la.find_partition(self.graph, la.ModularityVertexPartition)
+                
+                self.partition = self.community_detection_with_leidenalg(self.graph)
                 
             else:
                 
@@ -741,8 +799,8 @@ class Model:
             print("Cooperators: avg: ", cooperatorDefectingFriends, " std: ", cooperatorDefectingFriendsSTD)
 
         #create list of number of agreeing friends
-        self.findNbAgreeingFriends()
-        self.avgNbAgreeingList.append(mean(self.NbAgreeingFriends))
+        # self.findNbAgreeingFriends()
+        # self.avgNbAgreeingList.append(mean(self.NbAgreeingFriends))
 
         
         for i in range(timesteps):
@@ -764,10 +822,10 @@ class Model:
             self.degreesSD.append(degreeSD)
             self.mindegrees_l.append(mindegree)
             self.maxdegrees_l.append(maxdegree)
-            avgFriends = self.updateAvgNbAgreeingFriends(nodeIndex)
+            # avgFriends = self.updateAvgNbAgreeingFriends(nodeIndex)
             #avgFriends = self.findNbAgreeingFriends(nodeIndex)
             #draw_model(self) #this should draw the model in every timestep! 
-            self.avgNbAgreeingList.append(avgFriends)
+            # self.avgNbAgreeingList.append(avgFriends)
 
             global args 
             # the commented code can be used to change the political climate mid simulation, and to add influencers as well
@@ -833,7 +891,22 @@ class Model:
         #self.pos = force_atlas2_layout(self.graph)
         self.pos = nx.spring_layout(self.graph)
 
-
+    def community_detection_with_leidenalg(self, nx_graph):
+        # Convert networkx graph to igraph
+        ig_graph = ig.Graph.from_networkx(nx_graph)
+        
+        # Perform community detection using leidenalg on the igraph graph
+        partition = la.find_partition(ig_graph, la.ModularityVertexPartition)
+        
+        # Map the community detection results back to the networkx graph
+        # Creating a dictionary where keys are nodes in the original networkx graph,
+        # and values are their community labels
+        nx_partition = {}
+        for node in nx_graph.nodes():
+            #ig_index = ig_graph.vs.find(name=str(node)).index  # Find the igraph index of the node
+            nx_partition[node] = partition.membership[node]
+        
+        return nx_partition
 #%% Network topologies 
 # network types to use
 class GridModel(Model):
@@ -957,16 +1030,17 @@ def loadModels(filename):
         models = dill.load(f)
     return models
 
-def findClusters(G):
+def findClusters(G, algo = None):
     
     if nx.is_directed(G):
         
-        partition = la.find_partition(G, la.ModularityVertexPartition)
+        partition = algo(G)
         
     else:
         
         partition = community_louvain.best_partition(G)
-
+        
+    print(partition)
     return partition
 
     
@@ -1309,20 +1383,29 @@ def drawAvgNumberOfAgreeingFriends(models, pltNr = 1):
     plt.ylabel("Agreement")
     plt.plot(avgAvg, color=mypalette[pltNr-1])
 
+
+#%%
 #for testing only
 # start = time.time()
 # #for i in range(10):
-# model = simulate(10, args)
+# args.update({"type": "DPAH"})
+model = simulate(50, args)
 # end = time.time()
 # mins = (end - start) / 60
 # sec = (end - start) % 60
 # print(f'Runtime was complete: {mins:5.0f} mins {sec}s\n')
-#if timesteps == 0 or timesteps == 10:
-#drawClusteredModel(model)
 
+G = nx.barabasi_albert_graph(100, 4)
+# nx.draw(model.graph)
+model.graph = G
+#A = nx.to_numpy_array(G)
+rank = model.wtf(20)
+# labels=nx.draw_networkx_labels(model.graph,pos=nx.spring_layout(model.graph))
 
-
-
+ start = time.time()
+ end = time.time()
+ mins = (end - start) / 60
+ sec = (end - start) % 60
 
 
 
