@@ -67,12 +67,15 @@ if  __name__ ==  '__main__':
 
    
     scenario_list = ["biased", "bridge"]
-    rewiring_list = ["diff", "same"]
-    topology_list = ["FB", "cl", "DPAH"]
+    rewiring_list_h = ["diff", "same"]
+    rewiring_list_e = ["wtf", "node2vec"]
+    topology_list = ["FB", "cl", "DPAH", "twitter"]
     topology_files = ["twitter_graph_N_40.gpickle"]
     
-    combined_list = list(product(scenario_list, rewiring_list,  topology_list))
+    combined_list1 = list(product(scenario_list, rewiring_list_h,  topology_list))
+    combined_list2 = list(product(["empirical"], rewiring_list_e, ["FB", "DPAH"]))
     #combined_list.append(("random", "NA"))
+    combined_list = combined_list1 + combined_list2
     
     out_list = []
     for i, v, k in combined_list:
@@ -81,10 +84,10 @@ if  __name__ ==  '__main__':
         print("Started iteration: ", f"{i}_{v}_{k}")
 
         argList = []
-        
+        top_file = "twitter_graph_N_40.gpickle" if k in "twitter" else "twitter_graph_N_40.gpickle"
         ## You can specify simulation parameters here. If they are not set here, they will default to some values set in models.py
         argList.append({"rewiringAlgorithm": i, "rewiringMode": v, "type": k,
-                        "top_file": topology_files[0]})
+                        "top_file": top_file})
         #argList.append({"influencers" : 0, "type" : "cl"})
        
         #print (argList)

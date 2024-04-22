@@ -32,6 +32,7 @@ from collections import Counter
 from fast_pagerank import pagerank_power
 from joblib import delayed
 from joblib import Parallel
+from node2vec import Node2Vec
 
 #random.seed(1574705741)    ## if you need to set a specific random seed put it here
 #np.random.seed(1574705741)
@@ -122,6 +123,8 @@ def simulate(i, newArgs): #RG for random graph (used for testing)
     elif(args["type"] == "rand"):
         model = RandomModel(nwsize, args["degree"], skew=args["skew"], friendshipWeightGenerator=friendshipWeightGenerator, initialStateGenerator=initialStateGenerator)
     elif(args["type"] == "FB"):
+        model = EmpiricalModel(f"../Pre_processing/networks_processed/{args['top_file']}", nwsize, args["degree"],  skew=args["skew"], friendshipWeightGenerator=friendshipWeightGenerator, initialStateGenerator=initialStateGenerator)
+    elif(args["type"] == "Twitter"):
         model = EmpiricalModel(f"../Pre_processing/networks_processed/{args['top_file']}", nwsize, args["degree"],  skew=args["skew"], friendshipWeightGenerator=friendshipWeightGenerator, initialStateGenerator=initialStateGenerator)
     elif(args["type"] == "DPAH"):
         #args degre a.k.a 'm' is just passed here as a dummy variable but does not affect the DPAH model
@@ -264,6 +267,9 @@ class Model:
                 self.bridgerewiring(nodeIndex)
             elif rewiringAlgorithm == "wtf":
                 self.wtf(nodeIndex)
+            elif rewiringAlgorithm == "node2vec":
+                self.node2vec_learn(nodeIndex)
+                self.node2vec_rewire(nodeIndex)
     
         
         #print('ending interaction')
@@ -568,14 +574,51 @@ class Model:
           
         return nodeIndex
     
-    #def node2vec():
+    def train_node2vec(self):
+        
+        # Generate walks
+        node2vec = Node2Vec(self.graph, dimensions=64, walk_length=30, num_walks=200, workers=4)
+        
+        # Train model
+        model = node2vec.fit(window=10, min_count=1, batch_words=4)
+        
     
-    
-    def wtf(self, nodeIndex):
-        EXT = '.gpickle'
+        self.embeddings = {}
+        
+        for node in self.graph.nodes():
+            self.embeddings[node] = model.wv[node]
+            
+    def node2vec_rewire(self, nodeIndex):
+         
+        
+        def get_similar_agents(nodeIndex, embeddings):
+            
+            # Extract the target vector and all other vectors
+            target_vec = self.embeddings[nodeIndex]
+            all_agents = list(self.embeddingss.keys())
+            all_vectors = np.array([self.embeddings[agent] for agent in all_agents])
+            
+            # Compute cosine similarity between the target vector and all vectors
+            similarity = np.dot(all_vectors, target_vec) / (np.linalg.norm(all_vectors, axis=1) * np.nlinalg.norm(target_vec))
+            
+            # Create a list of (agent, similarity) tuples excluding the target agent
+            similarities = [(agent, sim) for agent, sim in zip(all_agents, similarity) if agent != nodeIndex]
+            
+            # Sort the list by similarity in descending order
+            similarities.sort(key=lambda x: x[1], reverse=True)
+            return similarities
+        
+        
+        self.rewire(nodeIndex, get_similar_agents(nodeIndex)[0])
+        
+        
+             
+            
+    def wtf1(self, nodeIndex):
         TOPK = 10
         nodes = self.graph.nodes()
         A = nx.to_scipy_sparse_matrix(self.graph, nodes)
+        
         
         def _ppr(node_index, A, p, top):
             pp = np.zeros(A.shape[0])
@@ -584,15 +627,15 @@ class Model:
             pr = pr.argsort()[-top-1:][::-1]
             #time.sleep(0.01)
             return pr[pr!=node_index][:top]
+
+        def get_circle_of_trust_per_node(A, p=0.85, top=10, num_cores=40):
+            return Parallel(n_jobs=num_cores)(delayed(_ppr)(node_index, A, p, top) for node_index in np.arange(A.shape[0]))
         
-        def get_circle_of_trust_per_node(A, p=0.85, top=10):
-            return np.array([_ppr(node_index, A, p, top) for node_index in np.arange(A.shape[0])])
-        
-        def frequency_by_circle_of_trust(A, cot_per_node=None, p=0.85, top=10):
-            results = cot_per_node if cot_per_node is not None else get_circle_of_trust_per_node(A, p, top)
+        def frequency_by_circle_of_trust(A, cot_per_node=None, p=0.85, top=10, num_cores=40):
+            results = cot_per_node if cot_per_node is not None else get_circle_of_trust_per_node(A, p, top, num_cores)
             unique_elements, counts_elements = np.unique(np.concatenate(results), return_counts=True)
             del(results)
-            return [0 if node_index not in unique_elements else counts_elements[np.argwhere(unique_elements == node_index)[0, 0]] for node_index in np.arange(A.shape[0])]
+            return [ 0 if node_index not in unique_elements else counts_elements[np.argwhere(unique_elements == node_index)[0, 0]] for node_index in np.arange(A.shape[0])]
         
         def _salsa(node_index, cot, A, top=10):
             BG = nx.Graph()
@@ -608,19 +651,30 @@ class Model:
             #time.sleep(0.01)
             return np.asarray([n for n, pev in centrality.most_common(top)])[:top]
         
-        def frequency_by_who_to_follow(A, cot_per_node=None, p=0.85, top=10):
-            cot_per_node = cot_per_node if cot_per_node is not None else get_circle_of_trust_per_node(A, p, top)
-            results = np.array([_salsa(node_index, cot, A, top) for node_index, cot in enumerate(cot_per_node)])
+        def frequency_by_who_to_follow(A, cot_per_node=None, p=0.85, top=10, num_cores=40):
+            cot_per_node = cot_per_node if cot_per_node is not None else get_circle_of_trust_per_node(A, p, top, num_cores)
+            results = Parallel(n_jobs=num_cores)(delayed(_salsa)(node_index, cot, A, top) for node_index, cot in enumerate(cot_per_node))
             unique_elements, counts_elements = np.unique(np.concatenate(results), return_counts=True)
             del(results)
             return [0 if node_index not in unique_elements else counts_elements[np.argwhere(unique_elements == node_index)[0, 0]] for node_index in np.arange(A.shape[0])]
         
-        def wtf_small(A):
-            cot_per_node = get_circle_of_trust_per_node(A, p=0.85, top=TOPK)
-            wtf = frequency_by_who_to_follow(A, cot_per_node=cot_per_node, p=0.85, top=TOPK)
+        def who_to_follow_rank(A, njobs=1):
+                return wtf_small(A, njobs)
+                
+        def wtf_small(A, njobs):
+            cot_per_node = get_circle_of_trust_per_node(A, p=0.85, top=TOPK, num_cores=njobs)
+        
+                  
+            wtf = frequency_by_who_to_follow(A, cot_per_node=cot_per_node, p=0.85, top=TOPK, num_cores=njobs)
             return wtf
         
-        return wtf_small(A)
+        
+        
+        
+        ranking = wtf_small(A, njobs = 4)        
+        neighbour_index = ranking.index(max(ranking))
+        self.rewire(nodeIndex, neighbour_index)
+        
 
     
     
@@ -1386,26 +1440,33 @@ def drawAvgNumberOfAgreeingFriends(models, pltNr = 1):
 
 #%%
 #for testing only
-# start = time.time()
-# #for i in range(10):
-# args.update({"type": "DPAH"})
-model = simulate(50, args)
-# end = time.time()
-# mins = (end - start) / 60
-# sec = (end - start) % 60
-# print(f'Runtime was complete: {mins:5.0f} mins {sec}s\n')
 
-G = nx.barabasi_albert_graph(100, 4)
-# nx.draw(model.graph)
-model.graph = G
-#A = nx.to_numpy_array(G)
-rank = model.wtf(20)
-# labels=nx.draw_networkx_labels(model.graph,pos=nx.spring_layout(model.graph))
+def timer(func, arg):
+    start = time.time()
+    func(arg)
+    end = time.time()
+    mins = (end - start) / 60
+    sec = (end - start) % 60
+    print(f'Runtime was complete: {mins:5.0f} mins {sec}s\n')
 
- start = time.time()
- end = time.time()
- mins = (end - start) / 60
- sec = (end - start) % 60
+    return
+
+# # #for i in range(10):
+# # args.update({"type": "DPAH"})
+# model = simulate(50, args)
+
+# G = nx.barabasi_albert_graph(100, 4)
+# # nx.draw(model.graph)
+# model.graph = G
+
+# n = 20 
+
+# out = model.wtf1(n)
+# i = out.index(max(out))
+
+# # labels=nx.draw_networkx_labels(model.graph,pos=nx.spring_layout(model.graph))
+
+
 
 
 
