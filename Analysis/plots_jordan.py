@@ -31,6 +31,7 @@ file_list = list(filter(
 id_vars = ['t', 'scenario', 'rewiring', 'type']
 default_run = pd.read_csv(os.path.join("../Output", file_list[0]))
 default_run = default_run.drop(default_run.columns[0], axis=1)
+default_run['scenario'] = default_run['scenario'].fillna('empirical')
 default_r_l = pd.melt(default_run, id_vars=id_vars, var_name='measurement', value_name='value')
 default_r_l['scenario_grouped'] = default_r_l['scenario'].str.cat(default_r_l['rewiring'], sep='_')
 default_r_l = default_r_l.drop(columns=['scenario', 'rewiring'])
@@ -96,7 +97,7 @@ g.set_axis_labels("Time (t)", "Average State Value")
 g.set(xticks=np.arange(0, 1001, 200))
 
 # Custom titles for each column
-custom_titles = {"FB": "Twitter", "cl": "Clusterd Scale-Free"}
+custom_titles = {"FB": "Facebook", "cl": "Clustered Scale-Free", }
 for ax, title in zip(g.axes.flat, g.col_names):
     # Set the custom title if defined, otherwise use the default title
     ax.set_title(custom_titles.get(title, title))

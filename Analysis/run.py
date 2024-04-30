@@ -35,7 +35,7 @@ import time
 import multiprocessing
 from pathlib import Path
 import dill
-import models_checks
+import models_checks_updated as models_checks
 import numpy as np 
 import pickle 
 
@@ -66,28 +66,65 @@ if  __name__ ==  '__main__':
     runs = 2   ## has to be even for multiple runs also n is actually n-1 because I'm lazy
 
    
-    scenario_list = ["biased", "bridge"]
+    # scenario_list = ["biased", "bridge", "None"]
+    # rewiring_list_h = ["diff", "same"]
+    # rewiring_list_e = ["wtf", "node2vec"]
+    # topology_list = ["FB", "cl", "DPAH" ]  #"twitter"
+    # topology_files = ["twitter_graph_N_40.gpickle"]
+    
+    # # combined_list1 = list(product(scenario_list, rewiring_list_h,  topology_list))
+    # # combined_list2 = list(product(["empirical"], rewiring_list_e, ["FB"])) #DPAH
+    # # #combined_list.append(("random", "NA"))
+    # # combined_list = combined_list1 + combined_list2
+    
+    # combined_list1 = [(scenario, rewiring, topology)
+    #               for scenario in ["biased", "bridge"]
+    #               for rewiring in rewiring_list_h
+    #               for topology in topology_list]
+
+    # # Combinations for "empirical" scenario with "wtf" and "node2vec" but only on "FB"
+    # combined_list2 = [("empirical", rewiring, "FB") for rewiring in rewiring_list_e]
+    
+    # # Add combinations for "None" scenario with "wtf" and "node2vec" across all topologies
+    # combined_list3 = [("None", rewiring, topology) for rewiring in rewiring_list_e for topology in topology_list]
+    
+    # # Combine all lists
+    # combined_list = combined_list1 + combined_list2 + combined_list3
+    
+    scenario_list = ["biased", "bridge", "None"]
     rewiring_list_h = ["diff", "same"]
     rewiring_list_e = ["wtf", "node2vec"]
-    topology_list = ["FB", "cl", "DPAH", "twitter"]
-    topology_files = ["twitter_graph_N_40.gpickle"]
+    directed_topology_list = ["FB", "DPAH"]  
+    undirected_topology_list = ["cl"]  
     
-    combined_list1 = list(product(scenario_list, rewiring_list_h,  topology_list))
-    combined_list2 = list(product(["empirical"], rewiring_list_e, ["FB", "DPAH"]))
-    #combined_list.append(("random", "NA"))
-    combined_list = combined_list1 + combined_list2
+    # Create combined list for scenarios "biased" and "bridge" with "diff" and "same"
+    # These can be on both directed and undirected networks
+    combined_list1 = [(scenario, rewiring, topology)
+                      for scenario in ["biased", "bridge"]
+                      for rewiring in rewiring_list_h
+                      for topology in directed_topology_list + undirected_topology_list]
     
+    # Add combinations for "None" scenario with "node2vec" on all topologies
+    # "node2vec" works on both directed and undirected
+    combined_list2 = [("None", "node2vec", topology) for topology in directed_topology_list + undirected_topology_list]
+    
+    # Add combinations for "None" scenario with "wtf" only on directed topologies
+    combined_list3 = [("None", "wtf", topology) for topology in directed_topology_list]
+    
+    # Combine all lists
+    combined_list = combined_list1 + combined_list2 + combined_list3
+        
     out_list = []
     for i, v, k in combined_list:
         #print(i, v)
-        
+    
         print("Started iteration: ", f"{i}_{v}_{k}")
 
         argList = []
         top_file = "twitter_graph_N_40.gpickle" if k in "twitter" else "twitter_graph_N_40.gpickle"
         ## You can specify simulation parameters here. If they are not set here, they will default to some values set in models.py
         argList.append({"rewiringAlgorithm": i, "rewiringMode": v, "type": k,
-                        "top_file": top_file})
+                        "top_file": top_file, "polarisingNode_f": 0.50})
         #argList.append({"influencers" : 0, "type" : "cl"})
        
         #print (argList)
@@ -106,7 +143,7 @@ if  __name__ ==  '__main__':
     end = time.time()
     mins = (end - start) / 60
     sec = (end - start) % 60
-    print(f'Runtime was complete: {mins:5.0f} mins {sec}s\n')
+    print(f'Runtime is complete: {mins:5.0f} mins {sec}s\n')
     
 
 #%% post processing
@@ -122,4 +159,4 @@ if  __name__ ==  '__main__':
     # Reorder columns to have 't' as the first column
     out_list_df = out_list_df[['t'] + columns]
     
-    out_list_df.to_csv('../Output/default_run_all_1.csv')
+    out_list_df.to_csv('../Output/default_run_all_new.csv')
