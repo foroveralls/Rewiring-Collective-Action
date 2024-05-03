@@ -34,9 +34,11 @@ import time
 import multiprocessing
 from pathlib import Path
 import dill
-import models_checks
+import models_checks_updated
 from itertools import product, starmap
 import numpy as np
+from datetime import date
+import pandas as pd
 import argparse
 
 #%%
@@ -54,106 +56,100 @@ if __name__ == '__main__':
         
     #random.seed(1574705741)    ## if you need to set a specific random seed put it here
     #np.random.seed(1574705741)
-    def param_sweep(parameter, param_vals):
+    def param_sweep(parameter, param_val):
         #Constants and Variables
-        numberOfSimulations = 80
-        numberOfProcessors =  multiprocessing.cpu_count() #int(multiprocessing.cpu_count()*0.6) # CPUs to use for parallelization
-        
+        numberOfSimulations = 8
+        numberOfProcessors =  int(multiprocessing.cpu_count()*0.6) # CPUs to use for parallelization
+         
         start = time.time()
         pool=Pool(processes = numberOfProcessors) #initializing pool
+         
+         # ----------PATH TO SAVE FIGURES AND DATA-----------
+         
+        rewiring_list_h = ["diff", "same"]
+        directed_topology_list = ["FB", "DPAH"]  
+        undirected_topology_list = ["cl"]  
         
-        # ----------PATH TO SAVE FIGURES AND DATA-----------
+        # Create combined list for scenarios "biased" and "bridge" with "diff" and "same"
+        # These can be on both directed and undirected networks
+        combined_list1 = [(scenario, rewiring, topology)
+                      for scenario in ["biased", "bridge"]
+                      for rewiring in rewiring_list_h
+                      for topology in directed_topology_list + undirected_topology_list]
+       
+        # Add combinations for "None" scenario with "node2vec" on all topologies
+        # "node2vec" works on both directed and undirected
+        combined_list2 = [("None", "node2vec", topology) for topology in directed_topology_list + undirected_topology_list]
         
-        pathFig = '/Figs'
-        pathData = '/Output'
+        # Add combinations for "None" scenario with "wtf" only on directed topologies
+        combined_list3 = [("None", "wtf", topology) for topology in directed_topology_list]
         
-        modelargs= models_checks.getargs()  # requires models.py to be imported
-        runs = 2   ## has to be even for multiple runs also n is actually n-1 because I'm lazy
+        # Combine all lists
+        combined_list = combined_list1 + combined_list2 + combined_list3
         
-        ### comment out all below for single run
-        
-        ### linear grid 
-        #grid = [3]
-        
-        ### log grid, only valid on range [-1,1] atm
-        
-        #var = "newPoliticalClimate"
-        
-        #steps = int(runs/2)
-        #start = modelargs[var]
-        #endup = 0.10
-        #enddw = -0.45
-        #logendup = np.log(endup+(1.0-start))
-        #logenddw = np.log(enddw+(1.0-start))
-        #stepup = logendup / steps
-        #stepdw = logenddw / steps
-        
-        #gridup = np.array([])
-        #griddw = np.array([])
-        
-        #for k in range (steps) :
-        #    pt = np.exp(stepup*k)
-        #    gridup = np.append(gridup,pt)
-        #
-        #for k in range (steps) :
-        #    pt = np.exp(stepdw*k)
-        #    griddw = np.append(griddw,pt)
-        
-        #gridup = gridup - (1.0-start)
-        #griddw = griddw - (1.0-start)
-        
-        #griddw = griddw[1:]
-        #griddw = np.flip(griddw)
-        
-        #grid = np.append(griddw,gridup)
-        
-        #print (grid)
-        
-        #for run in range(runs-1) :
-            
-        scenario_list = ["biased", "bridge"]
-        combined_list = list(product(scenario_list, param_vals))    
-        
-        for i, v in combined_list:
+       
+        end_states = []
+        for i, v, k in combined_list:
             #print(i, v)
+             
+             print("Started iteration: ", f"{i}_{v}_{k}")
+             
+             argList = []
+             top_file = "twitter_graph_N_40.gpickle" if k in "twitter" else "twitter_graph_N_40.gpickle"
+             ## You can specify simulation parameters here. If they are not set here, they will default to some values set in models.py
+             argList.append({"rewiringAlgorithm": i, "rewiringMode": v, "type": k,
+                             "top_file": top_file, parameter:param_val})
+             #argList.append({"influencers" : 0, "type" : "cl"})
             
-            print("Started iteration: ", f"{i}_0.5_{parameter}_{v}")
-        
-            argList = []
-            
-            ## You can specify simulation parameters here. If they are not set here, they will default to some values set in models.py
-            argList.append({"rewiringAlgorithm": i, parameter:v, "breaklinkprob": 0.5,
-                            "establishlinkprob": 0.5, "rewiringMode": "diff"})
+             #print (argList)
+             
+             for j in range(len(argList)):
+                   sim = pool.starmap(models_checks_updated.simulate, zip(range(numberOfSimulations), repeat(argList[j])))
+               
+                   #print(sim[0]. __class__. __name__)
+                   #print(sim[0].algo)
+                   
+                   #fname = f'../Output/{i}_linkif_{v}_top_{j}.csv'
+                   #out_list.append(models_checks.saveavgdata(sim, fname, args = argList[0]))
+                   [end_states.append([y.states[-1], y.statesds[-1], parameter, i, v, k, 0]) for y in sim]
            
-            #print (argList)
-        
-            for j in range(len(argList)):
-                sim = pool.starmap(models_checks.simulate, zip(range(numberOfSimulations), repeat(argList[j])))
-                #print(sim[0].algo, sim[0].probs)
-        
-                fname = f'../Output/{i}_{parameter}_{round(v, 2)}.csv'
-                models_checks.saveavgdata(sim, fname)
-            
-    
+         
         end = time.time()
         mins = (end - start) / 60
         sec = (end - start) % 60
-        print(f'Runtime was complete: {mins:5.0f} mins {sec}s\n')
-        return
-    
+        print(f'Runtime is complete: {mins:5.0f} mins {sec}s\n')
+         
+        return end_states
     
         
     
     #%% running sweep
     
     
-    parameters = ["politicalClimate"] 
-    param_vals = [np.linspace(0.001, 0.01, 5)]
+    parameters = ["polarisingNode_f"] 
+    param_vals = np.linspace(0, 1, 10)
     
-
-    for i, j in zip(parameters, param_vals):    
-        param_sweep(i, j)
   
+    today = date.today()
+    date = today.strftime("%b_%d_%Y")
+    
+    # Generate all combinations of parameters and param_vals
+    param_combinations = product(parameters, param_vals)
+    
+    output = []
+    
+    for param, val in param_combinations:
+        run = param_sweep(param, val)  # Assuming param_sweep function exists
+        df = pd.DataFrame(run, columns=["state", "state_std", "parameter", "rewiring", "mode", "topology", "convergence_speed"])
+        output.append(df)
+
+        
+    runs_array = pd.concat(output)            
+    
+    fname = f'../Output/heatmap_sweep_{date}_{"_".join(str(x) for x in parameters)}.csv'
+    runs_array.to_csv(fname, index=False)
+    
+       
 
 
 

@@ -31,9 +31,9 @@ sys.path.insert(0, currentdir)
 
 # %% import data and joining together
 
-sys.path.append('C:/Users/lilli/Documents/UNI/USW-VWL/Bachelor thesis/paper/github_paper')
-os.chdir('C:/Users/lilli/Documents/UNI/USW-VWL/Bachelor thesis/paper/github_paper')
-print(os.getcwd())
+#sys.path.append('C:/Users/lilli/Documents/UNI/USW-VWL/Bachelor thesis/paper/github_paper')
+#os.chdir('C:/Users/lilli/Documents/UNI/USW-VWL/Bachelor thesis/paper/github_paper')
+#rint(os.getcwd())
 
 #change params here
 file_extension = "csv"

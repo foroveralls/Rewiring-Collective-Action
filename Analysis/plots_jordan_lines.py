@@ -64,6 +64,9 @@ g.set_titles("{col_name}", fontweight='bold', color="#333333")
 g.set_axis_labels("Time (t)", "Average Opinion State: x")
 g.set(xticks=np.arange(0, 1001, 200))
 
+# Adding grid lines to each subplot
+for ax in g.axes.flat:
+    ax.grid(True, linestyle='--', linewidth='0.7', color='gray', alpha=0.7)  # Customize the grid style here
 # Custom titles for each column
 custom_titles = {"FB": "Facebook", "cl": "Clustered Scale-Free", }
 for ax, title in zip(g.axes.flat, g.col_names):
@@ -90,10 +93,6 @@ plt.show()
 
 
 
-
-
-
-#%% Colour/Heatmap
 
 
 

@@ -135,7 +135,7 @@ if __name__ == '__main__':
                 sim = pool.starmap(models_checks.simulate, zip(range(numberOfSimulations), repeat(argList[j])))
                 #print(sim[0].algo, sim[0].probs)
                             
-                [end_states.append([y.states[-1], parameter, i, v]) for y in sim]
+                [end_states.append([y.states[-1], np.std(y.states[-1]), parameter, i, v]) for y in sim]
                 
                 
         end = time.time()
@@ -157,7 +157,7 @@ if __name__ == '__main__':
     output = []
     for i, j in zip(parameters, param_vals):    
         test = param_sweep(i, j)
-        df = pd.DataFrame(test, columns = ["state", "parameter", "scenario", "value"])
+        df = pd.DataFrame(test, columns = ["state", "state_std", "parameter", "scenario", "value", "convergence_speed"])
         output.append(df)
         
     runs_array = pd.concat(output)            
