@@ -1,6 +1,6 @@
 
 #
-# Some notes on implementation for better or worse
+9# Some notes on implementation for better or worse
 # 
 # Original program written by Sigrid Bratsberg, credit where credit is due! 
 # 
@@ -111,7 +111,7 @@ if __name__ == '__main__':
                    
                    #fname = f'../Output/{i}_linkif_{v}_top_{j}.csv'
                    #out_list.append(models_checks.saveavgdata(sim, fname, args = argList[0]))
-                   [end_states.append([y.states[-1], y.statesds[-1], parameter, i, v, k, 0]) for y in sim]
+                   [end_states.append([y.states[-1], y.statesds[-1], parameter, param_val, i, v, k, 0]) for y in sim]
            
          
         end = time.time()
@@ -126,7 +126,7 @@ if __name__ == '__main__':
     #%% running sweep
     
     
-    parameters = ["polarisingNode_f"] 
+    parameters = ["polarisingNode_f", "stubbornness"] 
     param_vals = np.linspace(0, 1, 10)
     
   
@@ -140,7 +140,7 @@ if __name__ == '__main__':
     
     for param, val in param_combinations:
         run = param_sweep(param, val)  # Assuming param_sweep function exists
-        df = pd.DataFrame(run, columns=["state", "state_std", "parameter", "rewiring", "mode", "topology", "convergence_speed"])
+        df = pd.DataFrame(run, columns=["state", "state_std", "parameter_val", "rewiring", "mode", "topology", "convergence_speed"])
         output.append(df)
 
         

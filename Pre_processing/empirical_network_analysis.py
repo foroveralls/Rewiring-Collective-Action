@@ -55,6 +55,7 @@ def load_and_analyze_edges(folder_path, network_type):
         num_nodes = G.number_of_nodes()
         avg_degree = sum(dict(G.degree()).values()) / float(num_nodes)
         density = nx.density(G)
+        directed = nx.is_directed(G)
         
         # Append statistics to list
         stats_list.append({
@@ -62,7 +63,8 @@ def load_and_analyze_edges(folder_path, network_type):
             'num_edges': num_edges,
             'num_nodes': num_nodes,
             'avg_degree': avg_degree,
-            'density': density
+            'density': density,
+            'directed': directed
         })
         graph_list.append(G)
         #plt.figure(figsize=(10, 8)) # Adjust the figure size as needed
@@ -277,20 +279,20 @@ for i in os.listdir(folder_path):
 
 #%%
 
-components = list(nx.connected_components(graph[0]))
+#components = list(nx.connected_components(graph[0]))
 N = 100
-G_reduced_1 = find_largest_component(graph[0], 100)
+#G_reduced_1 = find_largest_component(graph[0], 100)
 
 #G_reduced = community_based_reduction(graph[], N)
-G_reduced = community_based_reduction_directed(graph[0], N)
+#G_reduced = community_based_reduction_directed(graph[0], N)
 
 
-nx.draw(G_reduced, node_size = 10)
-G = G_reduced
+#nx.draw(G_reduced, node_size = 10)
+#G = G_reduced
 
 #save graph
-nx.write_gpickle(G, f'networks_processed/_graph_N_{G.number_of_nodes()}.gpickle')
-T = nx.read_gpickle("networks_processed/twitter_graph_N_891.gpickle")
+#nx.write_gpickle(G, f'networks_processed/_graph_N_{G.number_of_nodes()}.gpickle')
+#T = nx.read_gpickle("networks_processed/twitter_graph_N_891.gpickle")
 #%%
 
 # edge_file = "Data/facebook_test/fb_edgelist.txt"

@@ -27,13 +27,12 @@ import leidenalg as la
 import math
 import matplotlib.pyplot as plt
 import seaborn as sns
-from netin import DPAH, PATCH
+from Auxillary.DPAH import DPAH
 from collections import Counter
 from fast_pagerank import pagerank_power
 from joblib import delayed
 from joblib import Parallel
 from node2vec import Node2Vec
-from netin import viz
 
 #random.seed(1574705741)    ## if you need to set a specific random seed put it here
 #np.random.seed(1574705741)
@@ -71,7 +70,7 @@ mypalette = ["blue","red","green", "orange", "magenta","cyan","violet", "grey", 
 randomness = 0.10
 gridtype = 'cl' # this is actually set in run.py for some reason... overrides this
 gridsize = 33   # used for grid networks
-nwsize = 50 #1089  # nwsize = 1089 used for CSF (Clustered scale free network) networks
+nwsize = 40 #1089  # nwsize = 1089 used for CSF (Clustered scale free network) networks
 friendship = 0.5
 friendshipSD = 0.15
 clustering = 0.5 # CSF clustering in louvain algorithm
@@ -152,8 +151,9 @@ def simulate(i, newArgs): #RG for random graph (used for testing)
 
 #%% Agent class 
 class Agent:
-    def __init__(self, state, stubbornness):
+    def __init__(self, state, state2, stubbornness):
         self.state = state 
+        self.state2 = state2 #in the beginning there was an idea of implementing a second state, however the results turned complicated so we stuck to just having one state opinion -> this is not used in the model
         self.interactionsReceived = 0
         self.interactionsGiven = 0
         self.stubbornness = stubbornness
@@ -810,16 +810,21 @@ class Model:
         weigth = self.friendshipWeightGenerator.rvs(1)
         return weigth[0]
 
-    #majority = 0, minority 1
-    def getInitialState(self, node_state = False):
+    def getInitialState(self):
+        global args
+        if(args['continuous'] != True): 
+            state = STATES[random.randint(0,1)]
+        else:   
+            state = self.initialStateGenerator.rvs(1)[0]
+
+        return state
+    
+    def getInitialState2(self):
         global args
     
-        state = self.initialStateGenerator.rvs(1)[0]
-        
-        #implicitly checks if node_state exists
-        while node_state == 0 and state > 1:
-            state = self.initialStateGenerator.rvs(1)[0]
-        return state
+        state2 = random.randint(0,1)
+    
+        return state2
     
     
     # this part actually runs the simulation
@@ -924,7 +929,7 @@ class Model:
         global args
         for n in range (n):
             
-            agent1 = Agent(self.getInitialState(), args["stubbornness"])
+            agent1 = Agent(self.getInitialState(), random.choice([-1,1]), args["stubbornness"])
             self.graph.nodes[n]['agent'] = agent1
             
             if args["polarisingNode_f"] > np.random.random():
@@ -935,35 +940,16 @@ class Model:
             weight=self.getFriendshipWeight()
             self.graph[e[0]][e[1]]['weight'] = weight
 
+        if(skew != 0 and not args["continuous"] ): 
+            num = round(abs(skew)*len(self.graph.nodes))
+            indexes = random.sample(range(len(self.graph.nodes)), num)
+            for i in indexes:
+                self.graph.nodes[i]['agent'].state = STATES[1]
+            #self.pos = nx.kamada_kawai_layout(self.graph)
+        #self.pos = forceatlas2.forceatlas2_networkx_layout(self.graph)
+        #self.pos = force_atlas2_layout(self.graph)
+        #self.pos = nx.spring_layout(self.graph)
 
-    
-    def populateModel_netin(self, n, skew = 0):
-        
-        #for some reason the skew is offset by 0.01 after genreation, this brings it back to intended skew
-        skew = skew- 0.01
-        self.fraction_m, self.fraction_M = [], []
-        for n in range (n):
-            
-            node_class = self.graph.nodes[n]["m"]
-            
-            self.fraction_m.append(node_class) if node_class == 1 else self.fraction_M.append(node_class)
-            
-            agent1 = Agent(self.getInitialState(node_class), args["stubbornness"])
-            
-            self.graph.nodes[n]['agent'] = agent1
-            
-            if args["polarisingNode_f"] > np.random.random():
-                self.graph.nodes[n]['agent'].type = "polarising"
-
-        
-        edges = self.graph.edges() 
-        for e in edges: 
-            weight=self.getFriendshipWeight()
-            self.graph[e[0]][e[1]]['weight'] = weight
-    
- 
-        
-            
     def community_detection_with_leidenalg(self, nx_graph):
         # Convert networkx graph to igraph
         ig_graph = ig.Graph.from_networkx(nx_graph)
@@ -981,16 +967,75 @@ class Model:
         
         return nx_partition
 #%% Network topologies 
+# network types to use
+class GridModel(Model):
+    def __init__(self, n, skew=0, doubleDegree=False, **kwargs):
+        super().__init__(**kwargs)
+        global args
+        for i in range(n):
+            for j in range (n):
+                agent1 = Agent(self.getInitialState(), args["stubbornness"])
+                self.graph.add_node(i*n+j, agent=agent1, pos=(i, j))
+                self.pos.append((i, j))
+                if(i!=0):
+                    weight = self.getFriendshipWeight()
+                    self.graph.add_edge(i*n+j, (i-1)*n+j, weight = weight)
+                if(i==n-1):
+                    weight = self.getFriendshipWeight()
+                    self.graph.add_edge(i*n+j, j, weight = weight)
+                if(j!=0):
+                    weight = self.getFriendshipWeight()
+                    self.graph.add_edge(i*n+j, i*n+j-1, weight = weight)
+                if(j==n-1):
+                    weight = self.getFriendshipWeight()
+                    self.graph.add_edge(i*n+j, i*n, weight = weight)
+        if(doubleDegree): # this includes diagonal neighbours
+            for i in range(n):
+                for j in range(n):
+                    if(i!=0 and j!=0 ):
+                        weight = self.getFriendshipWeight()
+                        self.graph.add_edge(i*n+j, (i-1)*n+j-1, weight = weight)
+                    if(i!=0 and j!=(n-1)):
+                        weight = self.getFriendshipWeight()
+                        self.graph.add_edge(i*n+j, (i-1)*n+j+1, weight = weight)
+                    """
+                    if( i != n-1 and j!= n-1):
+                        weight = self.getFriendshipWeight()
+                        self.graph.add_edge(i*n+j, (i+1)*n+j+1, weight = weight)
+                    if(j != 0 and i != n-i):
+                        weight = self.getFriendshipWeight()
+                        self.graph.add_edge(i*n+j, (i+1)*n+j-1, weight = weight)"""
+
+                    if(j == n-1):
+                        if(i == n-1):
+                            weight = self.getFriendshipWeight()
+                            self.graph.add_edge(i*n+j, 0, weight = weight)
+                        else:
+                            weight = self.getFriendshipWeight()
+                            self.graph.add_edge(i*n+j, (i+1)*n, weight = weight)
+                        if(i == 0):
+                            weight = self.getFriendshipWeight()
+                            self.graph.add_edge(i*n+j, (n-1)*n, weight = weight)
+                        else:
+                            weight = self.getFriendshipWeight()
+                            self.graph.add_edge(i*n+j, (i-1)*n, weight = weight)
+                    if( i == n-1):
+                        if( j != n-1):
+                            weight = self.getFriendshipWeight()
+                            self.graph.add_edge(i*n+j, j+1, weight = weight)
+                        if(j != 0):
+                            weight = self.getFriendshipWeight()
+                            self.graph.add_edge(i*n+j, j-1, weight = weight)
+                        else: 
+                            weight = self.getFriendshipWeight()
+                            self.graph.add_edge(i*n+j, (n-1), weight = weight)
+        if(skew != 0 and not args["continuous"] ): 
+            num = round(abs(skew)*len(self.graph.nodes))
+            indexes = random.sample(range(len(self.graph.nodes)), num)
+            for i in indexes:
+                self.graph.nodes[i]['agent'].state = STATES[1]
 
 class EmpiricalModel(Model):
-    def __init__(self,  filename, n, m, skew= 0, **kwargs):
-        super().__init__(**kwargs)
-        self.graph = nx.read_gpickle(filename)
-       # np.savetxt("debug.txt", list(self.graph.nodes))
-        self.populateModel(n, skew)
-
-
-class EmpiricalModel_w_agents(Model):
     def __init__(self,  filename, n, m, skew= 0, **kwargs):
         super().__init__(**kwargs)
         self.graph = nx.read_gpickle(filename)
@@ -1001,12 +1046,15 @@ class DPAHModel(Model):
     def __init__(self, n, m, skew= 0, **kwargs):
         super().__init__(**kwargs)
         #TODO: make these not hard-coded 
-        self.graph = DPAH(n, f_m=0.5, d=0.1, h_MM=0.5, h_mm=0.5, plo_M=2.0, plo_m=2.0,
-                     seed = 42)
-        
-        self.graph.generate()
-        
-        self.populateModel_netin(n, skew)
+        self.graph = DPAH(N = n,
+             fm=0.5, 
+             d=0.1, 
+             plo_M=2.5, 
+             plo_m=2.5, 
+             h_MM=0.5, 
+             h_mm=0.5, 
+             verbose=False)
+        self.populateModel(n, skew)
 
         
 class ScaleFreeModel(Model):
@@ -1019,11 +1067,8 @@ class ClusteredPowerlawModel(Model):
     def __init__(self, n, m, skew = 0, **kwargs):
         super().__init__(**kwargs)
 
-        self.graph = PATCH(n =n, k = m, f_m=0.5, h_MM=0.5, h_mm=0.5, tc = clustering,
-                     seed = 42)
-        self.graph.generate()
-        #self.graph = nx.powerlaw_cluster_graph(n, m, clustering)
-        self.populateModel_netin(n, skew)
+        self.graph = nx.powerlaw_cluster_graph(n, m, clustering)
+        self.populateModel(n, skew)
 
 class RandomModel(Model):
     def __init__(self, n, m, skew= 0, **kwargs):
@@ -1411,20 +1456,10 @@ def timer(func, arg):
 
     return
 
-init_states = []
-for i in range(10):
-    args.update({"type": "cl"})
-    model = simulate(1, args)
-    init_states.append(model.states[0])
-   
-frac_m  = len(model.fraction_m)/nwsize
-print(frac_m, 1-frac_m)
+# # #for i in range(10):
+# # args.update({"type": "DPAH"})
+# model = simulate(50, args)
 
-states = model.states
-#plt.plot(states)
-plt.plot(init_states)
-plt.axhline(y=np.mean(init_states), color='r', linestyle='-')
-viz.plot_graph(model.graph, edge_width = 1, cell_size = 3, node_size = 50)
 # G = nx.barabasi_albert_graph(100, 4)
 # # nx.draw(model.graph)
 # model.graph = G
