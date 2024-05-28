@@ -277,9 +277,8 @@ for i in os.listdir(folder_path):
     stat, graph = load_and_analyze_edges(j, network_type= i)
     stats_list.append(stat); graph_list.append(graph)
 
-#%%
+#%% Main file reduction
 
-#components = list(nx.connected_components(graph[0]))
 N = 100
 #G_reduced_1 = find_largest_component(graph[0], 100)
 
@@ -293,18 +292,35 @@ N = 100
 #save graph
 #nx.write_gpickle(G, f'networks_processed/_graph_N_{G.number_of_nodes()}.gpickle')
 #T = nx.read_gpickle("networks_processed/twitter_graph_N_891.gpickle")
-#%%
+#%% Selected Egonetworks
 
-# edge_file = "Data/facebook_test/fb_edgelist.txt"
-# df_edges = pd.read_csv(edge_file, delim_whitespace=True, header=None, names=['node1', 'node2'])
+#choice Twitter: 	file_name	78391198.edges twitter, index = 901
+#choice FB: 	file_name	414.edges facebook, index = 7
 
+file_name_twitter = "78391198.edges"
 
+edge_file_twitter = f"Data/twitter/{file_name_twitter}"
+df_edges_twitter = pd.read_csv(edge_file_twitter, delim_whitespace=True, header=None, names=['node1', 'node2'])
+df_edges_twitter.name = "twitter"
 
-# # For Facebook or similar: create an undirected graph from edges
-# G1 = nx.from_pandas_edgelist(df_edges, 'node1', 'node2')
-# G1 = remap(G1)
-# nx.write_gpickle(G1, f'networks_processed/twitter_graph_N_{G1.number_of_nodes()}.gpickle')
+file_name_fb = "414.edges"
 
+edge_file_facebook = f"Data/facebook/{file_name_fb}"
+df_edges_fb = pd.read_csv(edge_file_facebook, delim_whitespace=True, header=None, names=['node1', 'node2'])
+df_edges_fb.name = "fb"
+
+df_list = [df_edges_twitter, df_edges_fb]
+
+direc = []
+for i in df_list:
+    if "twitter" in i.name:
+        G1 = nx.from_pandas_edgelist(i, 'node1', 'node2', create_using=nx.DiGraph)
+    else:
+        G1 = nx.from_pandas_edgelist(i, 'node1', 'node2')
+    G1 = remap(G1)
+    direc.append(nx.is_directed(G1))
+    nx.write_gpickle(G1, f'networks_processed/{i.name}_{G1.number_of_nodes()}.gpickle')
+    
 
 
 

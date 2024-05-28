@@ -44,7 +44,7 @@ df.loc[df['mode'].isin(['wtf', 'node2vec']), 'rewiring'] = 'empirical'
 df['scenario'] = df['rewiring'] + ' ' + df['mode']
 
 # Define the value columns and the unique identifiers
-value_columns = ['state', 'state_std', 'convergence_speed']
+value_columns = ['state', 'state_std']# 'convergence_speed']
 unique_scenarios = df['scenario'].unique()
 unique_topologies = df['topology'].unique()
 
@@ -93,6 +93,6 @@ for topology in unique_topologies:
 
     # Adjust layout and save the figure
     plt.tight_layout()
-    plt.savefig(f'../Figs/Heatmaps/heatmap_{topology}.png', bbox_inches='tight', dpi = 300)  # Save each figure to a file
+    plt.savefig(f'../Figs/Heatmaps/heatmap_{topology}.pdf', bbox_inches='tight', dpi = 300)  # Save each figure to a file
     plt.show()
 

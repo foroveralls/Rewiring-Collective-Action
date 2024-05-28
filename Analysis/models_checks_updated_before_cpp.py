@@ -76,7 +76,7 @@ politicalClimate = 0.05
 newPoliticalClimate = 1*politicalClimate # we can change the political climate mid run
 stubbornness = 0.6
 degree = 8 
-timesteps= 100 #70000 
+timesteps= 1000 #70000 
 continuous = True
 skew = -0.20
 initSD = 0.15
@@ -239,7 +239,6 @@ class Model:
         self.test = []
         self.clustering_diff = []
         self.small_world_diff = []
-        self.node2vec_executable = n2v.get_node2vec_path()
 
     # picks a randon agent to perform an interaction with a random neighbour and then to rewire
     def interact(self):
@@ -577,30 +576,20 @@ class Model:
           
         return nodeIndex
     
-    def break_link(self, nodeIndex):
-        
-        init_neighbours =  list(self.graph.adj[nodeIndex].keys())
-        if(len(init_neighbours) == 0):
-            return nodeIndex
-         
-        else:
-            breaklinkNeighbourIndex = init_neighbours[random.randint(0, len(init_neighbours)-1)]
+    
+    def save_graph_as_edgelist(graph, filename):
+        with open(filename, 'w') as f:
+            for edge in graph.edges():
+                f.write(f"{edge[0]} {edge[1]}\n")
                 
-            self.graph.remove_edge(nodeIndex, breaklinkNeighbourIndex)
-                
-    def train_node2vec(self, input_file='graph.edgelist', output_file='embeddings.emb', dimensions =64):
-        
-       n2v.save_graph_as_edgelist(self.graph, input_file) 
-       n2v.run_node2vec(self.node2vec_executable, input_file, output_file)
-       #n2v.validate_embeddings_file(output_file, self.graph.nodes, expected_dimensions=dimensions)
-       
+    def train_node2vec(self, input_file='graph.edgelist', output_file='embeddings.emb'):
+       n2v.run_node2vec(input_file, output_file)
        self.embeddings = n2v.load_embeddings(output_file)
 
 
     def node2vec_rewire(self, nodeIndex):
         
         def get_similar_agents(nodeIndex, embeddings=self.embeddings):
-        
             target_vec = self.embeddings[nodeIndex]
             all_agents = list(self.embeddings.keys())
             all_vectors = np.array([self.embeddings[agent] for agent in all_agents])
@@ -612,7 +601,6 @@ class Model:
         
         sim = int(get_similar_agents(nodeIndex)[0][0])
         self.rewire(nodeIndex, sim)
-        self.break_link(nodeIndex)
         
             
     def wtf1(self, nodeIndex, topk=5):
@@ -674,8 +662,6 @@ class Model:
         ranking = wtf_small(A, njobs=4)
         neighbour_index = np.argmax(ranking)
         self.rewire(nodeIndex, neighbour_index)
-        self.break_link(nodeIndex)
-        
             
     
 #%%% Statistics functions
@@ -857,7 +843,7 @@ class Model:
            
         
 
-            print("step: ", i)
+            #print("step: ", i)
             nodeIndex = self.interact()
             ratio = self.countCooperatorRatio()
             self.ratio.append(ratio)
@@ -1004,7 +990,7 @@ class Model:
             weight=self.getFriendshipWeight()
             self.graph[e[0]][e[1]]['weight'] = weight
     
-
+ 
         
             
     def community_detection_with_leidenalg(self, nx_graph):
@@ -1447,7 +1433,7 @@ init_states = []
 # start = time.time()
 for i in range(1):
     print(i)
-    args.update({"type": "FB", "plot": True, "top_file": f"{fb}.gpickle", "timesteps": 50, "rewiringAlgorithm": "wtf",
+    args.update({"type": "FB", "plot": True, "top_file": f"{fb}.gpickle", "timesteps": 100, "rewiringAlgorithm": "node2vec",
                   "rewiringMode": "diff"})
     nwsize = 150
     model = simulate(1, args)

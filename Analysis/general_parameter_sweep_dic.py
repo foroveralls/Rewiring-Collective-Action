@@ -34,7 +34,7 @@ import time
 import multiprocessing
 from pathlib import Path
 import dill
-import models_checks_updated
+import models_checks_updated as models_checks
 from itertools import product, starmap
 import numpy as np
 from datetime import date
@@ -60,7 +60,9 @@ if __name__ == '__main__':
         numberOfProcessors = int(multiprocessing.cpu_count() * 0.6)  # CPUs to use for parallelization
         pool = Pool(processes=numberOfProcessors)  # Initializing pool
         start = time.time()
-
+        
+        models_checks.nwsize = 40
+        
         # Combinations of different simulation conditions
         rewiring_list_h = ["diff", "same"]
         directed_topology_list = ["FB", "DPAH"]
@@ -73,19 +75,21 @@ if __name__ == '__main__':
 
         combined_list2 = [("None", "node2vec", topology) for topology in directed_topology_list + undirected_topology_list]
         combined_list3 = [("None", "wtf", topology) for topology in directed_topology_list]
-        combined_list = combined_list1 + combined_list2 + combined_list3
+        combined_list = combined_list1 #+ combined_list2 + combined_list3
 
         end_states = []
         for i, v, k in combined_list:
+            models_checks.nwsize = 102
             #print("Started iteration: ", f"{i}_{v}_{k}")
             argList = [{"rewiringAlgorithm": i, "rewiringMode": v, "type": k,
-                        "top_file": "twitter_graph_N_40.gpickle"}]
+                        "top_file": "twitter_102.gpickle", "plot": False, "timesteps":2000}]
             # Update simulation parameters for each set
             for arg in argList:
+                print(arg)
                 arg.update(params)  # Merge parameter dictionary into args
 
             for j in range(len(argList)):
-                sim = pool.starmap(models_checks_updated.simulate, zip(range(numberOfSimulations), repeat(argList[j])))
+                sim = pool.starmap(models_checks.simulate, zip(range(numberOfSimulations), repeat(argList[j])))
                 [end_states.append([y.states[-1], y.statesds[-1]] + list(params.values()) + [i, v, k, 0]) for y in sim]
 
         end = time.time()
@@ -101,12 +105,13 @@ if __name__ == '__main__':
     
    # Running sweep
     parameter_names = ["polarisingNode_f", "stubbornness"]
-    parameters = {name: np.linspace(0, 1, 5) for name in parameter_names}
+    parameters = {name: np.linspace(0, 1, 7) for name in parameter_names}
     param_product = [dict(zip(parameters.keys(), x)) for x in product(*parameters.values())]
 
     output = []
     i, sweep_length = 0, len(param_product)
     for params in param_product:
+        models_checks.nwsize = 102
         print(f"'Sweep {i}/{sweep_length}")
         run = param_sweep(params)
         df = pd.DataFrame(run, columns=["state", "state_std"] + list(parameters.keys()) + ["rewiring", "mode", "topology", "convergence_speed"])

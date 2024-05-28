@@ -39,6 +39,7 @@ import models_checks_updated as models_checks
 import numpy as np 
 import pickle 
 
+
 from itertools import product 
 
 
@@ -51,7 +52,7 @@ from itertools import product
 if  __name__ ==  '__main__': 
 
     #Constants and Variables
-    numberOfSimulations = 8
+    numberOfSimulations = 1
     numberOfProcessors =  int(multiprocessing.cpu_count()*0.6) # CPUs to use for parallelization
 
     start = time.time()
@@ -63,12 +64,12 @@ if  __name__ ==  '__main__':
     pathData = '/Output'
     
     modelargs= models_checks.getargs()  # requires models.py to be imported
-    runs = 2   ## has to be even for multiple runs also n is actually n-1 because I'm lazy
+    runs = 4   ## has to be even for multiple runs also n is actually n-1 because I'm lazy
 
 
     
     rewiring_list_h = ["diff", "same"]
-    directed_topology_list = ["FB", "DPAH"]  
+    directed_topology_list = ["FB", "DPAH", "Twitter"]  
     undirected_topology_list = ["cl"]  
     
     # Create combined list for scenarios "biased" and "bridge" with "diff" and "same"
@@ -80,36 +81,46 @@ if  __name__ ==  '__main__':
     
     # Add combinations for "None" scenario with "node2vec" on all topologies
     # "node2vec" works on both directed and undirected
-    combined_list2 = [("None", "node2vec", topology) for topology in directed_topology_list + undirected_topology_list]
+    combined_list2 = [("node2vec", "None", topology) for topology in directed_topology_list + undirected_topology_list]
     
     # Add combinations for "None" scenario with "wtf" only on directed topologies
-    combined_list3 = [("None", "wtf", topology) for topology in directed_topology_list]
+    combined_list3 = [("wtf","None", topology) for topology in directed_topology_list]
     
     # Combine all lists
-    combined_list = combined_list1 + combined_list2 + combined_list3
+    combined_list = combined_list1 #+ combined_list2 + combined_list3
         
+    
+
     out_list = []
     for i, v, k in combined_list:
-        #print(i, v)
-    
+      
+        models_checks.nwsize = 100
+        
         print("Started iteration: ", f"{i}_{v}_{k}")
 
         argList = []
-        top_file = "twitter_graph_N_40.gpickle" if k in "twitter" else "twitter_graph_N_40.gpickle"
+        if k in "twitter":
+            top_file = "twitter_graph_N_102.gpickle"
+            models_checks.nwsize = 102
+        else:
+            top_file = "fb_150.gpickle"
+            models_checks.nwsize = 150
+            
         ## You can specify simulation parameters here. If they are not set here, they will default to some values set in models.py
         argList.append({"rewiringAlgorithm": i, "rewiringMode": v, "type": k,
-                        "top_file": top_file, "polarisingNode_f": 0.50})
-        #argList.append({"influencers" : 0, "type" : "cl"})
+                        "top_file": top_file, "polarisingNode_f": 0.10, "timesteps":8000 , "plot": False})
        
+        
         #print (argList)
         
         for j in range(len(argList)):
             sim = pool.starmap(models_checks.simulate, zip(range(numberOfSimulations), repeat(argList[j])))
-        
+            
             #print(sim[0]. __class__. __name__)
-            #print(sim[0].algo)
+            #print(sim[0].algo, sim[0].steps)
             
             fname = f'../Output/{i}_linkif_{v}_top_{j}.csv'
+        
             out_list.append(models_checks.saveavgdata(sim, fname, args = argList[0]))
 
     
