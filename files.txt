@@ -1,17 +1,22 @@
 .gitignore
 Analysis/__init__.py
+Analysis/__pycache__/__init__.cpython-311.pyc
 Analysis/__pycache__/models_checks.cpython-312.pyc
 Analysis/__pycache__/models_checks.cpython-37.pyc
 Analysis/__pycache__/models_checks_updated.cpython-311.pyc
 Analysis/__pycache__/models_checks_updated.cpython-312.pyc
+Analysis/__pycache__/network_stats.cpython-311.pyc
 Analysis/all_scenarios_compared.pdf
+Analysis/benchmarks_wtf_node2ve.py
 Analysis/convergence_plots_paper_v3.py
 Analysis/debug.txt
 Analysis/default_run_all.csv
-Analysis/example.pkl
-Analysis/example.txt
+Analysis/edges.csv
+Analysis/embeddings.emb
 Analysis/general_parameter_sweep.py
 Analysis/general_parameter_sweep_dic.py
+Analysis/generate_markdown_tree.py
+Analysis/graph.edgelist
 Analysis/heatmap_parameter_sweep.py
 Analysis/heatmap_plots.py
 Analysis/heatmap_plots_lilli.py
@@ -20,9 +25,11 @@ Analysis/models_checks.py
 Analysis/models_checks_old.py
 Analysis/models_checks_pre_homophilly.py
 Analysis/models_checks_updated.py
+Analysis/models_checks_updated_before_cpp.py
 Analysis/network_analysis.py
 Analysis/network_checks_DPAH.py
 Analysis/network_node_assignment.py
+Analysis/nodes.csv
 Analysis/plots.py
 Analysis/plots_jordan.py
 Analysis/plots_jordan_heatmaps.py
@@ -33,7 +40,10 @@ Analysis/plots_paper_v2.py
 Analysis/rewiring_parameter_sweep.py
 Analysis/run.py
 Analysis/runs_array.csv
+Analysis/twitter_102.gpickle
+Analysis/wtf_node2vec_old.prof
 Analysis/wtf_old.py
+Analysis/wtf_old_1.py
 Auxillary/DPAH.py
 Auxillary/__init__.py
 Auxillary/__pycache__/DPAH.cpython-311.pyc
@@ -42,7 +52,13 @@ Auxillary/__pycache__/DPAH.cpython-37.pyc
 Auxillary/__pycache__/__init__.cpython-311.pyc
 Auxillary/__pycache__/__init__.cpython-312.pyc
 Auxillary/__pycache__/__init__.cpython-37.pyc
+Auxillary/__pycache__/network_stats.cpython-311.pyc
+Auxillary/__pycache__/node2vec_cpp.cpython-311.pyc
+Auxillary/network_stats.py
+Auxillary/node2vec.exe
+Auxillary/node2vec_cpp.py
 Auxillary/whotofollow.py
+Auxillary/wtf_node2vec_old.prof
 Figs/1_static_bridge.pdf
 Figs/1_static_local.pdf
 Figs/1_static_random.pdf
@@ -52,12 +68,30 @@ Figs/2_local_same_diff.pdf
 Figs/2_random_rewiring_01_05_09.pdf
 Figs/2_same_local_bridge.pdf
 Figs/3_all_compared.pdf
+Figs/Heatmaps/heatmap_DPAH.pdf
 Figs/Heatmaps/heatmap_DPAH.png
+Figs/Heatmaps/heatmap_FB.pdf
 Figs/Heatmaps/heatmap_FB.png
+Figs/Heatmaps/heatmap_cl.pdf
 Figs/Heatmaps/heatmap_cl.png
 Figs/Network_evolution_local+bridge.pdf
 Figs/Network_evolution_original+random+local+bridge.pdf
 Figs/Network_evolution_original+random.pdf
+Figs/Networks/graph_T = 0_DPAH_wtf_wtf.png
+Figs/Networks/graph_T = 0_FB_biased_biased.png
+Figs/Networks/graph_T = 0_FB_node2vec_node2vec.png
+Figs/Networks/graph_T = 0_FB_wtf_wtf.png
+Figs/Networks/graph_T = 0_Twitter_None_None.png
+Figs/Networks/graph_T = 14999_Twitter_None_None.png
+Figs/Networks/graph_T = 2500_FB_biased_biased.png
+Figs/Networks/graph_T = 25_FB_node2vec_node2vec.png
+Figs/Networks/graph_T = 3000_Twitter_None_None.png
+Figs/Networks/graph_T = 4999_FB_biased_biased.png
+Figs/Networks/graph_T = 49_FB_node2vec_node2vec.png
+Figs/Networks/graph_T = 500_Twitter_None_None.png
+Figs/Networks/graph_T = 5999_Twitter_None_None.png
+Figs/Networks/graph_T = 7500_Twitter_None_None.png
+Figs/Networks/graph_T = 999_Twitter_None_None.png
 Figs/Parameter_dependency_stubbornness.pdf
 Figs/all_compared.png
 Figs/convergence_rate_bias_politicalClimate.pdf
@@ -235,8 +269,14 @@ Pre_processing/Data/facebook/698.feat
 Pre_processing/Data/facebook/698.featnames
 Pre_processing/Data/facebook_test/fb_edgelist.txt
 Pre_processing/empirical_network_analysis.py
+Pre_processing/networks_processed/fb_150.gpickle
+Pre_processing/networks_processed/twitter_102.gpickle
 Pre_processing/networks_processed/twitter_graph_N_40.gpickle
 Pre_processing/networks_processed/twitter_graph_N_891.gpickle
 README.md
+__init__.py
 environment.yaml
+files.txt
+generate_markdown_tree.py
 requirements_no_win.txt
+tree.md

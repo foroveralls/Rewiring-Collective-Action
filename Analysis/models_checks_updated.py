@@ -4,9 +4,19 @@
 # in bridge and biased rewiring agents establish links before breaking, random is opposite
 #switch code so 
 
+
+
+#%%
+import os 
+import sys
+# Ensure the parent directory is in the sys.path for auxiliary imports
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.abspath(os.path.join(current_dir, '..'))
+sys.path.append(parent_dir)
+
+#%%
 import numpy as np
-import random
-import sys 
+import random 
 #sys.path.append("..")
 import pandas as pd
 from copy import deepcopy
@@ -15,7 +25,6 @@ import imageio
 import networkx as nx
 from networkx.algorithms.community import louvain_communities as community_louvain
 from scipy.stats import truncnorm
-import os
 from operator import itemgetter
 import heapq
 from IPython.display import Image
@@ -37,12 +46,11 @@ from Auxillary import network_stats
 from scipy.sparse import csr_matrix
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from joblib import Parallel, delayed
+import rustworkx as rx
 import subprocess
 from Auxillary import node2vec_cpp as n2v
 
-
-
-
+#%%
 
 #random.seed(1574705741)    ## if you need to set a specific random seed put it here
 #np.random.seed(1574705741)
@@ -65,8 +73,10 @@ def getRandomExpo():
 
 def update_instance_methods(instance, func_changes):
     for func in func_changes:
-        setattr(instance, func.__name__, func.__get__(instance, instance.__class__))
-
+        # Bind the method to the instance
+        bound_method = func.__get__(instance, instance.__class__)
+        instance.call_algo = bound_method
+        setattr(instance, func.__name__, bound_method)
 #Constants and Variables
 
 ## for explanation of these, see David's paper / thesis (Dynamics of collective action to conserve a large common-pool resource // Simple models for complex nonequilibrium Problems in nanoscale friction and network dynamics)
@@ -84,10 +94,10 @@ mypalette = ["blue","red","green", "orange", "magenta","cyan","violet", "grey", 
 randomness = 0.10
 gridtype = 'cl' # this is actually set in run.py for some reason... overrides this
 gridsize = 33   # used for grid networks
-nwsize = 102 #1089  # nwsize = 1089 used for CSF (Clustered scale free network) networks
+nwsize = 100 #1089  # nwsize = 1089 used for CSF (Clustered scale free network) networks
 friendship = 0.5
 friendshipSD = 0.15
-clustering = 0.5 # CSF clustering in louvain algorithm
+clustering = 0.3 # CSF clustering in louvain algorithm
 #new variables:
 breaklinkprob = 1 
 rewiringMode = "None"
@@ -106,6 +116,7 @@ args = {"defectorUtility" : defectorUtility,
         "stubbornness": stubbornness, "degree":degree, "timesteps" : timesteps, "continuous" : continuous, "type" : gridtype, "skew": skew, "initSD": initSD, "newPoliticalClimate": newPoliticalClimate, "randomness" : randomness, "friendship" : friendship, "friendshipSD" : friendshipSD, "clustering" : clustering,
         "rewiringAlgorithm" : rewiringAlgorithm,
         "plot": False,
+        "nwsize": nwsize,
         "rewiringMode": rewiringMode,
         "breaklinkprob" : breaklinkprob,
         "establishlinkprob" : establishlinkprob,
@@ -127,21 +138,21 @@ def simulate(i, newArgs, func_changes = False): #RG for random graph (used for t
 
     # network type to use, I always ran on a cl 
     if(args["type"] == "cl"):
-        model =ClusteredPowerlawModel(nwsize, args["degree"], skew=args["skew"], friendshipWeightGenerator=friendshipWeightGenerator, initialStateGenerator=initialStateGenerator)
+        model =ClusteredPowerlawModel(args["nwsize"], args["degree"], skew=args["skew"], friendshipWeightGenerator=friendshipWeightGenerator, initialStateGenerator=initialStateGenerator)
   
     elif(args["type"] == "sf"):
-        model = ScaleFreeModel(nwsize, args["degree"], skew=args["skew"], friendshipWeightGenerator=friendshipWeightGenerator, initialStateGenerator=initialStateGenerator)
+        model = ScaleFreeModel(args["nwsize"], args["degree"], skew=args["skew"], friendshipWeightGenerator=friendshipWeightGenerator, initialStateGenerator=initialStateGenerator)
     elif(args["type"] == "rand"):
-        model = RandomModel(nwsize, args["degree"], skew=args["skew"], friendshipWeightGenerator=friendshipWeightGenerator, initialStateGenerator=initialStateGenerator)
+        model = RandomModel(args["nwsize"], args["degree"], skew=args["skew"], friendshipWeightGenerator=friendshipWeightGenerator, initialStateGenerator=initialStateGenerator)
     elif(args["type"] == "FB"):
-        model = EmpiricalModel(f"../Pre_processing/networks_processed/{args['top_file']}", nwsize, args["degree"],  skew=args["skew"], friendshipWeightGenerator=friendshipWeightGenerator, initialStateGenerator=initialStateGenerator)
+        model = EmpiricalModel(f"../Pre_processing/networks_processed/{args['top_file']}", args["nwsize"], args["degree"],  skew=args["skew"], friendshipWeightGenerator=friendshipWeightGenerator, initialStateGenerator=initialStateGenerator)
     elif(args["type"] == "Twitter"):
-        model = EmpiricalModel(f"../Pre_processing/networks_processed/{args['top_file']}", nwsize, args["degree"],  skew=args["skew"], friendshipWeightGenerator=friendshipWeightGenerator, initialStateGenerator=initialStateGenerator)
+        model = EmpiricalModel(f"../Pre_processing/networks_processed/{args['top_file']}", args["nwsize"], args["degree"],  skew=args["skew"], friendshipWeightGenerator=friendshipWeightGenerator, initialStateGenerator=initialStateGenerator)
     elif(args["type"] == "DPAH"):
         #args degre a.k.a 'm' is just passed here as a dummy variable but does not affect the DPAH model
-        model = DPAHModel(nwsize, args["degree"], skew=args["skew"], friendshipWeightGenerator=friendshipWeightGenerator, initialStateGenerator=initialStateGenerator)
+        model = DPAHModel(args["nwsize"], args["degree"], skew=args["skew"], friendshipWeightGenerator=friendshipWeightGenerator, initialStateGenerator=initialStateGenerator)
     else:
-        model = RandomModel(nwsize, args["degree"],  friendshipWeightGenerator=friendshipWeightGenerator, initialStateGenerator=initialStateGenerator)
+        model = RandomModel(args["nwsize"], args["degree"],  friendshipWeightGenerator=friendshipWeightGenerator, initialStateGenerator=initialStateGenerator)
     
     if func_changes:
         update_instance_methods(model, func_changes)
@@ -240,7 +251,55 @@ class Model:
         self.clustering_diff = []
         self.small_world_diff = []
         self.node2vec_executable = n2v.get_node2vec_path()
-
+        self.affected_nodes = []
+    
+    
+    
+        #setting rewiring algorithm to be used
+        rewiringAlgorithm = args["rewiringAlgorithm"]
+        self.algo = rewiringAlgorithm
+        #the same random agent rewires after interacting:
+        #TODO only need to call this once, need to change
+        if rewiringAlgorithm != None:
+            if rewiringAlgorithm == 'random':
+               self.call_algo = self.randomrewiring
+            elif rewiringAlgorithm == 'biased':
+                self.call_algo = self.biasedrewiring
+            elif rewiringAlgorithm == 'bridge':
+                self.call_algo = self.bridgerewiring
+                
+            elif rewiringAlgorithm == "wtf":
+        
+                def call_wtf(nodeIndex):
+                    
+                    # if nodeIndex in self.affected_nodes:    
+                    #     #print("retraining")
+                    #     self.wtf_1()
+                    #     self.affected_nodes = []
+                        
+                    self.wtf_1()
+                    self.wtf_rewire(nodeIndex)
+                    
+                self.call_algo = call_wtf
+                
+            elif rewiringAlgorithm == "node2vec":
+                
+                def call_node2vec(nodeIndex):
+                    
+                    if nodeIndex in self.affected_nodes:    
+                        print("retraining")
+                        self.train_node2vec()
+                        self.affected_nodes = []
+                    
+                    # if self.t % 2 == 0:
+                    #     self.train_node2vec()  
+                    #print("trained")
+                    #self.train_node2vec()
+                    
+                    self.node2vec_rewire(nodeIndex)
+                    
+                self.call_algo = call_node2vec
+                
     # picks a randon agent to perform an interaction with a random neighbour and then to rewire
     def interact(self):
         #print('starting interaction')
@@ -260,21 +319,27 @@ class Model:
         node.consider(chosenNeighbour, weight, self.politicalClimate)
         
         
-        rewiringAlgorithm = args["rewiringAlgorithm"]
-        self.algo = rewiringAlgorithm
-        #the same random agent rewires after interacting:
-        if rewiringAlgorithm != None:
-            if rewiringAlgorithm == 'random':
-                self.randomrewiring(nodeIndex)
-            elif rewiringAlgorithm == 'biased':
-                self.biasedrewiring(nodeIndex)
-            elif rewiringAlgorithm == 'bridge':
-                self.bridgerewiring(nodeIndex)
-            elif rewiringAlgorithm == "wtf":
-                self.wtf1(nodeIndex)
-            elif rewiringAlgorithm == "node2vec":
-                self.train_node2vec()
-                self.node2vec_rewire(nodeIndex)
+        self.call_algo(nodeIndex)
+        
+    #static interaction for generating networks
+    def interact_init(self):
+        #print('starting interaction')
+        nodeIndex = random.randint(0, len(self.graph) - 1)
+        #print("in interact: ", nodeIndex)
+        node = self.graph.nodes[nodeIndex]['agent']
+     
+            
+        neighbours =  list(self.graph.adj[nodeIndex].keys())
+        if(len(neighbours) == 0):
+            return nodeIndex
+        
+        chosenNeighbourIndex = neighbours[random.randint(0, len(neighbours)-1)]
+        chosenNeighbour = self.graph.nodes[chosenNeighbourIndex]['agent']
+        weight = self.graph[nodeIndex][chosenNeighbourIndex]['weight']
+
+        node.consider(chosenNeighbour, weight, self.politicalClimate)
+            
+       
                 
         
         #print('ending interaction')
@@ -335,13 +400,6 @@ class Model:
          
         return 
     
-    # def rewire(self, node_i, neighbour_i):
-    # # Ensure that only valid operations are performed
-    #     if isinstance(node_i, int) and isinstance(neighbour_i, int):
-    #         weight = get_truncated_normal(args["friendship"], args["friendshipSD"], 0, 1).rvs(1)[0]
-    #         self.graph.add_edge(node_i, neighbour_i, weight=weight)
-    #     else:
-    #         print("Invalid nodes for rewiring. Nodes should be integers.")
 
     #triad formation
     def TF_step(self, node, node_new, weight):
@@ -577,17 +635,25 @@ class Model:
           
         return nodeIndex
     
-    def break_link(self, nodeIndex):
+    def break_link(self, nodeIndex, rewiredIndex, neighbours):
         
-        init_neighbours =  list(self.graph.adj[nodeIndex].keys())
-        if(len(init_neighbours) == 0):
+        #avoids repeated computation
+        init_neighbours = neighbours
+        
+        #taking out index of freshly rewired node
+        reduced = [x for x in init_neighbours if x != rewiredIndex]
+        
+        if(len(reduced) == 0):
             return nodeIndex
          
         else:
-            breaklinkNeighbourIndex = init_neighbours[random.randint(0, len(init_neighbours)-1)]
-                
+            breaklinkNeighbourIndex = np.random.choice(reduced)
+            assert breaklinkNeighbourIndex != rewiredIndex, "they just became friends!"
             self.graph.remove_edge(nodeIndex, breaklinkNeighbourIndex)
-                
+            return breaklinkNeighbourIndex
+                    
+            
+        
     def train_node2vec(self, input_file='graph.edgelist', output_file='embeddings.emb', dimensions =64):
         
        n2v.save_graph_as_edgelist(self.graph, input_file) 
@@ -608,73 +674,105 @@ class Model:
             similarity = np.dot(all_vectors, target_vec) / (np.linalg.norm(all_vectors, axis=1) * np.linalg.norm(target_vec))
             similarities = [(agent, sim) for agent, sim in zip(all_agents, similarity) if agent != nodeIndex]
             similarities.sort(key=lambda x: x[1], reverse=True)
+            #print(nodeIndex, similarities)
             return similarities
         
-        sim = int(get_similar_agents(nodeIndex)[0][0])
+        #first index references matrix entry(tupple), second indexes first value of tupple(node Index of agent)
+        similar_neighbours = get_similar_agents(nodeIndex)
+        sim = int(similar_neighbours[0][0])
+        neighbours = list(self.graph.adj[nodeIndex].keys())
+        
+        #TODO: ensure sim is not in the list of neighbbours and if so go to next most similar node for rewiring
+        rank = 1
+        while sim in neighbours:
+            #print(rank)
+            if rank <= len(neighbours)-1:
+                #print(rank, neighbours)
+                sim = int(similar_neighbours[rank][0])
+                rank += 1
+            else:
+                return
+            
+        #print(nodeIndex, sim)
         self.rewire(nodeIndex, sim)
-        self.break_link(nodeIndex)
+        break_link = self.break_link(nodeIndex, sim, neighbours)
+        self.affected_nodes += [nodeIndex, sim, break_link]
+        
         
             
-    def wtf1(self, nodeIndex, topk=5):
-        TOPK = topk
-        nodes = self.graph.nodes()
-        A = nx.to_scipy_sparse_matrix(self.graph, nodes, format='csr')
-        num_cores = os.cpu_count()
+    def wtf_1(self, topk=5, alpha=0.70, max_iter=50):
         
-        top = TOPK
-    
-        def _ppr(node_index, A, p, top):
-            n = A.shape[0]
-            pp = np.zeros(n)
-            pp[node_index] = 1
-            pr = pagerank_power(A, p=p, personalize=pp)
-            pr_indices = np.argpartition(pr, -top-1)[-top-1:]
-            pr_indices = pr_indices[np.argsort(pr[pr_indices])[::-1]]
-            return pr_indices[pr_indices != node_index][:top]
-    
-        def get_circle_of_trust_per_node(A, p=0.85, top=top, num_cores=num_cores):
-            return Parallel(n_jobs=num_cores, prefer="threads")(
-                delayed(_ppr)(node_index, A, p, top) for node_index in range(A.shape[0])
-            )
-    
-        def frequency_by_circle_of_trust(A, cot_per_node=None, p=0.85, top=10, num_cores=num_cores):
-            if cot_per_node is None:
-                cot_per_node = get_circle_of_trust_per_node(A, p, top, num_cores)
+        TOPK = topk
+
+        # Convert NetworkX graph to rustworkx graph
+        G = rx.networkx_converter(self.graph)
+        
+        def _ppr(nodeIndex, G, p, top, max_iter):
+            pp = {node: 0 for node in G.nodes()}
+            pp[nodeIndex] = 1.0
+            pr = rx.pagerank(G, alpha=p, personalization=pp, max_iter=max_iter)
+            pr_values = np.array(list(pr.values()))
+            pr_indices = np.argsort(pr_values)[::-1]
+            pr_indices = pr_indices[pr_indices != nodeIndex][:top]
+            return pr_indices
+
+        def get_circle_of_trust_per_node(G, p, top, max_iter):
+            return [_ppr(nodeIndex, G, p, top, max_iter) for nodeIndex in range(len(G.nodes()))]
+
+        def frequency_by_circle_of_trust(G, cot_per_node, top):
             unique_elements, counts_elements = np.unique(np.concatenate(cot_per_node), return_counts=True)
-            count_dict = dict(zip(unique_elements, counts_elements))
-            return [count_dict.get(node_index, 0) for node_index in range(A.shape[0])]
-    
-        def _salsa(node_index, cot, A, top=10):
-            BG = nx.Graph()
-            BG.add_nodes_from(['h{}'.format(vi) for vi in cot], bipartite=0)  # hubs
-            edges = [('h{}'.format(vi), int(vj)) for vi in cot for vj in A[vi].indices]
-            BG.add_nodes_from(set(e[1] for e in edges), bipartite=1)  # authorities
+            count_dict = {el: count for el, count in zip(unique_elements, counts_elements)}
+            return [count_dict.get(nodeIndex, 0) for nodeIndex in range(len(G.nodes()))]
+
+        def _salsa(nodeIndex, cot, G, top):
+            BG = rx.PyGraph()
+            hubs = [f'h{vi}' for vi in cot]
+            hub_indices = BG.add_nodes_from(hubs)
+            edges = [(f'h{vi}', vj) for vi in cot for vj in G.neighbors(vi)]
+            authorities = list(set(e[1] for e in edges))
+            auth_indices = BG.add_nodes_from(authorities)
+            
+            hub_index_map = {h: idx for idx, h in enumerate(hubs)}
+            auth_index_map = {a: idx for idx, a in enumerate(authorities)}
+            
+            edges = [(hub_index_map[f'h{vi}'], auth_index_map[vj]) for vi, vj in edges if f'h{vi}' in hub_index_map and vj in auth_index_map]
+            
             BG.add_edges_from(edges)
-            centrality = Counter({
-                n: c for n, c in nx.eigenvector_centrality_numpy(BG).items()
-                if isinstance(n, int) and n not in cot and n != node_index and n not in A[node_index].indices
-            })
-            return np.array([n for n, _ in centrality.most_common(top)])
-    
-        def frequency_by_who_to_follow(A, cot_per_node=None, p=0.85, top=top, num_cores=num_cores):
-            if cot_per_node is None:
-                cot_per_node = get_circle_of_trust_per_node(A, p, top, num_cores)
-            results = Parallel(n_jobs=num_cores, prefer="threads")(
-                delayed(_salsa)(node_index, cot, A, top) for node_index, cot in enumerate(cot_per_node)
-            )
+            centrality = rx.eigenvector_centrality(BG)
+            centrality = {n: c for n, c in centrality.items() if isinstance(n, int) and n not in cot and n != nodeIndex and n not in G.neighbors(nodeIndex)}
+            sorted_centrality = sorted(centrality.items(), key=lambda item: item[1], reverse=True)
+            return np.array([n for n, _ in sorted_centrality[:top]])
+
+        def frequency_by_who_to_follow(G, cot_per_node, top):
+            results = [_salsa(nodeIndex, cot, G, top) for nodeIndex, cot in enumerate(cot_per_node)]
             unique_elements, counts_elements = np.unique(np.concatenate(results), return_counts=True)
-            count_dict = dict(zip(unique_elements, counts_elements))
-            return [count_dict.get(node_index, 0) for node_index in range(A.shape[0])]
-    
-        def wtf_small(A, njobs):
-            cot_per_node = get_circle_of_trust_per_node(A, p=0.85, top=TOPK, num_cores=njobs)
-            wtf = frequency_by_who_to_follow(A, cot_per_node=cot_per_node, p=0.85, top=TOPK, num_cores=njobs)
+            count_dict = {el: count for el, count in zip(unique_elements, counts_elements)}
+            return [count_dict.get(nodeIndex, 0) for nodeIndex in range(len(G.nodes()))]
+
+        def wtf_full_old(G, alpha, top, max_iter):
+            cot_per_node = get_circle_of_trust_per_node(G, alpha, top, max_iter)
+            wtf = frequency_by_who_to_follow(G, cot_per_node, top)
             return wtf
-    
-        ranking = wtf_small(A, njobs=4)
-        neighbour_index = np.argmax(ranking)
-        self.rewire(nodeIndex, neighbour_index)
-        self.break_link(nodeIndex)
+
+        # Calculate recommendations 
+        self.ranking = wtf_full_old(G, alpha, TOPK, max_iter)
+        
+        return
+      
+
+    def wtf_rewire(self, nodeIndex):
+        
+        #Select agent with highest pagerank
+        agent_index = np.argmax(self.ranking)
+        
+        neighbours = list(self.graph.adj[nodeIndex].keys())
+        
+        # Ensuring the selected neighbour_index is valid
+        assert agent_index in self.graph.nodes(), "Neighbour index is not valid"
+        
+        self.rewire(nodeIndex, agent_index)
+        broken_index = self.break_link(nodeIndex, agent_index, neighbours)
+        self.affected_nodes += [nodeIndex, agent_index, broken_index]
         
             
     
@@ -851,13 +949,22 @@ class Model:
         #create list of number of agreeing friends
         # self.findNbAgreeingFriends()
         # self.avgNbAgreeingList.append(mean(self.NbAgreeingFriends))
-
+        
+        global args 
+        
+        if args["rewiringAlgorithm"] in "node2vec":
+            self.train_node2vec()
+            print("initial training complete")
+            
+        elif args["rewiringAlgorithm"] in "wtf":
+            self.wtf_1()
+            print("initial training complete")
        
         for i in range(steps):
-           
+            self.t = i 
         
 
-            print("step: ", i)
+            #print("step: ", i)
             nodeIndex = self.interact()
             ratio = self.countCooperatorRatio()
             self.ratio.append(ratio)
@@ -874,7 +981,7 @@ class Model:
             #draw_model(self) #this should draw the model in every timestep! 
             # self.avgNbAgreeingList.append(avgFriends)
             
-            global args 
+           
            
            # some book keeping
             if(clusters):
@@ -895,7 +1002,7 @@ class Model:
             snapshots = [0, int(args["timesteps"]/2), args["timesteps"]-1]
            
             if i in snapshots and drawModel:
-                self.plot_network(self.graph, title = f"T = {i}")
+                self.plot_network(self.graph, title = f"T = {i}, N = {args['nwsize']}")
             
                 
             # if(gifname != None and (i in snapshots)):
@@ -946,7 +1053,7 @@ class Model:
     
         for e in self.graph.edges():
             self.graph[e[0]][e[1]]['weight'] = self.getFriendshipWeight()
-    
+        
         self.update_minority_fraction(n)
         minority_frac = sum(self.fraction_m) / n
         #print("before", minority_frac)
@@ -955,7 +1062,7 @@ class Model:
         tolerance = 0.13
     
         while abs(h_m - h_M) > tolerance:
-            self.interact()
+            self.interact_init()
     
             for i in range(n):
                 self.graph.nodes[i]["m"] = 1 if self.graph.nodes[i]["agent"].state >= 0 else 0
@@ -979,6 +1086,7 @@ class Model:
         
     
     def populateModel_netin(self, n, skew = 0):
+        
         
         #for some reason the skew is offset by 0.01 after genreation, this brings it back to intended skew
         skew = skew- 0.01
@@ -1082,6 +1190,7 @@ class EmpiricalModel(Model):
        # np.savetxt("debug.txt", list(self.graph.nodes))
       
         self.populateModel_empirical(n, skew)
+
 
 
 class EmpiricalModel_w_agents(Model):
@@ -1439,28 +1548,36 @@ def drawAvgNumberOfAgreeingFriends(models, pltNr = 1):
 #     sec = (end - start) % 60
 #     print(f'Runtime was complete: {mins:5.0f} mins {sec}s\n')
 
-# #     return
+#     return
     
 twitter, fb  = "twitter_102", "fb_150"
 init_states = []
-
-# start = time.time()
+final_states = []
+start = time.time()
 for i in range(1):
     print(i)
-    args.update({"type": "FB", "plot": True, "top_file": f"{fb}.gpickle", "timesteps": 50, "rewiringAlgorithm": "wtf",
-                  "rewiringMode": "diff"})
-    nwsize = 150
+    args.update({"type": "DPAH", "plot": False, "top_file": f"{fb}.gpickle", "timesteps": 1000, "rewiringAlgorithm": "wtf",
+                  "rewiringMode": "diff", "nwsize": 300})
+    #nwsize has to equal empirical network size 
     model = simulate(1, args)
     init_states.append(model.states[0])
     states = model.states
+    final_states.append(states[-1])
     plt.plot(states)
-        
-# # end = time.time()
-# # mins = (end - start) / 60
-# # sec = (end - start) % 60
-# print(f'Runtime was complete: {mins:5.0f} mins {sec}s\n')
-# # # #frac_m  = len(model.fraction_m)/nwsize
-# # # #print(frac_m, 1-frac_m)
+    plt.ylim(-1, 1)
+
+print(np.mean(final_states))
+
+
+
+# final_states_compile_list = list(zip(final_states_2nd, final_states_3rd))
+# final_states_compiled = pd.DataFrame(final_states_compile_list, columns = ["final_states_t_2", 'final_states_full'])
+# final_states_compiled.to_csv("final_states_node2vec_test.csv")
+#final_states_2nd = final_states.copy()
+end = time.time()
+mins = (end - start) / 60
+sec = (end - start) % 60
+print(f'Runtime was complete: {mins:5.0f} mins {sec}s\n')
 
 # states = model.states
 # plt.plot(states)

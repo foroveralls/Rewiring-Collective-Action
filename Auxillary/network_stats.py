@@ -12,9 +12,6 @@ import pandas as pd
 #%%
 
 
-from typing import Union
-import networkx as nx
-from collections import Counter
 
 def get_edge_type_counts(g: Union[nx.Graph, nx.DiGraph], fractions: bool = False) -> Counter:
     """

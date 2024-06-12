@@ -53,7 +53,7 @@ if  __name__ ==  '__main__':
 
     #Constants and Variables
     numberOfSimulations = 1
-    numberOfProcessors =  int(multiprocessing.cpu_count()*0.6) # CPUs to use for parallelization
+    numberOfProcessors =  int(multiprocessing.cpu_count())-1 # CPUs to use for parallelization
 
     start = time.time()
     pool=Pool(processes = numberOfProcessors) #initializing pool
@@ -87,28 +87,31 @@ if  __name__ ==  '__main__':
     combined_list3 = [("wtf","None", topology) for topology in directed_topology_list]
     
     # Combine all lists
-    combined_list = combined_list1 #+ combined_list2 + combined_list3
+    combined_list = combined_list1 + combined_list2 + combined_list3
         
     
 
     out_list = []
     for i, v, k in combined_list:
       
-        models_checks.nwsize = 100
+        nwsize = 100
         
         print("Started iteration: ", f"{i}_{v}_{k}")
 
         argList = []
         if k in "twitter":
             top_file = "twitter_graph_N_102.gpickle"
-            models_checks.nwsize = 102
-        else:
+            nwsize = 102
+        elif k in "FB":
             top_file = "fb_150.gpickle"
-            models_checks.nwsize = 150
-            
+            nwsize = 150
+        
+        else:
+            continue
+        
         ## You can specify simulation parameters here. If they are not set here, they will default to some values set in models.py
-        argList.append({"rewiringAlgorithm": i, "rewiringMode": v, "type": k,
-                        "top_file": top_file, "polarisingNode_f": 0.10, "timesteps":8000 , "plot": False})
+        argList.append({"rewiringAlgorithm": i, "nwsize": nwsize, "rewiringMode": v, "type": k,
+                        "top_file": top_file, "polarisingNode_f": 0.10, "timesteps":1000 , "plot": False})
        
         
         #print (argList)

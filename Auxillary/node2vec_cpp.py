@@ -41,7 +41,7 @@ def validate_embeddings_file(filepath, graph_nodes, expected_dimensions=64):
         for line in cleaned_lines:
             f.write(f"{line}\n")
 
-def run_node2vec(node2vec_executable, input_file, output_file, dimensions=64, walk_length=30, num_walks=200, context_size=10):
+def run_node2vec(node2vec_executable, input_file, output_file, dimensions=64, walk_length=80, num_walks=10, context_size=10):
     if not os.path.exists(node2vec_executable):
         raise FileNotFoundError(f"node2vec executable not found at {node2vec_executable}. Please compile it from the SNAP repository.")
 

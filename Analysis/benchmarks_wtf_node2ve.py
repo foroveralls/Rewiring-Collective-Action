@@ -5,15 +5,24 @@ Created on Thu May 23 13:33:39 2024
 @author: Jordan
 """
 
+#%%
+import os 
+import sys
+# Ensure the parent directory is in the sys.path for auxiliary imports
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.abspath(os.path.join(current_dir, '..'))
+sys.path.append(parent_dir)
+#%%
 import models_checks_updated as models_checks
 import time
 from node2vec import Node2Vec
 import numpy as np
 import networkx as nx
-import os
+#from fast_wtf import frequency_by_who_to_follow as frequency_wtf
+from fast_wtf import wtf_full
+from joblib import Parallel, delayed
 from fast_pagerank import pagerank_power
-
-
+from scipy.sparse import csr_matrix
 #%%
 def timer(func, arg):
     start = time.time()
@@ -24,64 +33,68 @@ def timer(func, arg):
     print(f'Runtime was complete: {mins:5.0f} mins {sec}s\n')
 
 #%%
-def wtf1(self, nodeIndex, topk=5):
-    TOPK = topk
-    nodes = self.graph.nodes()
-    A = nx.to_scipy_sparse_matrix(self.graph, nodes, format='csr')
+
+
+def wtf1(self, nodeIndex):
+    print("new")
     num_cores = os.cpu_count()
+    A= nx.to_scipy_sparse_array(self.graph, format='csr')
+
+    # Convert scipy.sparse matrix to numpy arrays for data, indices, and indptr
+    data = np.array(A.data, dtype=np.float64)
+    indices = np.array(A.indices, dtype=np.int32)
+    indptr = np.array(A.indptr, dtype=np.int32)
     
-    top = TOPK
-
-    def _ppr(node_index, A, p, top):
-        n = A.shape[0]
-        pp = np.zeros(n)
-        pp[node_index] = 1
-        pr = pagerank_power(A, p=p, personalize=pp)
-        pr_indices = np.argpartition(pr, -top-1)[-top-1:]
-        pr_indices = pr_indices[np.argsort(pr[pr_indices])[::-1]]
-        return pr_indices[pr_indices != node_index][:top]
-
-    def get_circle_of_trust_per_node(A, p=0.85, top=top, num_cores=num_cores):
-        return Parallel(n_jobs=num_cores, prefer="threads")(
-            delayed(_ppr)(node_index, A, p, top) for node_index in range(A.shape[0])
-        )
-
-    def frequency_by_circle_of_trust(A, cot_per_node=None, p=0.85, top=10, num_cores=num_cores):
-        if cot_per_node is None:
-            cot_per_node = get_circle_of_trust_per_node(A, p, top, num_cores)
-        unique_elements, counts_elements = np.unique(np.concatenate(cot_per_node), return_counts=True)
-        count_dict = dict(zip(unique_elements, counts_elements))
-        return [count_dict.get(node_index, 0) for node_index in range(A.shape[0])]
-
-    def _salsa(node_index, cot, A, top=10):
-        BG = nx.Graph()
-        BG.add_nodes_from(['h{}'.format(vi) for vi in cot], bipartite=0)  # hubs
-        edges = [('h{}'.format(vi), int(vj)) for vi in cot for vj in A[vi].indices]
-        BG.add_nodes_from(set(e[1] for e in edges), bipartite=1)  # authorities
-        BG.add_edges_from(edges)
-        centrality = Counter({
-            n: c for n, c in nx.eigenvector_centrality_numpy(BG).items()
-            if isinstance(n, int) and n not in cot and n != node_index and n not in A[node_index].indices
-        })
-        return np.array([n for n, _ in centrality.most_common(top)])
-
-    def frequency_by_who_to_follow(A, cot_per_node=None, p=0.85, top=top, num_cores=num_cores):
-        if cot_per_node is None:
-            cot_per_node = get_circle_of_trust_per_node(A, p, top, num_cores)
-        results = Parallel(n_jobs=num_cores, prefer="threads")(
-            delayed(_salsa)(node_index, cot, A, top) for node_index, cot in enumerate(cot_per_node)
-        )
-        unique_elements, counts_elements = np.unique(np.concatenate(results), return_counts=True)
-        count_dict = dict(zip(unique_elements, counts_elements))
-        return [count_dict.get(node_index, 0) for node_index in range(A.shape[0])]
-
-    def wtf_small(A, njobs):
-        cot_per_node = get_circle_of_trust_per_node(A, p=0.85, top=TOPK, num_cores=njobs)
-        wtf = frequency_by_who_to_follow(A, cot_per_node=cot_per_node, p=0.85, top=TOPK, num_cores=njobs)
-        return wtf
-
-    ranking = wtf_small(A, njobs=4)
+    ranking = wtf_full(data, indices, indptr, A.shape[0], A.shape[1], topk=10, num_cores=num_cores-1)
+    
     neighbour_index = np.argmax(ranking)
+        
+    
+    neighbours = list(self.graph.adj[nodeIndex].keys())
+    self.rewire(nodeIndex, neighbour_index)
+    self.break_link(nodeIndex, neighbour_index, neighbours)
+    
+    
+    
+    
+# def wtf1(self, nodeIndex, topk=5):
+#     print("new")
+#     TOPK = topk
+#     nodes = self.graph.nodes()
+#     A = nx.to_scipy_sparse_matrix(self.graph, nodes, format='csr')
+#     #A = nx.to_numpy_array(self.graph)
+#     num_cores = os.cpu_count()
+#     alpha = 0.85
+
+#     def _ppr(node_index, A, p, top):
+#         n = A.shape[0]
+#         pp = np.zeros(n)
+#         pp[node_index] = 1
+#         pr = pagerank_power(A, p=p, personalize=pp)
+#         pr_indices = np.argpartition(pr, -top-1)[-top-1:]
+#         pr_indices = pr_indices[np.argsort(pr[pr_indices])[::-1]]
+#         return pr_indices[pr_indices != node_index][:top]
+
+#     def get_circle_of_trust_per_node(A, p=0.85, top=TOPK, num_cores=num_cores):
+#         return Parallel(n_jobs=num_cores, prefer="threads")(
+#             delayed(_ppr)(node_index, A, p, top) for node_index in range(A.shape[0])
+#         )
+
+#     def wtf_full(A, njobs):
+#         cot_per_node = get_circle_of_trust_per_node(A, p=0.85, top=TOPK, num_cores=njobs)
+#         A = csr_matrix.toarray(A)
+#         wtf = frequency_wtf(A, cot_per_node,  alpha, TOPK, num_cores)
+#         return wtf
+    
+
+#     ranking = wtf_full(A, njobs = num_cores)
+#     neighbour_index = np.argmax(ranking)
+#     neighbours = list(self.graph.adj[nodeIndex].keys())
+#     self.rewire(nodeIndex, neighbour_index)
+#     self.break_link(nodeIndex, neighbour_index, neighbours)
+    
+        
+
     
     
 def train_node2vec(self):
@@ -106,12 +119,13 @@ def node2vec_rewire(self, nodeIndex):
 
 
 
+
 #%%
 
-args = ({"type": "DPAH", "plot": False, "timesteps": 50, "rewiringAlgorithm": "node2vec"})
-models_checks.nwsize = 20
+args = ({"type": "DPAH", "plot": False, "timesteps": 2, "rewiringAlgorithm": "wtf"})
+models_checks.nwsize = 500
 
-changes = False #[node2vec_rewire, train_node2vec]
+changes =  False #[wtf1] #False # [node2vec_rewire, train_node2vec] #False
 
 def test_runs(n):
     for i in range(n):
