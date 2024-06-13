@@ -272,12 +272,12 @@ class Model:
         
                 def call_wtf(nodeIndex):
                     
-                    # if nodeIndex in self.affected_nodes:    
-                    #     #print("retraining")
-                    #     self.wtf_1()
-                    #     self.affected_nodes = []
+                    if nodeIndex in self.affected_nodes:    
+                        print("retraining")
+                        self.wtf_1()
+                        self.affected_nodes = []
                         
-                    self.wtf_1()
+                    # self.wtf_1()
                     self.wtf_rewire(nodeIndex)
                     
                 self.call_algo = call_wtf
@@ -1554,10 +1554,10 @@ twitter, fb  = "twitter_102", "fb_150"
 init_states = []
 final_states = []
 start = time.time()
-for i in range(1):
+for i in range(20):
     print(i)
     args.update({"type": "DPAH", "plot": False, "top_file": f"{fb}.gpickle", "timesteps": 1000, "rewiringAlgorithm": "wtf",
-                  "rewiringMode": "diff", "nwsize": 300})
+                  "rewiringMode": "diff", "nwsize": 200})
     #nwsize has to equal empirical network size 
     model = simulate(1, args)
     init_states.append(model.states[0])
@@ -1565,6 +1565,7 @@ for i in range(1):
     final_states.append(states[-1])
     plt.plot(states)
     plt.ylim(-1, 1)
+    plt.title(f'{args["rewiringAlgorithm"]}_affected')
 
 print(np.mean(final_states))
 
