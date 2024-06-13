@@ -273,7 +273,7 @@ class Model:
                 def call_wtf(nodeIndex):
                     
                     if nodeIndex in self.affected_nodes:    
-                        print("retraining")
+                        #print("retraining")
                         self.wtf_1()
                         self.affected_nodes = []
                         
@@ -287,7 +287,7 @@ class Model:
                 def call_node2vec(nodeIndex):
                     
                     if nodeIndex in self.affected_nodes:    
-                        print("retraining")
+                        #print("retraining")
                         self.train_node2vec()
                         self.affected_nodes = []
                     
@@ -1554,9 +1554,10 @@ twitter, fb  = "twitter_102", "fb_150"
 init_states = []
 final_states = []
 start = time.time()
-for i in range(20):
+plt.figure()
+for i in range(3):
     print(i)
-    args.update({"type": "DPAH", "plot": False, "top_file": f"{fb}.gpickle", "timesteps": 1000, "rewiringAlgorithm": "wtf",
+    args.update({"type": "DPAH", "plot": False, "top_file": f"{fb}.gpickle", "timesteps": 50, "rewiringAlgorithm": "wtf",
                   "rewiringMode": "diff", "nwsize": 200})
     #nwsize has to equal empirical network size 
     model = simulate(1, args)
@@ -1564,8 +1565,14 @@ for i in range(20):
     states = model.states
     final_states.append(states[-1])
     plt.plot(states)
-    plt.ylim(-1, 1)
-    plt.title(f'{args["rewiringAlgorithm"]}_affected')
+
+    
+plt.ylim(-1, 1)
+plt.title(f'{args["rewiringAlgorithm"]}_full')
+plt.savefig(f'./Figs_{args["rewiringAlgorithm"]}_full_args_{args["nwsize"]}_{args["timesteps"]}.png')
+plt.show()  # Show the plot
+plt.savefig(f'../Figs/{args["rewiringAlgorithm"]}_full_args{["nwsize"]}_{args["timesteps"]}.png')
+#plt.savefig('../Figs/test.png')
 
 print(np.mean(final_states))
 
