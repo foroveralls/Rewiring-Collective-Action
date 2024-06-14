@@ -38,7 +38,7 @@ import dill
 import models_checks_updated as models_checks
 import numpy as np 
 import pickle 
-
+import concurrent
 
 from itertools import product 
 
@@ -48,29 +48,35 @@ from itertools import product
 #random.seed(1574705741)    ## if you need to set a specific random seed put it here
 #np.random.seed(1574705741)
 
+lock = None
+
+#This is magic to present data racing I don't know why it works
+def init(lock_):
+    models_checks.init_lock(lock_)
 
 if  __name__ ==  '__main__': 
 
     #Constants and Variables
-    numberOfSimulations = 1
+    numberOfSimulations = 4
     numberOfProcessors =  int(multiprocessing.cpu_count())-1 # CPUs to use for parallelization
 
     start = time.time()
-    pool=Pool(processes = numberOfProcessors) #initializing pool
+    lock = multiprocessing.Lock()
     
+    pool = multiprocessing.Pool(processes=numberOfProcessors, initializer=init, initargs=(lock,))
     # ----------PATH TO SAVE FIGURES AND DATA-----------
 
     pathFig = '/Figs'
     pathData = '/Output'
     
     modelargs= models_checks.getargs()  # requires models.py to be imported
-    runs = 4   ## has to be even for multiple runs also n is actually n-1 because I'm lazy
+    #runs = 4   ## has to be even for multiple runs also n is actually n-1 because I'm lazy
 
 
     
     rewiring_list_h = ["diff", "same"]
-    directed_topology_list = ["FB", "DPAH", "Twitter"]  
-    undirected_topology_list = ["cl"]  
+    directed_topology_list = ["DPAH"] #"Twitter"]  
+    undirected_topology_list = ["cl"] #"FB"]  
     
     # Create combined list for scenarios "biased" and "bridge" with "diff" and "same"
     # These can be on both directed and undirected networks
@@ -94,39 +100,44 @@ if  __name__ ==  '__main__':
     out_list = []
     for i, v, k in combined_list:
       
-        nwsize = 100
+     
         
         print("Started iteration: ", f"{i}_{v}_{k}")
 
         argList = []
-        if k in "twitter":
-            top_file = "twitter_graph_N_102.gpickle"
+        if k in "Twitter":
+            top_file = "twitter_102.gpickle"
             nwsize = 102
+            
         elif k in "FB":
             top_file = "fb_150.gpickle"
             nwsize = 150
         
         else:
-            continue
+            top_file = None
+            nwsize = 150
         
         ## You can specify simulation parameters here. If they are not set here, they will default to some values set in models.py
         argList.append({"rewiringAlgorithm": i, "nwsize": nwsize, "rewiringMode": v, "type": k,
-                        "top_file": top_file, "polarisingNode_f": 0.10, "timesteps":1000 , "plot": False})
+                        "top_file": top_file, "polarisingNode_f": 0.10, "timesteps": 400 , "plot": False})
        
         
         #print (argList)
         
         for j in range(len(argList)):
-            sim = pool.starmap(models_checks.simulate, zip(range(numberOfSimulations), repeat(argList[j])))
             
-            #print(sim[0]. __class__. __name__)
-            #print(sim[0].algo, sim[0].steps)
+           
+            sim = pool.starmap(models_checks.simulate, zip(range(numberOfSimulations), repeat(argList[j])))#, repeat(lock)))
+        
+            # #print(sim[0]. __class__. __name__)
+            # #print(sim[0].algo) #sim[0].steps)
             
             fname = f'../Output/{i}_linkif_{v}_top_{j}.csv'
         
             out_list.append(models_checks.saveavgdata(sim, fname, args = argList[0]))
 
-    
+    pool.close()
+    pool.join()
     
     end = time.time()
     mins = (end - start) / 60

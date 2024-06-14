@@ -17,6 +17,7 @@ sys.path.append(parent_dir)
 #%%
 import numpy as np
 import random 
+import threading
 #sys.path.append("..")
 import pandas as pd
 from copy import deepcopy
@@ -36,6 +37,7 @@ import dill
 import igraph as ig
 import leidenalg as la
 import math
+import multiprocessing
 import matplotlib.pyplot as plt
 import seaborn as sns
 from netin import DPAH, PATCH, viz, stats
@@ -43,11 +45,9 @@ from netin.generators.h import Homophily
 from collections import Counter
 from fast_pagerank import pagerank_power
 from Auxillary import network_stats
-from scipy.sparse import csr_matrix
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from joblib import Parallel, delayed
 import rustworkx as rx
 import subprocess
+from multiprocessing import Process, Lock
 from Auxillary import node2vec_cpp as n2v
 
 #%%
@@ -107,7 +107,7 @@ rewiringAlgorithm = 'None' #None, random, biased, bridge
 #the rewiringAlgorithm variable was meant to enable to do multiple runs at once. However the loop where the specification 
 #given in the ArgList in run.py file overrules what is given in line 65 does not work. Unclear why. 
 #long story short. All changes to breaklinkprob, establishlinkprob and rewiringAlgorithm have to be specified here in the models file
-
+lock = None
 
 #print(os.getcwd())
 # the arguments provided in run.py overrides these values
@@ -126,6 +126,9 @@ args = {"defectorUtility" : defectorUtility,
 def getargs():
     return args
 
+def init_lock(lock_):
+    global lock
+    lock = lock_
 
 def simulate(i, newArgs, func_changes = False): #RG for random graph (used for testing)
     setArgs(newArgs)
@@ -157,6 +160,7 @@ def simulate(i, newArgs, func_changes = False): #RG for random graph (used for t
     if func_changes:
         update_instance_methods(model, func_changes)
     
+    #model.lock = lock
     res = model.runSim(args["timesteps"], clusters=True, drawModel=args["plot"], gifname= 'trialtrial') ## gifname provide a gif name if you want a gif animation, need to specify time stamps later on
     #C_end, S_end = model.property_checks(R_G)
 
@@ -252,11 +256,12 @@ class Model:
         self.small_world_diff = []
         self.node2vec_executable = n2v.get_node2vec_path()
         self.affected_nodes = []
-    
-    
+        self.embeddings = []
+        
     
         #setting rewiring algorithm to be used
         rewiringAlgorithm = args["rewiringAlgorithm"]
+        #print(rewiringAlgorithm)
         self.algo = rewiringAlgorithm
         #the same random agent rewires after interacting:
         #TODO only need to call this once, need to change
@@ -269,37 +274,14 @@ class Model:
                 self.call_algo = self.bridgerewiring
                 
             elif rewiringAlgorithm == "wtf":
-        
-                def call_wtf(nodeIndex):
                     
-                    if nodeIndex in self.affected_nodes:    
-                        #print("retraining")
-                        self.wtf_1()
-                        self.affected_nodes = []
-                        
-                    # self.wtf_1()
-                    self.wtf_rewire(nodeIndex)
-                    
-                self.call_algo = call_wtf
+                self.call_algo = self.call_wtf
                 
             elif rewiringAlgorithm == "node2vec":
+             
+                self.call_algo = self.call_node2vec
                 
-                def call_node2vec(nodeIndex):
-                    
-                    if nodeIndex in self.affected_nodes:    
-                        #print("retraining")
-                        self.train_node2vec()
-                        self.affected_nodes = []
-                    
-                    # if self.t % 2 == 0:
-                    #     self.train_node2vec()  
-                    #print("trained")
-                    #self.train_node2vec()
-                    
-                    self.node2vec_rewire(nodeIndex)
-                    
-                self.call_algo = call_node2vec
-                
+    
     # picks a randon agent to perform an interaction with a random neighbour and then to rewire
     def interact(self):
         #print('starting interaction')
@@ -320,7 +302,8 @@ class Model:
         
         
         self.call_algo(nodeIndex)
-        
+    
+    
     #static interaction for generating networks
     def interact_init(self):
         #print('starting interaction')
@@ -363,6 +346,7 @@ class Model:
         return sw_sigma  
     
     
+    #selectes node with highest degree from node_list
     def select_kmax_new(self, node_list):
         
         degree_sum = 0
@@ -379,7 +363,18 @@ class Model:
             
         return node 
     
-    
+    # def get_potential_friends(self, nodeIndex, potential_neighbours):
+    #     # Find non-neighbors
+    #     non_neighbors = set(nx.non_neighbors(self.graph, nodeIndex))
+        
+    #     # Find all neighbors and remove duplicates
+    #     total_neighbours = set(self.graph.neighbors(nodeIndex))
+        
+    #     # Find intersection of non-neighbors and neighbors
+    #     potentialfriends = non_neighbors.intersection(total_neighbours)
+        
+    #     return potentialfriends
+
     def check_node_state(self, node, neighbor):
         
         node_state = ""
@@ -392,9 +387,9 @@ class Model:
         return node_state
     
     def rewire(self, node_i, neighbour_i):
-        
+         
         weight = get_truncated_normal(args["friendship"], args["friendshipSD"], 0, 1).rvs(1)[0]
-        
+    
         self.graph.add_edge(node_i, neighbour_i, weight = weight)
         #self.TF_step(node_i, neighbour_i, weight = weight)
          
@@ -494,7 +489,8 @@ class Model:
             
             # print('ending random rewiring')
             
-            
+        
+        
     def biasedrewiring(self, nodeIndex):
         #'realistic' rewiring. Agent can only rewire within small number of network steps and has a bias towards like minded people in the establishing of links
         #here we have an extreme assumption: if agents are of the same opinion a link is established for sure, if not, no link is established -> could be refined by introducing a probability curve 
@@ -518,9 +514,7 @@ class Model:
         
         #print(res)
         
-        potentialfriends = set(non_neighbors).intersection(set(res))
-        
-        #print(potentialfriends)
+        potential_friends = set(non_neighbors).intersection(set(res))
         
 
                    
@@ -556,7 +550,7 @@ class Model:
                 
                 init_neighbours =  list(self.graph.adj[nodeIndex].keys())
                 if(len(init_neighbours) == 0):
-                    return nodeIndex
+                    return nodeIndex    
             
                 else:
                      #print('breaking a link')
@@ -629,9 +623,7 @@ class Model:
                     breaklinkNeighbourIndex = init_neighbours[random.randint(0, len(init_neighbours)-1)]
                         
                     self.graph.remove_edge(nodeIndex, breaklinkNeighbourIndex)
-    #------------------------------------------------------------------------------------        
-            if "Agent" in self.graph:
-                print("stop_3")
+    #-----------------------------------------------------------------------------------
           
         return nodeIndex
     
@@ -656,17 +648,29 @@ class Model:
         
     def train_node2vec(self, input_file='graph.edgelist', output_file='embeddings.emb', dimensions =64):
         
-       n2v.save_graph_as_edgelist(self.graph, input_file) 
-       n2v.run_node2vec(self.node2vec_executable, input_file, output_file)
+        #ensures there are no data races when running the node2vec executable
+        global lock
+        with lock:
+           self.embeddings.clear()
+           n2v.save_graph_as_edgelist(self.graph, input_file)
+           n2v.run_node2vec(self.node2vec_executable, input_file, output_file)
+           self.embeddings = n2v.load_embeddings(output_file)
+    
+           
+       # n2v.save_graph_as_edgelist(self.graph, input_file) 
+       # n2v.run_node2vec(self.node2vec_executable, input_file, output_file)
        #n2v.validate_embeddings_file(output_file, self.graph.nodes, expected_dimensions=dimensions)
        
-       self.embeddings = n2v.load_embeddings(output_file)
+       #self.embeddings = n2v.load_embeddings(output_file)
+       
+      
 
 
     def node2vec_rewire(self, nodeIndex):
         
         def get_similar_agents(nodeIndex, embeddings=self.embeddings):
-        
+            
+    
             target_vec = self.embeddings[nodeIndex]
             all_agents = list(self.embeddings.keys())
             all_vectors = np.array([self.embeddings[agent] for agent in all_agents])
@@ -678,28 +682,55 @@ class Model:
             return similarities
         
         #first index references matrix entry(tupple), second indexes first value of tupple(node Index of agent)
-        similar_neighbours = get_similar_agents(nodeIndex)
-        sim = int(similar_neighbours[0][0])
+        similar_neighbours = np.array([x for x, y in get_similar_agents(nodeIndex)])
+        sim = similar_neighbours[0]
+    
+        sim, neighbours = self.neighbours_check(nodeIndex, sim, similar_neighbours)
+        
+        #exits function if node connected to graph
+        if sim is None:
+            return
+        #print(nodeIndex, sim)
+        
+        #returns whether node was rewired
+        self.rewire(nodeIndex, sim)
+  
+        break_link = self.break_link(nodeIndex, sim, neighbours)
+        self.affected_nodes += [nodeIndex, sim, break_link]
+    
+    
+    
+    def neighbours_check(self, nodeIndex, rewireIndex, potentialIndexes):
+        
+        
         neighbours = list(self.graph.adj[nodeIndex].keys())
         
-        #TODO: ensure sim is not in the list of neighbbours and if so go to next most similar node for rewiring
+        if len(neighbours) == self.graph_n:
+          return None, neighbours
+    
         rank = 1
-        while sim in neighbours:
+        while rewireIndex in neighbours:
             #print(rank)
             if rank <= len(neighbours)-1:
                 #print(rank, neighbours)
-                sim = int(similar_neighbours[rank][0])
+                rewireIndex = potentialIndexes[rank]
                 rank += 1
             else:
-                return
-            
-        #print(nodeIndex, sim)
-        self.rewire(nodeIndex, sim)
-        break_link = self.break_link(nodeIndex, sim, neighbours)
-        self.affected_nodes += [nodeIndex, sim, break_link]
+                return rewireIndex, neighbours
+        return rewireIndex, neighbours
+        
+    def call_node2vec(self, nodeIndex):
         
         
-            
+        if nodeIndex in self.affected_nodes:    
+            #print("retraining")
+            self.train_node2vec()
+            self.affected_nodes = []
+    
+        self.node2vec_rewire(nodeIndex)
+           
+          
+
     def wtf_1(self, topk=5, alpha=0.70, max_iter=50):
         
         TOPK = topk
@@ -763,18 +794,24 @@ class Model:
     def wtf_rewire(self, nodeIndex):
         
         #Select agent with highest pagerank
-        agent_index = np.argmax(self.ranking)
+        rewireIndex = np.argmax(self.ranking)
         
-        neighbours = list(self.graph.adj[nodeIndex].keys())
+        rewireIndex, neighbours = self.neighbours_check(nodeIndex, rewireIndex, self.ranking)
         
-        # Ensuring the selected neighbour_index is valid
-        assert agent_index in self.graph.nodes(), "Neighbour index is not valid"
+        if rewireIndex is None:
+            return
+        self.rewire(nodeIndex, rewireIndex)
         
-        self.rewire(nodeIndex, agent_index)
-        broken_index = self.break_link(nodeIndex, agent_index, neighbours)
-        self.affected_nodes += [nodeIndex, agent_index, broken_index]
+        brokenIndex = self.break_link(nodeIndex, rewireIndex, neighbours)
+        self.affected_nodes += [nodeIndex, rewireIndex, brokenIndex]
         
-            
+    def call_wtf(self, nodeIndex):
+        
+        if nodeIndex in self.affected_nodes:    
+            #print("retraining")
+            self.wtf_1()
+            self.affected_nodes = []
+        self.wtf_rewire(nodeIndex)
     
 #%%% Statistics functions
 
@@ -954,12 +991,13 @@ class Model:
         
         if args["rewiringAlgorithm"] in "node2vec":
             self.train_node2vec()
-            print("initial training complete")
+            #print("initial training complete")
             
         elif args["rewiringAlgorithm"] in "wtf":
             self.wtf_1()
-            print("initial training complete")
+            #print("initial training complete")
        
+        self.graph_n = self.graph.size()
         for i in range(steps):
             self.t = i 
         
@@ -1190,7 +1228,7 @@ class EmpiricalModel(Model):
        # np.savetxt("debug.txt", list(self.graph.nodes))
       
         self.populateModel_empirical(n, skew)
-
+        
 
 
 class EmpiricalModel_w_agents(Model):
@@ -1549,43 +1587,45 @@ def drawAvgNumberOfAgreeingFriends(models, pltNr = 1):
 #     print(f'Runtime was complete: {mins:5.0f} mins {sec}s\n')
 
 #     return
+def test_run():
+    twitter, fb  = "twitter_102", "fb_150"
+    init_states = []
+    final_states = []
+    start = time.time()
+    plt.figure()
+    for i in range(4):
+        print(i)
+        args.update({"type": "DPAH", "plot": False, "top_file": f"{fb}.gpickle", "timesteps": 1000, "rewiringAlgorithm": "wtf",
+                      "rewiringMode": "diff", "nwsize":150})
+        #nwsize has to equal empirical network size 
+        model = simulate(1, args)
+        init_states.append(model.states[0])
+        states = model.states
+        final_states.append(states[-1])
+        plt.plot(states)
     
-twitter, fb  = "twitter_102", "fb_150"
-init_states = []
-final_states = []
-start = time.time()
-plt.figure()
-for i in range(3):
-    print(i)
-    args.update({"type": "DPAH", "plot": False, "top_file": f"{fb}.gpickle", "timesteps": 50, "rewiringAlgorithm": "wtf",
-                  "rewiringMode": "diff", "nwsize": 200})
-    #nwsize has to equal empirical network size 
-    model = simulate(1, args)
-    init_states.append(model.states[0])
-    states = model.states
-    final_states.append(states[-1])
-    plt.plot(states)
-
+        
+    plt.ylim(-1, 1)
+    plt.title(f'{args["rewiringAlgorithm"]}_full')
+    plt.axline((0, np.mean(final_states)), slope= 0)
+    plt.show()  # Ensure plot is rendered
     
-plt.ylim(-1, 1)
-plt.title(f'{args["rewiringAlgorithm"]}_full')
-plt.savefig(f'./Figs_{args["rewiringAlgorithm"]}_full_args_{args["nwsize"]}_{args["timesteps"]}.png')
-plt.show()  # Show the plot
-plt.savefig(f'../Figs/{args["rewiringAlgorithm"]}_full_args{["nwsize"]}_{args["timesteps"]}.png')
-#plt.savefig('../Figs/test.png')
-
-print(np.mean(final_states))
+#test_run()
+    
+    
+# plt.savefig(f'../Figs/_{args["rewiringAlgorithm"]}_full_args_{args["nwsize"]}_{args["timesteps"]}.jpg')
+# print(np.mean(final_states))
 
 
 
-# final_states_compile_list = list(zip(final_states_2nd, final_states_3rd))
-# final_states_compiled = pd.DataFrame(final_states_compile_list, columns = ["final_states_t_2", 'final_states_full'])
-# final_states_compiled.to_csv("final_states_node2vec_test.csv")
-#final_states_2nd = final_states.copy()
-end = time.time()
-mins = (end - start) / 60
-sec = (end - start) % 60
-print(f'Runtime was complete: {mins:5.0f} mins {sec}s\n')
+# # final_states_compile_list = list(zip(final_states_2nd, final_states_3rd))
+# # final_states_compiled = pd.DataFrame(final_states_compile_list, columns = ["final_states_t_2", 'final_states_full'])
+# # final_states_compiled.to_csv("final_states_node2vec_test.csv")
+# #final_states_2nd = final_states.copy()
+# end = time.time()
+# mins = (end - start) / 60
+# sec = (end - start) % 60
+# print(f'Runtime was complete: {mins:5.0f} mins {sec}s\n')
 
 # states = model.states
 # plt.plot(states)
