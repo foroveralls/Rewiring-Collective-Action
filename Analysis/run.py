@@ -57,8 +57,8 @@ def init(lock_):
 if  __name__ ==  '__main__': 
 
     #Constants and Variables
-    numberOfSimulations = 4
-    numberOfProcessors =  int(multiprocessing.cpu_count())-1 # CPUs to use for parallelization
+    numberOfSimulations = 30
+    numberOfProcessors =  0.8*int(multiprocessing.cpu_count()) # CPUs to use for parallelization
 
     start = time.time()
     lock = multiprocessing.Lock()
@@ -115,11 +115,11 @@ if  __name__ ==  '__main__':
         
         else:
             top_file = None
-            nwsize = 150
+            nwsize = 500
         
         ## You can specify simulation parameters here. If they are not set here, they will default to some values set in models.py
         argList.append({"rewiringAlgorithm": i, "nwsize": nwsize, "rewiringMode": v, "type": k,
-                        "top_file": top_file, "polarisingNode_f": 0.10, "timesteps": 400 , "plot": False})
+                        "top_file": top_file, "polarisingNode_f": 0.10, "timesteps": 30000 , "plot": False})
        
         
         #print (argList)
@@ -158,4 +158,16 @@ if  __name__ ==  '__main__':
     # Reorder columns to have 't' as the first column
     out_list_df = out_list_df[['t'] + columns]
     
-    out_list_df.to_csv('../Output/default_run_all_new.csv')
+    #out_list_df.to_csv(f'../Output/default_run_all_new_N_{nwsize}.csv')
+    try:
+        out_list_df.to_csv(f'../Output/default_run_all_new_N_{nwsize}.csv')
+    except NameError as e:
+        # Handle the case where nwsize does not exist
+        print(f"Error: {e}. It seems 'nwsize' does not exist.")
+        out_list_df.to_csv('../Output/default_run_all_new_N_default.csv')
+    except SyntaxError as e:
+        # Handle any potential syntax errors
+        print(f"Syntax Error: {e}")
+    except Exception as e:
+        # Handle any other types of errors
+        print(f"An unexpected error occurred: {e}")
