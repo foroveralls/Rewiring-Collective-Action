@@ -57,7 +57,7 @@ def init(lock_):
 if  __name__ ==  '__main__': 
 
     #Constants and Variables
-    numberOfSimulations = 4
+    numberOfSimulations = 5
     numberOfProcessors =  int(multiprocessing.cpu_count())-1 # CPUs to use for parallelization
 
     start = time.time()
@@ -101,7 +101,7 @@ if  __name__ ==  '__main__':
     for i, v, k in combined_list:
       
      
-        
+       
         print("Started iteration: ", f"{i}_{v}_{k}")
 
         argList = []
@@ -115,18 +115,18 @@ if  __name__ ==  '__main__':
         
         else:
             top_file = None
-            nwsize = 150
+            nwsize = 300
         
         ## You can specify simulation parameters here. If they are not set here, they will default to some values set in models.py
         argList.append({"rewiringAlgorithm": i, "nwsize": nwsize, "rewiringMode": v, "type": k,
-                        "top_file": top_file, "polarisingNode_f": 0.10, "timesteps": 400 , "plot": False})
+                        "top_file": top_file, "polarisingNode_f": 0.10, "timesteps": 1000 , "plot": False})
        
         
         #print (argList)
         
         for j in range(len(argList)):
             
-           
+            start_1  = time.time()
             sim = pool.starmap(models_checks.simulate, zip(range(numberOfSimulations), repeat(argList[j])))#, repeat(lock)))
         
             # #print(sim[0]. __class__. __name__)
@@ -135,7 +135,11 @@ if  __name__ ==  '__main__':
             fname = f'../Output/{i}_linkif_{v}_top_{j}.csv'
         
             out_list.append(models_checks.saveavgdata(sim, fname, args = argList[0]))
-
+            end = time.time()
+            mins = (end - start) / 60
+            sec = (end - start) % 60
+            print(f'algorithim run is complete: {mins:5.0f} mins {sec}s\n')
+            
     pool.close()
     pool.join()
     
@@ -158,4 +162,4 @@ if  __name__ ==  '__main__':
     # Reorder columns to have 't' as the first column
     out_list_df = out_list_df[['t'] + columns]
     
-    out_list_df.to_csv('../Output/default_run_all_new.csv')
+    out_list_df.to_csv(f'../Output/default_run_{nwsize}_all_new.csv')

@@ -649,8 +649,8 @@ class Model:
     def train_node2vec(self, input_file='graph.edgelist', output_file='embeddings.emb', dimensions =64):
         
         #ensures there are no data races when running the node2vec executable
-        global lock
-        with lock:
+        # global lock
+        # with lock:
            self.embeddings.clear()
            n2v.save_graph_as_edgelist(self.graph, input_file)
            n2v.run_node2vec(self.node2vec_executable, input_file, output_file)
@@ -690,14 +690,19 @@ class Model:
         #exits function if node connected to graph
         if sim is None:
             return
-        #print(nodeIndex, sim)
         
-        #returns whether node was rewired
-        self.rewire(nodeIndex, sim)
-  
-        break_link = self.break_link(nodeIndex, sim, neighbours)
-        self.affected_nodes += [nodeIndex, sim, break_link]
-    
+        #checking if it passed random param
+        elif random.random() < establishlinkprob:
+            #returns whether node was rewired
+            self.rewire(nodeIndex, sim)
+            
+            break_link = self.break_link(nodeIndex, sim, neighbours)
+            self.affected_nodes += [nodeIndex, sim, break_link]
+        else:
+            pass
+     
+        
+        
     
     
     def neighbours_check(self, nodeIndex, rewireIndex, potentialIndexes):
@@ -800,10 +805,15 @@ class Model:
         
         if rewireIndex is None:
             return
-        self.rewire(nodeIndex, rewireIndex)
-        
-        brokenIndex = self.break_link(nodeIndex, rewireIndex, neighbours)
-        self.affected_nodes += [nodeIndex, rewireIndex, brokenIndex]
+        #checking if it passed random param
+        elif random.random() < establishlinkprob:
+            self.rewire(nodeIndex, rewireIndex)
+            brokenIndex = self.break_link(nodeIndex, rewireIndex, neighbours)
+            self.affected_nodes += [nodeIndex, rewireIndex, brokenIndex]
+          
+        else:
+            pass
+
         
     def call_wtf(self, nodeIndex):
         
@@ -1191,18 +1201,21 @@ class Model:
         
         # Normalize the opinions to the range [-1, 1] for colormap
         norm = Normalize(vmin=-1, vmax=1)
-        colors = [plt.cm.get_cmap(colormap)(norm(opinions[node])) for node in graph.nodes]
+        
+        cmap = plt.cm.get_cmap(colormap).reversed()
+        colors = [cmap(norm(opinions[node])) for node in graph.nodes]
+    
         
         # Create a colormap scalar mappable for the colorbar
-        sm = ScalarMappable(cmap=plt.cm.get_cmap(colormap), norm=norm)
+        sm = ScalarMappable(cmap=cmap, norm=norm)
         sm.set_array([])
         
         # Draw the graph
         plt.figure(figsize=(10, 7))
         ax = plt.gca()
         nx.draw(graph, pos=layout, labels=labels, arrows=nx.is_directed(graph), 
-                node_color=colors, with_labels=False, edge_color='gray', node_size=200, 
-                font_size=10, alpha=0.8, ax=ax)
+                node_color=colors, with_labels=False, edge_color='gray', edgecolors = "black", node_size=200, 
+                font_size=10, alpha=0.9, ax=ax)
         
         # Adding a colorbar
         cbar = plt.colorbar(sm, ax=ax)
@@ -1593,9 +1606,9 @@ def test_run():
     final_states = []
     start = time.time()
     plt.figure()
-    for i in range(4):
+    for i in range(1):
         print(i)
-        args.update({"type": "DPAH", "plot": False, "top_file": f"{fb}.gpickle", "timesteps": 1000, "rewiringAlgorithm": "wtf",
+        args.update({"type": "DPAH", "plot": True, "top_file": f"{fb}.gpickle", "timesteps": 2000, "rewiringAlgorithm": "wtf",
                       "rewiringMode": "diff", "nwsize":150})
         #nwsize has to equal empirical network size 
         model = simulate(1, args)
@@ -1606,11 +1619,13 @@ def test_run():
     
         
     plt.ylim(-1, 1)
-    plt.title(f'{args["rewiringAlgorithm"]}_full')
-    plt.axline((0, np.mean(final_states)), slope= 0)
+    plt.title(f'{args["rewiringAlgorithm"]}')
+    plt.axline((0, np.mean(final_states)), slope= 0, color ="black")
     plt.show()  # Ensure plot is rendered
     
-#test_run()
+    
+if  __name__ ==  '__main__': 
+    test_run()
     
     
 # plt.savefig(f'../Figs/_{args["rewiringAlgorithm"]}_full_args_{args["nwsize"]}_{args["timesteps"]}.jpg')
