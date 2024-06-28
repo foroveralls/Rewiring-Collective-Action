@@ -1,0 +1,147 @@
+Matplotlib is building the font cache; this may take a moment.
+Started iteration:  biased_diff_DPAH
+Started iteration:  biased_diff_cl
+Started iteration:  biased_same_DPAH
+Started iteration:  biased_same_cl
+Started iteration:  bridge_diff_DPAH
+Started iteration:  bridge_diff_cl
+Started iteration:  bridge_same_DPAH
+Started iteration:  bridge_same_cl
+Started iteration:  node2vec_None_DPAH
+multiprocessing.pool.RemoteTraceback: 
+"""
+Traceback (most recent call last):
+  File "/usr/lib/python3.11/multiprocessing/pool.py", line 125, in worker
+    result = (True, func(*args, **kwds))
+                    ^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.11/multiprocessing/pool.py", line 51, in starmapstar
+    return list(itertools.starmap(args[0], args[1]))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/joe/Rewiring-Collective-Action/Analysis/models_checks_updated.py", line 164, in simulate
+    res = model.runSim(args["timesteps"], clusters=True, drawModel=args["plot"], gifname= 'trialtrial') ## gifname provide a gif name if you want a gif animation, need to specify time stamps later on
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/joe/Rewiring-Collective-Action/Analysis/models_checks_updated.py", line 993, in runSim
+    self.train_node2vec()
+  File "/home/joe/Rewiring-Collective-Action/Analysis/models_checks_updated.py", line 656, in train_node2vec
+    n2v.run_node2vec(self.node2vec_executable, input_file, output_file)
+  File "/home/joe/Rewiring-Collective-Action/Auxillary/node2vec_cpp.py", line 57, in run_node2vec
+    subprocess.run(command, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+  File "/usr/lib/python3.11/subprocess.py", line 548, in run
+    with Popen(*popenargs, **kwargs) as process:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.11/subprocess.py", line 1024, in __init__
+    self._execute_child(args, executable, preexec_fn, close_fds,
+  File "/usr/lib/python3.11/subprocess.py", line 1901, in _execute_child
+    raise child_exception_type(errno_num, err_msg, err_filename)
+PermissionError: [Errno 13] Permission denied: '/home/joe/Rewiring-Collective-Action/Auxillary/node2vec.exe'
+"""
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/joe/Rewiring-Collective-Action/Analysis/run.py", line 130, in <module>
+    sim = pool.starmap(models_checks.simulate, zip(range(numberOfSimulations), repeat(argList[j])))#, repeat(lock)))
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.11/multiprocessing/pool.py", line 375, in starmap
+    return self._map_async(func, iterable, starmapstar, chunksize).get()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.11/multiprocessing/pool.py", line 774, in get
+    raise self._value
+PermissionError: [Errno 13] Permission denied: '/home/joe/Rewiring-Collective-Action/Auxillary/node2vec.exe'
+Exception ignored in: <function Pool.__del__ at 0x7f0ae1664d60>
+Traceback (most recent call last):
+  File "/usr/lib/python3.11/multiprocessing/pool.py", line 271, in __del__
+  File "/usr/lib/python3.11/multiprocessing/queues.py", line 371, in put
+AttributeError: 'NoneType' object has no attribute 'dumps'
+Traceback (most recent call last):
+  File "/home/joe/Rewiring-Collective-Action/Analysis/run.py", line 23, in <module>
+    import matplotlib
+ModuleNotFoundError: No module named 'matplotlib'
+Traceback (most recent call last):
+  File "/home/joe/Rewiring-Collective-Action/Analysis/run.py", line 23, in <module>
+    import matplotlib
+ModuleNotFoundError: No module named 'matplotlib'
+Started iteration:  biased_diff_DPAH
+Started iteration:  biased_diff_cl
+Started iteration:  biased_same_DPAH
+Started iteration:  biased_same_cl
+Started iteration:  bridge_diff_DPAH
+Started iteration:  bridge_diff_cl
+Started iteration:  bridge_same_DPAH
+Started iteration:  bridge_same_cl
+Started iteration:  node2vec_None_DPAH
+multiprocessing.pool.RemoteTraceback: 
+"""
+Traceback (most recent call last):
+  File "/usr/lib/python3.11/multiprocessing/pool.py", line 125, in worker
+    result = (True, func(*args, **kwds))
+                    ^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.11/multiprocessing/pool.py", line 51, in starmapstar
+    return list(itertools.starmap(args[0], args[1]))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/joe/Rewiring-Collective-Action/Analysis/models_checks_updated.py", line 164, in simulate
+    res = model.runSim(args["timesteps"], clusters=True, drawModel=args["plot"], gifname= 'trialtrial') ## gifname provide a gif name if you want a gif animation, need to specify time stamps later on
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/joe/Rewiring-Collective-Action/Analysis/models_checks_updated.py", line 993, in runSim
+    self.train_node2vec()
+  File "/home/joe/Rewiring-Collective-Action/Analysis/models_checks_updated.py", line 656, in train_node2vec
+    n2v.run_node2vec(self.node2vec_executable, input_file, output_file)
+  File "/home/joe/Rewiring-Collective-Action/Auxillary/node2vec_cpp.py", line 57, in run_node2vec
+    subprocess.run(command, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+  File "/usr/lib/python3.11/subprocess.py", line 548, in run
+    with Popen(*popenargs, **kwargs) as process:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.11/subprocess.py", line 1024, in __init__
+    self._execute_child(args, executable, preexec_fn, close_fds,
+  File "/usr/lib/python3.11/subprocess.py", line 1901, in _execute_child
+    raise child_exception_type(errno_num, err_msg, err_filename)
+OSError: [Errno 8] Exec format error: '/home/joe/Rewiring-Collective-Action/Auxillary/node2vec.exe'
+"""
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/joe/Rewiring-Collective-Action/Analysis/run.py", line 130, in <module>
+    sim = pool.starmap(models_checks.simulate, zip(range(numberOfSimulations), repeat(argList[j])))#, repeat(lock)))
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.11/multiprocessing/pool.py", line 375, in starmap
+    return self._map_async(func, iterable, starmapstar, chunksize).get()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.11/multiprocessing/pool.py", line 774, in get
+    raise self._value
+OSError: [Errno 8] Exec format error: '/home/joe/Rewiring-Collective-Action/Auxillary/node2vec.exe'
+Exception ignored in: <function Pool.__del__ at 0x7f0b656645e0>
+Traceback (most recent call last):
+  File "/usr/lib/python3.11/multiprocessing/pool.py", line 271, in __del__
+  File "/usr/lib/python3.11/multiprocessing/queues.py", line 371, in put
+AttributeError: 'NoneType' object has no attribute 'dumps'
+Started iteration:  biased_diff_DPAH
+Started iteration:  biased_diff_cl
+Started iteration:  biased_same_DPAH
+Started iteration:  biased_same_cl
+Started iteration:  bridge_diff_DPAH
+Started iteration:  bridge_diff_cl
+Started iteration:  bridge_same_DPAH
+Started iteration:  bridge_same_cl
+Started iteration:  node2vec_None_DPAH
+Started iteration:  node2vec_None_cl
+Started iteration:  wtf_None_DPAH
+Runtime is complete: 10667 mins 40.432748794555664s
+
+  File "/home/joe/Rewiring-Collective-Action/Analysis/run.py", line 163
+    out_list_df.to_csv(f'../Output/default_run_all_new_N_{nwsize}.csv')
+    ^
+IndentationError: expected an indented block after 'try' statement on line 162
+Started iteration:  biased_diff_DPAH
+Started iteration:  biased_diff_cl
+Started iteration:  biased_same_DPAH
+Started iteration:  biased_same_cl
+Started iteration:  bridge_diff_DPAH
+Started iteration:  bridge_diff_cl
+Started iteration:  bridge_same_DPAH
+Started iteration:  bridge_same_cl
+Started iteration:  node2vec_None_DPAH
+Started iteration:  node2vec_None_cl
+Started iteration:  wtf_None_DPAH
+Runtime is complete:  3503 mins 28.52672266960144s
+

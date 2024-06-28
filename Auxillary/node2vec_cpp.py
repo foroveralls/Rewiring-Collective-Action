@@ -21,8 +21,11 @@ def save_graph_as_edgelist(graph, filename):
 def get_node2vec_path():
     # Get the directory of the current script (functions.py)
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    # Construct the path to the node2vec executable
-    node2vec_executable = os.path.join(script_dir, 'node2vec.exe')
+
+    # Construct the path to the node2vec executable, cover case for linux + windows
+    node2vec_file = "node2vec.exe" if os.name in "nt" else "node2vec" 
+       
+    node2vec_executable = os.path.join(script_dir, node2vec_file)
     return node2vec_executable
 
 def validate_embeddings_file(filepath, graph_nodes, expected_dimensions=64):

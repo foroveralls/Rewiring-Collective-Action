@@ -28,7 +28,7 @@ file_list = list(filter(
 
 #%%
 # Set your t_max value here
-t_max = 1000
+t_max = 30000
 
 id_vars = ['t', 'scenario', 'rewiring', 'type']
 default_run = pd.read_csv(os.path.join("../Output", file_list[0]))
@@ -88,7 +88,7 @@ plt.subplots_adjust(bottom=0.04)  # Smaller value moves the legend closer
 
 # Save and show the adjusted plot
 plt.gcf().set_size_inches(16, 4)
-plt.savefig("../Figs/Trajectories/all_scenarios_compared.pdf", dpi=600, bbox_inches='tight')
+plt.savefig("../Figs/Trajectories/all_scenarios_compared_N500.pdf", dpi=600, bbox_inches='tight')
 
 plt.show()
 
