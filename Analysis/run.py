@@ -95,8 +95,7 @@ if  __name__ ==  '__main__':
     combined_list3 = [("wtf","None", topology) for topology in directed_topology_list]
     
     # Combine all lists
-    combined_list = combined_list1 + [("random", "None", "cl")] #+ combined_list2 + combined_list3
-    #combined_list = combined_list1 + combined_list2 + combined_list3
+    combined_list = combined_list1 + [("random", "None", "cl")] + [("None", "None", "cl")] #+ combined_list2 + combined_list3
         
     
 
@@ -132,6 +131,7 @@ if  __name__ ==  '__main__':
             start_1  = time.time()
             sim = pool.starmap(models_checks.simulate, zip(range(numberOfSimulations), repeat(argList[j])))#, repeat(lock)))
         
+            assert argList[0]["rewiringAlgorithm"] == str(sim[0].algo), "Inconsistent values"
             # #print(sim[0]. __class__. __name__)
             # #print(sim[0].algo) #sim[0].steps)
             
@@ -171,7 +171,7 @@ if  __name__ ==  '__main__':
     except NameError as e:
         # Handle the case where nwsize does not exist
         print(f"Error: {e}. It seems 'nwsize' does not exist.")
-        out_list_df.to_csv('../Output/default_run_all_new_N_default.csv')
+        out_list_df.to_csv('../Output/default_run_all_N_default.csv')
     except SyntaxError as e:
         # Handle any potential syntax errors
         print(f"Syntax Error: {e}")
