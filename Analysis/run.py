@@ -39,6 +39,7 @@ import models_checks_updated as models_checks
 import numpy as np 
 import pickle 
 import concurrent
+from datetime import date
 
 from itertools import product 
 
@@ -48,6 +49,7 @@ from itertools import product
 #random.seed(1574705741)    ## if you need to set a specific random seed put it here
 #np.random.seed(1574705741)
 
+date = date.today()
 lock = None
 
 #This is magic to present data racing I don't know why it works
@@ -57,8 +59,8 @@ def init(lock_):
 if  __name__ ==  '__main__': 
 
     #Constants and Variables
-    numberOfSimulations = 30
-    numberOfProcessors =  int( 0.8*multiprocessing.cpu_count()) # CPUs to use for parallelization
+    numberOfSimulations = 20 
+    numberOfProcessors =  int(0.8*multiprocessing.cpu_count()) # CPUs to use for parallelization
 
     start = time.time()
     lock = multiprocessing.Lock()
@@ -75,7 +77,7 @@ if  __name__ ==  '__main__':
 
     
     rewiring_list_h = ["diff", "same"]
-    directed_topology_list = ["DPAH"] #"Twitter"]  
+    directed_topology_list = []#"DPAH"] #"Twitter"]  
     undirected_topology_list = ["cl"] #"FB"]  
     
     # Create combined list for scenarios "biased" and "bridge" with "diff" and "same"
@@ -93,7 +95,8 @@ if  __name__ ==  '__main__':
     combined_list3 = [("wtf","None", topology) for topology in directed_topology_list]
     
     # Combine all lists
-    combined_list = combined_list1 + combined_list2 + combined_list3
+    combined_list = combined_list1 + [("random", "None", "cl")] #+ combined_list2 + combined_list3
+    #combined_list = combined_list1 + combined_list2 + combined_list3
         
     
 
@@ -115,11 +118,11 @@ if  __name__ ==  '__main__':
         
         else:
             top_file = None
-            nwsize = 500
+            nwsize = 1000
         
         ## You can specify simulation parameters here. If they are not set here, they will default to some values set in models.py
         argList.append({"rewiringAlgorithm": i, "nwsize": nwsize, "rewiringMode": v, "type": k,
-                        "top_file": top_file, "polarisingNode_f": 0.10, "timesteps": 30000 , "plot": False})
+                        "top_file": top_file, "polarisingNode_f": 0, "timesteps": 50000 , "plot": False})
        
         
         #print (argList)
@@ -135,9 +138,9 @@ if  __name__ ==  '__main__':
             fname = f'../Output/{i}_linkif_{v}_top_{j}.csv'
         
             out_list.append(models_checks.saveavgdata(sim, fname, args = argList[0]))
-            end = time.time()
-            mins = (end - start) / 60
-            sec = (end - start) % 60
+            end_1 = time.time()
+            mins = (end_1 - start_1) / 60
+            sec = (end_1 - start_1) % 60
             print(f'algorithim run is complete: {mins:5.0f} mins {sec}s\n')
             
     pool.close()
@@ -146,7 +149,7 @@ if  __name__ ==  '__main__':
     end = time.time()
     mins = (end - start) / 60
     sec = (end - start) % 60
-    print(f'Runtime is complete: {mins:5.0f} mins {sec}s\n')
+    print(f'Runtime is complete: {mins/60}) hours, {mins:5.0f} mins {sec}s\n')
     
 
 #%% post processing
@@ -164,7 +167,7 @@ if  __name__ ==  '__main__':
     
     #out_list_df.to_csv(f'../Output/default_run_all_new_N_{nwsize}.csv')
     try:
-        out_list_df.to_csv(f'../Output/default_run_all_new_N_{nwsize}.csv')
+        out_list_df.to_csv(f'../Output/default_run_all_new_N_{nwsize}_{date}.csv')
     except NameError as e:
         # Handle the case where nwsize does not exist
         print(f"Error: {e}. It seems 'nwsize' does not exist.")

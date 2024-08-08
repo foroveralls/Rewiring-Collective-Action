@@ -14,7 +14,9 @@ import pandas as pd
 import seaborn as sns
 from statistics import stdev, median, mean
 import matplotlib.pyplot as plt
+from datetime import date
 
+date = date.today()
 #%% setting file params
 
 file_list = os.listdir("../Output")
@@ -26,14 +28,17 @@ file_extension = ".csv"
 file_list = list(filter(
     lambda x: file_extension in x and "default" in x, os.listdir("../Output")))
 
+print(file_list)
+
+file_index = int(input("enter index:"))
 #%%
 # Set your t_max value here
 t_max = 30000
 
 id_vars = ['t', 'scenario', 'rewiring', 'type']
-default_run = pd.read_csv(os.path.join("../Output", file_list[0]))
+default_run = pd.read_csv(os.path.join("../Output", file_list[file_index]))
 default_run = default_run.drop(default_run.columns[0], axis=1)
-default_run['rewiring'] = default_run['rewiring'].fillna('empirical')
+default_run['rewiring'] = default_run['rewiring'].fillna('none')
 default_r_l = pd.melt(default_run, id_vars=id_vars, var_name='measurement', value_name='value')
 default_r_l['scenario_grouped'] = default_r_l['scenario'].str.cat(default_r_l['rewiring'], sep='_')
 default_r_l = default_r_l.drop(columns=['scenario', 'rewiring'])
@@ -88,7 +93,9 @@ plt.subplots_adjust(bottom=0.04)  # Smaller value moves the legend closer
 
 # Save and show the adjusted plot
 plt.gcf().set_size_inches(16, 4)
-plt.savefig("../Figs/Trajectories/all_scenarios_compared_N500.pdf", dpi=600, bbox_inches='tight')
+get_N = file_list[file_index].split("_")[5]
+
+plt.savefig(f"../Figs/Trajectories/all_scenarios_compared_N{get_N}_{date}.pdf", dpi=600, bbox_inches='tight')
 
 plt.show()
 

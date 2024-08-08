@@ -88,7 +88,7 @@ stubbornness = 0.6
 degree = 8 
 timesteps= 100 #70000 
 continuous = True
-skew = -0.20
+skew = -0.25
 initSD = 0.15
 mypalette = ["blue","red","green", "orange", "magenta","cyan","violet", "grey", "yellow"] # set the colot of plots
 randomness = 0.10
@@ -97,7 +97,7 @@ gridsize = 33   # used for grid networks
 nwsize = 100 #1089  # nwsize = 1089 used for CSF (Clustered scale free network) networks
 friendship = 0.5
 friendshipSD = 0.15
-clustering = 0.3 # CSF clustering in louvain algorithm
+clustering = 0.5 # CSF clustering in louvain algorithm
 #new variables:
 breaklinkprob = 1 
 rewiringMode = "None"
@@ -649,8 +649,8 @@ class Model:
     def train_node2vec(self, input_file='graph.edgelist', output_file='embeddings.emb', dimensions =64):
         
         #ensures there are no data races when running the node2vec executable
-        # global lock
-        # with lock:
+        global lock
+        with lock:
            self.embeddings.clear()
            n2v.save_graph_as_edgelist(self.graph, input_file)
            n2v.run_node2vec(self.node2vec_executable, input_file, output_file)
