@@ -88,7 +88,7 @@ stubbornness = 0.6
 degree = 8 
 timesteps= 100 #70000 
 continuous = True
-skew = -0.20
+skew = -0.25
 initSD = 0.15
 mypalette = ["blue","red","green", "orange", "magenta","cyan","violet", "grey", "yellow"] # set the colot of plots
 randomness = 0.10
@@ -97,7 +97,7 @@ gridsize = 33   # used for grid networks
 nwsize = 100 #1089  # nwsize = 1089 used for CSF (Clustered scale free network) networks
 friendship = 0.5
 friendshipSD = 0.15
-clustering = 0.3 # CSF clustering in louvain algorithm
+clustering = 0.5 # CSF clustering in louvain algorithm
 #new variables:
 breaklinkprob = 1 
 rewiringMode = "None"
@@ -137,7 +137,7 @@ def simulate(i, newArgs, func_changes = False): #RG for random graph (used for t
     # random number generators
     friendshipWeightGenerator = get_truncated_normal(args["friendship"], args["friendshipSD"], 0, 1) 
     initialStateGenerator = get_truncated_normal(args["skew"], args["initSD"], -1, 1)
-    ind = None
+
 
     # network type to use, I always ran on a cl 
     if(args["type"] == "cl"):
@@ -258,14 +258,18 @@ class Model:
         self.affected_nodes = []
         self.embeddings = []
         
+        
     
         #setting rewiring algorithm to be used
         rewiringAlgorithm = args["rewiringAlgorithm"]
+        if rewiringAlgorithm == "None": 
+            rewiringAlgorithm = None
         #print(rewiringAlgorithm)
         self.algo = rewiringAlgorithm
         #the same random agent rewires after interacting:
         #TODO only need to call this once, need to change
         if rewiringAlgorithm != None:
+            self.interact_main = self.interact
             if rewiringAlgorithm == 'random':
                self.call_algo = self.randomrewiring
             elif rewiringAlgorithm == 'biased':
@@ -280,8 +284,10 @@ class Model:
             elif rewiringAlgorithm == "node2vec":
              
                 self.call_algo = self.call_node2vec
-                
-    
+        else:
+            self.interact_main = self.interact_init
+
+         
     # picks a randon agent to perform an interaction with a random neighbour and then to rewire
     def interact(self):
         #print('starting interaction')
@@ -304,7 +310,7 @@ class Model:
         self.call_algo(nodeIndex)
     
     
-    #static interaction for generating networks
+    #static interaction for generating networks and static mode
     def interact_init(self):
         #print('starting interaction')
         nodeIndex = random.randint(0, len(self.graph) - 1)
@@ -321,12 +327,11 @@ class Model:
         weight = self.graph[nodeIndex][chosenNeighbourIndex]['weight']
 
         node.consider(chosenNeighbour, weight, self.politicalClimate)
-            
-       
-                
         
         #print('ending interaction')
         return nodeIndex
+    
+   
 
 #%%% Rewiring algorithms
 #rewiring--------------------------------------------------------------------------------
@@ -649,8 +654,8 @@ class Model:
     def train_node2vec(self, input_file='graph.edgelist', output_file='embeddings.emb', dimensions =64):
         
         #ensures there are no data races when running the node2vec executable
-        # global lock
-        # with lock:
+        global lock
+        with lock:
            self.embeddings.clear()
            n2v.save_graph_as_edgelist(self.graph, input_file)
            n2v.run_node2vec(self.node2vec_executable, input_file, output_file)
@@ -1013,7 +1018,7 @@ class Model:
         
 
             #print("step: ", i)
-            nodeIndex = self.interact()
+            nodeIndex = self.interact_main()
             ratio = self.countCooperatorRatio()
             self.ratio.append(ratio)
             (state, sd) = self.getAvgState()
@@ -1255,7 +1260,7 @@ class DPAHModel(Model):
     def __init__(self, n, m, skew= 0, **kwargs):
         super().__init__(**kwargs)
         #TODO: make these not hard-coded 
-        self.graph = DPAH(n, f_m=0.5, d=0.1, h_MM=0.5, h_mm=0.5, plo_M=2.0, plo_m=2.0,
+        self.graph = DPAH(n, f_m=0.5, d=0.02, h_MM=0.5, h_mm=0.5, plo_M=2.0, plo_m=2.0,
                      seed = 42)
         
         self.graph.generate()
@@ -1280,6 +1285,7 @@ class ClusteredPowerlawModel(Model):
         
         
         #self.graph = nx.powerlaw_cluster_graph(n, m, clustering)
+        #self.populateModel(n, skew)
         self.populateModel_netin(n, skew)
 
 class RandomModel(Model):
@@ -1608,7 +1614,7 @@ def test_run():
     plt.figure()
     for i in range(1):
         print(i)
-        args.update({"type": "DPAH", "plot": True, "top_file": f"{fb}.gpickle", "timesteps": 2000, "rewiringAlgorithm": "wtf",
+        args.update({"type": "DPAH", "plot": True, "top_file": f"{fb}.gpickle", "timesteps": 2000, "rewiringAlgorithm": "bridge",
                       "rewiringMode": "diff", "nwsize":150})
         #nwsize has to equal empirical network size 
         model = simulate(1, args)

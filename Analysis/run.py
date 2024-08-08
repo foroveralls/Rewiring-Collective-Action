@@ -57,7 +57,7 @@ def init(lock_):
 if  __name__ ==  '__main__': 
 
     #Constants and Variables
-    numberOfSimulations = 30
+    numberOfSimulations = 5
     numberOfProcessors =  int( 0.8*multiprocessing.cpu_count()) # CPUs to use for parallelization
 
     start = time.time()
@@ -75,7 +75,7 @@ if  __name__ ==  '__main__':
 
     
     rewiring_list_h = ["diff", "same"]
-    directed_topology_list = ["DPAH"] #"Twitter"]  
+    directed_topology_list = []#"DPAH"] #"Twitter"]  
     undirected_topology_list = ["cl"] #"FB"]  
     
     # Create combined list for scenarios "biased" and "bridge" with "diff" and "same"
@@ -93,7 +93,7 @@ if  __name__ ==  '__main__':
     combined_list3 = [("wtf","None", topology) for topology in directed_topology_list]
     
     # Combine all lists
-    combined_list = combined_list1 + combined_list2 + combined_list3
+    combined_list = combined_list1 + [("random", "None", "cl")] + [("None", "None", "cl")] #+ combined_list2 + combined_list3
         
     
 
@@ -119,7 +119,7 @@ if  __name__ ==  '__main__':
         
         ## You can specify simulation parameters here. If they are not set here, they will default to some values set in models.py
         argList.append({"rewiringAlgorithm": i, "nwsize": nwsize, "rewiringMode": v, "type": k,
-                        "top_file": top_file, "polarisingNode_f": 0.10, "timesteps": 30000 , "plot": False})
+                        "top_file": top_file, "polarisingNode_f": 0, "timesteps": 25000 , "plot": False})
        
         
         #print (argList)
@@ -129,15 +129,16 @@ if  __name__ ==  '__main__':
             start_1  = time.time()
             sim = pool.starmap(models_checks.simulate, zip(range(numberOfSimulations), repeat(argList[j])))#, repeat(lock)))
         
+            assert argList[0]["rewiringAlgorithm"] == str(sim[0].algo), "Inconsistent values"
             # #print(sim[0]. __class__. __name__)
             # #print(sim[0].algo) #sim[0].steps)
             
             fname = f'../Output/{i}_linkif_{v}_top_{j}.csv'
         
             out_list.append(models_checks.saveavgdata(sim, fname, args = argList[0]))
-            end = time.time()
-            mins = (end - start) / 60
-            sec = (end - start) % 60
+            end_1 = time.time()
+            mins = (end_1 - start_1) / 60
+            sec = (end_1 - start_1) % 60
             print(f'algorithim run is complete: {mins:5.0f} mins {sec}s\n')
             
     pool.close()
@@ -164,11 +165,11 @@ if  __name__ ==  '__main__':
     
     #out_list_df.to_csv(f'../Output/default_run_all_new_N_{nwsize}.csv')
     try:
-        out_list_df.to_csv(f'../Output/default_run_all_new_N_{nwsize}.csv')
+        out_list_df.to_csv(f'../Output/default_run_all_N_{nwsize}_oldparams.csv')
     except NameError as e:
         # Handle the case where nwsize does not exist
         print(f"Error: {e}. It seems 'nwsize' does not exist.")
-        out_list_df.to_csv('../Output/default_run_all_new_N_default.csv')
+        out_list_df.to_csv('../Output/default_run_all_N_default.csv')
     except SyntaxError as e:
         # Handle any potential syntax errors
         print(f"Syntax Error: {e}")
