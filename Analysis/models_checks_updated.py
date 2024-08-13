@@ -99,10 +99,10 @@ friendship = 0.5
 friendshipSD = 0.15
 clustering = 0.5 # CSF clustering in louvain algorithm
 #new variables:
-breaklinkprob = 1 
+breaklinkprob = 0.5
 rewiringMode = "None"
 polarisingNode_f = 0.10
-establishlinkprob = 1 # breaklinkprob and establishlinkprob are used in random rewiring. Are always chosen to be the same to keep average degree constant!
+establishlinkprob = 0.5 # breaklinkprob and establishlinkprob are used in random rewiring. Are always chosen to be the same to keep average degree constant!
 rewiringAlgorithm = 'None' #None, random, biased, bridge
 #the rewiringAlgorithm variable was meant to enable to do multiple runs at once. However the loop where the specification 
 #given in the ArgList in run.py file overrules what is given in line 65 does not work. Unclear why. 
@@ -235,6 +235,7 @@ class Model:
         self.ratio = []
         self.states = []
         self.statesds = []
+        self.clustering = []
         self.degrees = []
         self.degreesSD = []
         self.mindegrees_l = []
@@ -392,13 +393,16 @@ class Model:
         return node_state
     
     def rewire(self, node_i, neighbour_i):
-         
-        weight = get_truncated_normal(args["friendship"], args["friendshipSD"], 0, 1).rvs(1)[0]
-    
-        self.graph.add_edge(node_i, neighbour_i, weight = weight)
-        #self.TF_step(node_i, neighbour_i, weight = weight)
-         
-        return 
+        
+        rewired = False
+        if random.random() < establishlinkprob:
+            weight = get_truncated_normal(args["friendship"], args["friendshipSD"], 0, 1).rvs(1)[0]
+            
+            self.graph.add_edge(node_i, neighbour_i, weight = weight)
+            #self.TF_step(node_i, neighbour_i, weight = weight)
+            rewired = True
+            
+        return rewired 
     
 
     #triad formation
@@ -504,7 +508,7 @@ class Model:
       
         #print('starting biased rewiring')        
         
-        potentialfriends = []
+        potential_friends = []
         non_neighbors = []
         non_neighbors.append([k for k in nx.non_neighbors(self.graph,nodeIndex)])
         non_neighbors = non_neighbors[0]
@@ -526,10 +530,10 @@ class Model:
         rewired = False #only if a link is established a link is broken hence we need a variable telling us whether a link has been established
         #print(rewired)
               
-        if(len(potentialfriends) == 0): #the agent is connected to the whole network, hence cannot establish further links
+        if(len(potential_friends) == 0): #the agent is connected to the whole network, hence cannot establish further links
            return nodeIndex
         else:
-           establishlinkNeighborIndex = self.select_kmax_new(potentialfriends) #here preferential attachment should be implemented
+           establishlinkNeighborIndex = self.select_kmax_new(potential_friends) #here preferential attachment should be implemented
            #print(establishlinkNeighborIndex)
                
            node = self.graph.nodes[nodeIndex]['agent']
@@ -540,12 +544,11 @@ class Model:
            rewiring_mode = args["rewiringMode"]
            
            if node_state in "different" and rewiring_mode in "diff":
-               self.rewire(nodeIndex, establishlinkNeighborIndex) 
-               rewired = True
+               rewired = self.rewire(nodeIndex, establishlinkNeighborIndex) 
+              
                      
            elif node_state in "same" and rewiring_mode in "same":
-               self.rewire(nodeIndex, establishlinkNeighborIndex) 
-               rewired = True
+               rewired = self.rewire(nodeIndex, establishlinkNeighborIndex) 
              
            else:
                return nodeIndex
@@ -605,29 +608,31 @@ class Model:
         
             
             if node_state in "different" and rewiring_mode in "diff":
-                self.rewire(nodeIndex, partnerOutClusterIndex) 
-                rewired = True
+                rewired = self.rewire(nodeIndex, partnerOutClusterIndex) 
+                #self.TF_step(nodeIndex, partnerOutClusterIndex, weight)
+
     
                       
             elif node_state in "same" and rewiring_mode in "same":
-                self.rewire(nodeIndex, partnerOutClusterIndex) 
-                rewired = True
+                #returns true or false depending on success
+                rewired = self.rewire(nodeIndex, partnerOutClusterIndex) 
+                #self.TF_step(nodeIndex, partnerOutClusterIndex, weight)
+                
     
               
             else:
                 return nodeIndex
             
             if rewired == True:
-                # if random.random() < breaklinkprob:
-                    
-                init_neighbours =  list(self.graph.adj[nodeIndex].keys())
-                if(len(init_neighbours) == 0):
-                    return nodeIndex
-                 
-                else:
-                    breaklinkNeighbourIndex = init_neighbours[random.randint(0, len(init_neighbours)-1)]
-                        
-                    self.graph.remove_edge(nodeIndex, breaklinkNeighbourIndex)
+                if random.random() < breaklinkprob:
+                    init_neighbours =  list(self.graph.adj[nodeIndex].keys())
+                    if(len(init_neighbours) == 0):
+                        return nodeIndex
+                     
+                    else:
+                        breaklinkNeighbourIndex = init_neighbours[random.randint(0, len(init_neighbours)-1)]
+                            
+                        self.graph.remove_edge(nodeIndex, breaklinkNeighbourIndex)
     #-----------------------------------------------------------------------------------
           
         return nodeIndex
@@ -800,7 +805,7 @@ class Model:
         
         return
       
-
+ 
     def wtf_rewire(self, nodeIndex):
         
         #Select agent with highest pagerank
@@ -810,6 +815,7 @@ class Model:
         
         if rewireIndex is None:
             return
+            
         #checking if it passed random param
         elif random.random() < establishlinkprob:
             self.rewire(nodeIndex, rewireIndex)
@@ -822,6 +828,7 @@ class Model:
         
     def call_wtf(self, nodeIndex):
         
+        #checking if the ranking has been affected by rewiring previously
         if nodeIndex in self.affected_nodes:    
             #print("retraining")
             self.wtf_1()
@@ -1023,6 +1030,7 @@ class Model:
             self.ratio.append(ratio)
             (state, sd) = self.getAvgState()
             self.states.append(state)
+            #self.clustering.append(nx.average_clustering(self.graph))
             self.statesds.append(sd)
             (degree, degreeSD, mindegree, maxdegree) = self.getAvgDegree()
             self.degrees.append(degree)
@@ -1607,15 +1615,15 @@ def drawAvgNumberOfAgreeingFriends(models, pltNr = 1):
 
 #     return
 def test_run():
-    twitter, fb  = "twitter_102", "fb_150"
+    twitter, fb  = "twitter_102", "FB_graph_N_786"
     init_states = []
     final_states = []
     start = time.time()
     plt.figure()
     for i in range(1):
         print(i)
-        args.update({"type": "DPAH", "plot": True, "top_file": f"{fb}.gpickle", "timesteps": 2000, "rewiringAlgorithm": "bridge",
-                      "rewiringMode": "diff", "nwsize":150})
+        args.update({"type": "FB", "plot": True, "top_file": f"{fb}.gpickle", "timesteps": 20000, "rewiringAlgorithm": "biased",
+                      "rewiringMode": "diff", "nwsize":786})
         #nwsize has to equal empirical network size 
         model = simulate(1, args)
         init_states.append(model.states[0])
@@ -1631,8 +1639,12 @@ def test_run():
     
     
 if  __name__ ==  '__main__': 
+    start = time.time()
     test_run()
-    
+    end = time.time()
+    mins = (end - start) / 60
+    sec = (end - start) % 60
+    print(f'Runtime was complete: {mins:5.0f} mins {sec}s\n')
     
 # plt.savefig(f'../Figs/_{args["rewiringAlgorithm"]}_full_args_{args["nwsize"]}_{args["timesteps"]}.jpg')
 # print(np.mean(final_states))

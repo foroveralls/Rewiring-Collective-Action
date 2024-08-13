@@ -55,7 +55,9 @@ def load_and_analyze_edges(folder_path, network_type):
         num_nodes = G.number_of_nodes()
         avg_degree = sum(dict(G.degree()).values()) / float(num_nodes)
         density = nx.density(G)
+        clustering = nx.average_clustering(G)
         directed = nx.is_directed(G)
+        
         
         # Append statistics to list
         stats_list.append({
@@ -64,6 +66,7 @@ def load_and_analyze_edges(folder_path, network_type):
             'num_nodes': num_nodes,
             'avg_degree': avg_degree,
             'density': density,
+            'clustering': clustering,
             'directed': directed
         })
         graph_list.append(G)
@@ -234,7 +237,7 @@ def community_based_reduction_directed(G, N):
         
         # Check for strong connectivity and adjust if necessary
         if nx.is_strongly_connected(H):
-            if len(H) >= N * 0.85 and len(H) <= N * 1.10:  # Check if size is within 15% of N
+            if len(H) >= N * 0.95 and len(H) <= N * 1.05:  # Check if size is within 15% of N
                 break  # The graph meets our conditions
             else:
                 adjustment_factor -= 0.05  # Adjust sampling for size correction
@@ -267,6 +270,24 @@ def reduce_graph(G, N):
    
     return subgraph
 
+def get_stats(G):
+    num_edges = G.number_of_edges()
+    num_nodes = G.number_of_nodes()
+    avg_degree = sum(dict(G.degree()).values()) / float(num_nodes)
+    density = nx.density(G)
+    clustering = nx.average_clustering(G)
+    directed = nx.is_directed(G)
+    
+    stats = {'num_edges': num_edges,
+        'num_nodes': num_nodes,
+        'avg_degree': avg_degree,
+        'density': density,
+        'clustering': clustering,
+        'directed': directed
+        }
+    
+    return stats    
+
 #%% run analysis
 
 stats_list, graph_list = [], []
@@ -279,48 +300,69 @@ for i in os.listdir(folder_path):
 
 #%% Main file reduction
 
-N = 100
+#N = 1000
 #G_reduced_1 = find_largest_component(graph[0], 100)
 
+
 #G_reduced = community_based_reduction(graph[], N)
-#G_reduced = community_based_reduction_directed(graph[0], N)
+#G_selected = graph_list[0][2]
+#G_remapped = remap(T)
+#G_reduced = community_based_reduction_directed(G_remapped, N)
 
 
-#nx.draw(G_reduced, node_size = 10)
-#G = G_reduced
+#nx.draw(G, node_size = 10)
+#G = G_remapped
 
 #save graph
-#nx.write_gpickle(G, f'networks_processed/_graph_N_{G.number_of_nodes()}.gpickle')
-#T = nx.read_gpickle("networks_processed/twitter_graph_N_891.gpickle")
+#nx.write_gpickle(G, f'networks_processed/FB_graph_N_{G.number_of_nodes()}.gpickle')
+T = nx.read_gpickle("networks_processed/twitter_graph_N_789.gpickle")
 #%% Selected Egonetworks
 
-#choice Twitter: 	file_name	78391198.edges twitter, index = 901
-#choice FB: 	file_name	414.edges facebook, index = 7
+#choice Twitter smallr: 	file_name	78391198.edges twitter, index = 901
+#Twitter large: file_name: twitter_combined.edges.txt, index 974
+#choice FB small: 	file_name	414.edges facebook, index = 7
+#choice FB large: file_name: 107.edges
 
-file_name_twitter = "78391198.edges"
+# file_name_twitter = "78391198.edges"
 
-edge_file_twitter = f"Data/twitter/{file_name_twitter}"
-df_edges_twitter = pd.read_csv(edge_file_twitter, delim_whitespace=True, header=None, names=['node1', 'node2'])
-df_edges_twitter.name = "twitter"
+# edge_file_twitter = f"Data/twitter/{file_name_twitter}"
+# df_edges_twitter = pd.read_csv(edge_file_twitter, delim_whitespace=True, header=None, names=['node1', 'node2'])
+# df_edges_twitter.name = "twitter"
 
-file_name_fb = "414.edges"
+# file_name_fb = "414.edges"
 
-edge_file_facebook = f"Data/facebook/{file_name_fb}"
-df_edges_fb = pd.read_csv(edge_file_facebook, delim_whitespace=True, header=None, names=['node1', 'node2'])
-df_edges_fb.name = "fb"
+# edge_file_facebook = f"Data/facebook/{file_name_fb}"
+# df_edges_fb = pd.read_csv(edge_file_facebook, delim_whitespace=True, header=None, names=['node1', 'node2'])
+# df_edges_fb.name = "fb"
 
-df_list = [df_edges_twitter, df_edges_fb]
+# df_list = [df_edges_twitter, df_edges_fb]
 
-direc = []
-for i in df_list:
-    if "twitter" in i.name:
-        G1 = nx.from_pandas_edgelist(i, 'node1', 'node2', create_using=nx.DiGraph)
-    else:
-        G1 = nx.from_pandas_edgelist(i, 'node1', 'node2')
-    G1 = remap(G1)
-    direc.append(nx.is_directed(G1))
-    nx.write_gpickle(G1, f'networks_processed/{i.name}_{G1.number_of_nodes()}.gpickle')
-    
+# direc = []
+# for i in df_list:
+#     if "twitter" in i.name:
+#         G1 = nx.from_pandas_edgelist(i, 'node1', 'node2', create_using=nx.DiGraph)
+#     else:
+#         G1 = nx.from_pandas_edgelist(i, 'node1', 'node2')
+#     G1 = remap(G1)
+#     direc.append(nx.is_directed(G1))
+#     nx.write_gpickle(G1, f'networks_processed/{i.name}_{G1.number_of_nodes()}.gpickle')
+#%% NW STATS
+#Twitter_N_789:
+# {'num_edges': 12110,
+#  'num_nodes': 789,
+#  'avg_degree': 30.697084917617236,
+#  'density': 0.019477845759909414,
+#  'clustering': 0.42559198399089954,
+#  'directed': True}
+#FB_N_786
+# {'num_edges': 14024,
+#  'num_nodes': 786,
+#  'avg_degree': 35.68447837150127,
+#  'density': 0.04545793423121181,
+#  'clustering': 0.4757300518398768,
+#  'directed': False}
+
+
 
 
 

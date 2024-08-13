@@ -59,7 +59,7 @@ def init(lock_):
 if  __name__ ==  '__main__': 
 
     #Constants and Variables
-    numberOfSimulations = 20 
+    numberOfSimulations = 2
     numberOfProcessors =  int(0.8*multiprocessing.cpu_count()) # CPUs to use for parallelization
 
     start = time.time()
@@ -77,8 +77,8 @@ if  __name__ ==  '__main__':
 
     
     rewiring_list_h = ["diff", "same"]
-    directed_topology_list = []#"DPAH"] #"Twitter"]  
-    undirected_topology_list = ["cl"] #"FB"]  
+    directed_topology_list = ["DPAH", "Twitter"]  
+    undirected_topology_list = ["cl", "FB"]  
     
     # Create combined list for scenarios "biased" and "bridge" with "diff" and "same"
     # These can be on both directed and undirected networks
@@ -95,7 +95,7 @@ if  __name__ ==  '__main__':
     combined_list3 = [("wtf","None", topology) for topology in directed_topology_list]
     
     # Combine all lists
-    combined_list = combined_list1 + [("random", "None", "cl")] + [("None", "None", "cl")] #+ combined_list2 + combined_list3
+    combined_list = combined_list1 + [("random", "None", "cl")] + [("None", "None", "cl")] + combined_list2 + combined_list3
         
     
 
@@ -108,12 +108,12 @@ if  __name__ ==  '__main__':
 
         argList = []
         if k in "Twitter":
-            top_file = "twitter_102.gpickle"
-            nwsize = 102
+            top_file = "twitter_graph_N_789.gpickle"
+            nwsize = 789
             
         elif k in "FB":
-            top_file = "fb_150.gpickle"
-            nwsize = 150
+            top_file = "FB_graph_N_786.gpickle"
+            nwsize = 786
         
         else:
             top_file = None
@@ -121,7 +121,7 @@ if  __name__ ==  '__main__':
         
         ## You can specify simulation parameters here. If they are not set here, they will default to some values set in models.py
         argList.append({"rewiringAlgorithm": i, "nwsize": nwsize, "rewiringMode": v, "type": k,
-                        "top_file": top_file, "polarisingNode_f": 0, "timesteps": 50000 , "plot": False})
+                        "top_file": top_file, "polarisingNode_f": 0, "timesteps": 10 , "plot": False})
        
         
         #print (argList)
