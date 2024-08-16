@@ -59,7 +59,7 @@ def init(lock_):
 if  __name__ ==  '__main__': 
 
     #Constants and Variables
-    numberOfSimulations = 2
+    numberOfSimulations = 1
     numberOfProcessors =  int(0.8*multiprocessing.cpu_count()) # CPUs to use for parallelization
 
     start = time.time()
@@ -91,12 +91,16 @@ if  __name__ ==  '__main__':
     # "node2vec" works on both directed and undirected
     combined_list2 = [("node2vec", "None", topology) for topology in directed_topology_list + undirected_topology_list]
     
+    combined_list3 = [("None", "None", topology) for topology in directed_topology_list + undirected_topology_list]
+    
     # Add combinations for "None" scenario with "wtf" only on directed topologies
-    combined_list3 = [("wtf","None", topology) for topology in directed_topology_list]
+    combined_list4 = [("wtf","None", topology) for topology in directed_topology_list]
     
     # Combine all lists
-    combined_list = combined_list1 + [("random", "None", "cl")] + [("None", "None", "cl")] + combined_list2 + combined_list3
-        
+    combined_list = combined_list1 + [("random", "None", "cl")] + \
+    [("None", "None", "cl")] + combined_list2 + combined_list3 + combined_list4
+    
+    #combined_list = [("node2vec", "None", "DPAH")]
     
 
     out_list = []
@@ -117,11 +121,11 @@ if  __name__ ==  '__main__':
         
         else:
             top_file = None
-            nwsize = 1000
+            nwsize = 800
         
         ## You can specify simulation parameters here. If they are not set here, they will default to some values set in models.py
         argList.append({"rewiringAlgorithm": i, "nwsize": nwsize, "rewiringMode": v, "type": k,
-                        "top_file": top_file, "polarisingNode_f": 0, "timesteps": 10 , "plot": False})
+                        "top_file": top_file, "polarisingNode_f": 0.10, "timesteps": 50000 , "plot": False})
        
         
         #print (argList)

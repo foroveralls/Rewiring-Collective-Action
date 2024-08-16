@@ -310,11 +310,11 @@ for i in os.listdir(folder_path):
 #G_reduced = community_based_reduction_directed(G_remapped, N)
 
 
-#nx.draw(G, node_size = 10)
+nx.draw(T, node_size = 10)
 #G = G_remapped
 
 #save graph
-#nx.write_gpickle(G, f'networks_processed/FB_graph_N_{G.number_of_nodes()}.gpickle')
+#nx.write_gpickle(G, f'networks_processed/twitter_graph_N_{G.number_of_nodes()}.gpickle')
 T = nx.read_gpickle("networks_processed/twitter_graph_N_789.gpickle")
 #%% Selected Egonetworks
 
