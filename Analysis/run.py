@@ -59,7 +59,7 @@ def init(lock_):
 if  __name__ ==  '__main__': 
 
     #Constants and Variables
-    numberOfSimulations = 20 
+    numberOfSimulations = 1
     numberOfProcessors =  int(0.8*multiprocessing.cpu_count()) # CPUs to use for parallelization
 
     start = time.time()
@@ -77,8 +77,8 @@ if  __name__ ==  '__main__':
 
     
     rewiring_list_h = ["diff", "same"]
-    directed_topology_list = []#"DPAH"] #"Twitter"]  
-    undirected_topology_list = ["cl"] #"FB"]  
+    directed_topology_list = ["DPAH", "Twitter"]  
+    undirected_topology_list = ["cl", "FB"]  
     
     # Create combined list for scenarios "biased" and "bridge" with "diff" and "same"
     # These can be on both directed and undirected networks
@@ -91,11 +91,20 @@ if  __name__ ==  '__main__':
     # "node2vec" works on both directed and undirected
     combined_list2 = [("node2vec", "None", topology) for topology in directed_topology_list + undirected_topology_list]
     
+    combined_list3 = [("None", "None", topology) for topology in directed_topology_list + undirected_topology_list]
+    
     # Add combinations for "None" scenario with "wtf" only on directed topologies
-    combined_list3 = [("wtf","None", topology) for topology in directed_topology_list]
+    combined_list4 = [("wtf","None", topology) for topology in directed_topology_list]
     
     # Combine all lists
+<<<<<<< HEAD
     combined_list = combined_list1 + [("random", "None", "cl")] + [("None", "None", "cl")] #+ combined_list2 + combined_list3
+=======
+    combined_list = combined_list1 + [("random", "None", "cl")] + \
+    [("None", "None", "cl")] + combined_list2 + combined_list3 + combined_list4
+    
+    #combined_list = [("node2vec", "None", "DPAH")]
+>>>>>>> 9637f17dc88140e58268970586e96ed1940de23b
     
 
     out_list = []
@@ -107,16 +116,16 @@ if  __name__ ==  '__main__':
 
         argList = []
         if k in "Twitter":
-            top_file = "twitter_102.gpickle"
-            nwsize = 102
+            top_file = "twitter_graph_N_789.gpickle"
+            nwsize = 789
             
         elif k in "FB":
-            top_file = "fb_150.gpickle"
-            nwsize = 150
+            top_file = "FB_graph_N_786.gpickle"
+            nwsize = 786
         
         else:
             top_file = None
-            nwsize = 1000
+            nwsize = 800
         
         ## You can specify simulation parameters here. If they are not set here, they will default to some values set in models.py
         argList.append({"rewiringAlgorithm": i, "nwsize": nwsize, "rewiringMode": v, "type": k,
