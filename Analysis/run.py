@@ -96,7 +96,6 @@ if  __name__ ==  '__main__':
     
     # Combine all lists
     combined_list = combined_list1 + [("random", "None", "cl")] + [("None", "None", "cl")] #+ combined_list2 + combined_list3
-        
     
 
     out_list = []
@@ -121,7 +120,7 @@ if  __name__ ==  '__main__':
         
         ## You can specify simulation parameters here. If they are not set here, they will default to some values set in models.py
         argList.append({"rewiringAlgorithm": i, "nwsize": nwsize, "rewiringMode": v, "type": k,
-                        "top_file": top_file, "polarisingNode_f": 0, "timesteps": 50000 , "plot": False})
+                        "top_file": top_file, "polarisingNode_f": 0.10, "timesteps": 50000 , "plot": False})
        
         
         #print (argList)
