@@ -7,77 +7,12 @@
 
 
 #%%
-import os 
-import sys
+
 # Ensure the parent directory is in the sys.path for auxiliary imports
 current_dir = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.abspath(os.path.join(current_dir, '..'))
 sys.path.append(parent_dir)
 
-#%%
-import numpy as np
-import random 
-import threading
-#sys.path.append("..")
-import pandas as pd
-from copy import deepcopy
-from statistics import stdev, mean
-import imageio
-import networkx as nx
-from networkx.algorithms.community import louvain_communities as community_louvain
-from scipy.stats import truncnorm
-from operator import itemgetter
-import heapq
-from IPython.display import Image
-import time
-import matplotlib.patches as mpatches
-from matplotlib.colors import Normalize
-from matplotlib.cm import ScalarMappable
-import dill
-import igraph as ig
-import leidenalg as la
-import math
-import multiprocessing
-import matplotlib.pyplot as plt
-import seaborn as sns
-from netin import DPAH, PATCH, viz, stats
-from netin.generators.h import Homophily
-from collections import Counter
-from fast_pagerank import pagerank_power
-from Auxillary import network_stats
-import rustworkx as rx
-import subprocess
-from multiprocessing import Process, Lock
-from Auxillary import node2vec_cpp as n2v
-
-#%%
-
-#random.seed(1574705741)    ## if you need to set a specific random seed put it here
-#np.random.seed(1574705741)
-#Helper functions
-
-def get_truncated_normal(mean=0, sd=1, low=0, upp=10):
-    return truncnorm(
-            (low - mean) / sd, (upp - mean) / sd, loc=mean, scale=sd)
-
-def setArgs(newArgs):
-    global args
-    for arg, value in newArgs.items():
-        args[arg] = value
-
-def getRandomExpo():
-    x = np.random.exponential(scale=0.6667)-1
-    if(x>1): return 1
-    elif (x< -1): return -1
-    return x
-
-def update_instance_methods(instance, func_changes):
-    for func in func_changes:
-        # Bind the method to the instance
-        bound_method = func.__get__(instance, instance.__class__)
-        instance.call_algo = bound_method
-        setattr(instance, func.__name__, bound_method)
-#Constants and Variables
 
 ## for explanation of these, see David's paper / thesis (Dynamics of collective action to conserve a large common-pool resource // Simple models for complex nonequilibrium Problems in nanoscale friction and network dynamics)
 STATES = [1, -1] #1 being cooperating, -1 being defecting
@@ -161,7 +96,7 @@ def simulate(i, newArgs, func_changes = False): #RG for random graph (used for t
         update_instance_methods(model, func_changes)
     
     #model.lock = lock
-    res = model.runSim(args["timesteps"], clusters=True, drawModel=args["plot"], gifname= 'trialtrial') ## gifname provide a gif name if you want a gif animation, need to specify time stamps later on
+    res = model.runSim(args["timesteps"], clusters=True, drawModel=args["plot"]) ## gifname provide a gif name if you want a gif animation, need to specify time stamps later on
     #C_end, S_end = model.property_checks(R_G)
 
     #draw_model(model)
@@ -259,6 +194,7 @@ class Model:
         self.affected_nodes = []
         self.embeddings = []
         self.retrain = 0
+    
         
     
         #setting rewiring algorithm to be used
@@ -271,6 +207,7 @@ class Model:
         #TODO only need to call this once, need to change
         if rewiringAlgorithm != None:
             self.interact_main = self.interact
+            
             if rewiringAlgorithm == 'random':
                self.call_algo = self.randomrewiring
             elif rewiringAlgorithm == 'biased':
@@ -371,17 +308,6 @@ class Model:
             
         return node 
     
-    # def get_potential_friends(self, nodeIndex, potential_neighbours):
-    #     # Find non-neighbors
-    #     non_neighbors = set(nx.non_neighbors(self.graph, nodeIndex))
-        
-    #     # Find all neighbors and remove duplicates
-    #     total_neighbours = set(self.graph.neighbors(nodeIndex))
-        
-    #     # Find intersection of non-neighbors and neighbors
-    #     potentialfriends = non_neighbors.intersection(total_neighbours)
-        
-    #     return potentialfriends
 
     def check_node_state(self, node, neighbor):
         
@@ -658,23 +584,42 @@ class Model:
                     
             
         
-    def train_node2vec(self, input_file='graph.edgelist', output_file='embeddings.emb', dimensions =64):
-        
-        #ensures there are no data races when running the node2vec executable
+    def train_node2vec(self, input_file='graph.edgelist', output_file='embeddings.emb', dimensions=64):
         global lock
         with lock:
-           self.embeddings.clear()
-           n2v.save_graph_as_edgelist(self.graph, input_file)
-           n2v.run_node2vec(self.node2vec_executable, input_file, output_file)
-           self.embeddings = n2v.load_embeddings(output_file)
+            if not hasattr(self, 'affected_nodes_set'):
+                self.affected_nodes_set = set()
+            
+            # Convert affected_nodes list to a set for efficient lookup
+            self.affected_nodes_set.update(self.affected_nodes)
+            
+            if not self.embeddings or len(self.affected_nodes_set) > len(self.graph.nodes) * 0.5:
+                # If embeddings don't exist or too many nodes are affected, retrain all
+                n2v.save_graph_as_edgelist(self.graph, input_file)
+            else:
+                # Partial retraining: save only edges connected to affected nodes
+                with open(input_file, 'w') as f:
+                    for edge in self.graph.edges():
+                        if edge[0] in self.affected_nodes_set or edge[1] in self.affected_nodes_set:
+                            f.write(f"{edge[0]} {edge[1]}\n")
+            
+            # Run node2vec on the saved edgelist
+            n2v.run_node2vec(self.node2vec_executable, input_file, output_file)
+            new_embeddings = n2v.load_embeddings(output_file)
+            
+            # Update embeddings
+            if not self.embeddings:
+                self.embeddings = new_embeddings
+            else:
+                # Update only the affected nodes in the main embeddings
+                for node in new_embeddings:
+                    self.embeddings[node] = new_embeddings[node]
+            
+            # Clear the affected nodes set after retraining
+            self.affected_nodes_set.clear()
+            self.affected_nodes = []
     
            
-       # n2v.save_graph_as_edgelist(self.graph, input_file) 
-       # n2v.run_node2vec(self.node2vec_executable, input_file, output_file)
-       #n2v.validate_embeddings_file(output_file, self.graph.nodes, expected_dimensions=dimensions)
-       
-       #self.embeddings = n2v.load_embeddings(output_file)
-       
       
 
 
@@ -709,7 +654,7 @@ class Model:
         
         if rewire:    
             break_link = self.break_link(nodeIndex, sim, neighbours)
-            self.affected_nodes += [nodeIndex, sim, break_link]
+            self.affected_nodes_set.update([nodeIndex, sim, break_link])
 
     
         return rewire
@@ -739,19 +684,16 @@ class Model:
         return rewireIndex, neighbours
         
     def call_node2vec(self, nodeIndex):
-        
-        
-        if not self.trained and nodeIndex in self.affected_nodes:    
-            #print("retraining")
+        if not self.trained and nodeIndex in self.affected_nodes_set:    
+            self.test.append(self.t)
             self.train_node2vec()
-            self.affected_nodes = []
             self.trained = True
     
         rewired = self.node2vec_rewire(nodeIndex)
            
         if rewired:
             self.trained = False
-          
+              
             
           
 
@@ -843,131 +785,6 @@ class Model:
         if rewired:
             self.trained = False
     
-#%%% Statistics functions
-
-    # the following two functions are for statistics
-    def findNbAgreeingFriends(self, nodeIdx = None):
-        global args
-        nbs = []
-
-        if(args["continuous"]):
-            for nodeIdx in self.graph.nodes:
-                state = self.graph.nodes[nodeIdx]['agent'].state
-                neighbours = list(self.graph.adj[nodeIdx])
-                neighStates = [self.graph.nodes[n]['agent'].state for n in neighbours ]
-                if(len(neighbours) == 0):
-                    nbs.append(0)
-                    continue
-                x = 1-abs((mean(neighStates)-state))/2
-                nbs.append(x)
-        else:
-            for nodeIdx in self.graph.nodes:
-                state = self.graph.nodes[nodeIdx]['agent'].state
-                neighbours = list(self.graph.adj[nodeIdx])
-                neighs = 0
-                if(len(neighbours) == 0):
-                    nbs.append(0)
-                    continue
-                for neighbourIdx in neighbours:
-                    if(state == self.graph.nodes[neighbourIdx]['agent'].state): neighs+=1
-                nbs.append(neighs/len(neighbours))
-        self.NbAgreeingFriends= nbs
-        return nbs
-
-    def updateAvgNbAgreeingFriends(self, nodeIndex):
-        #print(nodeIndex)
-        neighbours =  list(self.graph.adj[nodeIndex].keys())
-        if(len(neighbours) == 0):
-            return self.avgNbAgreeingList[-1]
-        nodeState = self.graph.nodes[nodeIndex]['agent'].state
-
-
-        if(args["continuous"]):
-            #TODO: check if this doesn't just repeat itself 
-            neighStates = [self.graph.nodes[n]['agent'].state for n in neighbours ]
-            x = 1-abs((mean(neighStates)-nodeState))/2
-            self.NbAgreeingFriends[nodeIndex] = x
-            for node in neighbours:
-                nodeState = self.graph.nodes[node]['agent'].state
-                neighneigh = list(self.graph.adj[node])
-                neighStates = [self.graph.nodes[n]['agent'].state for n in neighneigh]
-                #print(node)
-                x = 1-abs((mean(neighStates)-nodeState))/2
-                self.NbAgreeingFriends[node] = x
-        else:
-            neighbours.append(nodeIndex)
-
-            for n in neighbours:
-                try:
-                    neighneighs = list(self.graph.adj[n])
-                    neighs = 0
-                    nState = self.graph.nodes[n]['agent'].state
-                    if(len(neighneighs) == 0):
-                        self.NbAgreeingFriends[n] = (0)
-                        continue
-                    for neighbourIdx in neighneighs:
-                        if(nState == self.graph.nodes[neighbourIdx]['agent'].state): neighs+=1
-                    self.NbAgreeingFriends[n] = neighs/len(neighneighs)  
-                except:
-                    print("node: ", n)
-                    print("neighs: ", neighneighs)      
-
-        return mean(self.NbAgreeingFriends)
-
-
-    # the influencer is now taken to replace the most extreme agent
-    def addInfluencers(self, number = 0, index = None, hub = True, allSame =False):
-        if(number == 0):
-            return
-        if(index == None):
-            degrees = nx.degree(self.graph)
-            if(hub):
-                largest = heapq.nlargest(number, degrees, key=itemgetter(1))
-                index = [t[0] for t in largest]
-
-
-            else:
-                index = [p[0]  for p in degrees if p[1] == degree*2]
-                if(len(index) == 0 or len(index) < number ):
-                    extra = [p[0]  for p in degrees if p[1] == degree*2-1]
-                    index = index + extra
-        for i in range(number):
-            if(allSame):
-                self.graph.nodes[index[i]]['agent'].setState(STATES[0])
-            else:
-                self.graph.nodes[index[i]]['agent'].setState(STATES[i % 2])
-            self.graph.nodes[index[i]]['agent'].stubbornness = 1
-
-
-
-    def countCooperatorRatio(self):
-        count = 0
-        
-        #print(list(self.graph.nodes))
-        for node in self.graph.nodes:
-            #print(node)
-            if self.graph.nodes[node]['agent'].state > 0:
-                count+=1
-        return count/len(self.graph)
-
-    def getAvgState(self):
-        states = []
-        for node in self.graph:
-            states.append(self.graph.nodes[node]['agent'].state)
-        statearray = np.array(states)
-        avg = statearray.mean(axis=0)
-        sd = statearray.std()
-        return (avg, sd)
-    
-    def getAvgDegree(self):
-        degrees = [val for (node,val) in nx.degree(self.graph)]
-        degreearray = np.array(degrees)
-        mindegree = np.min(degreearray)
-        maxdegree = np.max(degreearray)
-        avgdegree = degreearray.mean(axis=0)
-        sddegree = degreearray.std()
-        return (avgdegree, sddegree, mindegree, maxdegree)
-        
     
     def getFriendshipWeight(self):
         weigth = self.friendshipWeightGenerator.rvs(1)
@@ -1054,7 +871,7 @@ class Model:
            
            
            # some book keeping
-            if(clusters):
+            if (clusters):
                 (s, sds, size) = findAvgStateInClusters(self, self.partition)
                 self.clusterSD.append(sds)
                 self.clusteravg.append(s)
@@ -1218,62 +1035,6 @@ class Model:
         return nx_partition
     
     
-    
-    def plot_network(self, graph, colormap='coolwarm', title = False):
-        """
-        Plots a network with nodes colored according to their opinion values.
-        
-        Parameters:
-        graph (networkx.Graph): The networkx graph with node attributes containing Agent objects.
-        colormap (str): The name of the colormap to use for node coloring.
-        """
-        
-        # Adjust spring layout parameters
-        layout = nx.spring_layout(graph, k=0.3, iterations=50)
-        labels = nx.get_node_attributes(graph, "m")
-        
-        # Extracting the opinions
-        opinions = nx.get_node_attributes(graph, "agent")
-        opinions = {k: v.state for k, v in opinions.items()}
-        
-        # Normalize the opinions to the range [-1, 1] for colormap
-        norm = Normalize(vmin=-1, vmax=1)
-        
-        cmap = plt.cm.get_cmap(colormap).reversed()
-        colors = [cmap(norm(opinions[node])) for node in graph.nodes]
-    
-        
-        # Create a colormap scalar mappable for the colorbar
-        sm = ScalarMappable(cmap=cmap, norm=norm)
-        sm.set_array([])
-        
-        # Draw the graph
-        plt.figure(figsize=(10, 7))
-        ax = plt.gca()
-        if args["type"] in ["FB", "Twitter"]:
-            nx.draw(graph, labels=labels, arrows=nx.is_directed(graph), 
-                    node_color=colors, with_labels=False, edge_color='gray', edgecolors = "black", node_size=190, 
-                    font_size=10, alpha=0.9, ax=ax)
-        else:  
-            nx.draw(graph, pos=layout, labels=labels, arrows=nx.is_directed(graph), 
-                    node_color=colors, with_labels=False, edge_color='gray', edgecolors = "black", node_size=190, 
-                    font_size=10, alpha=0.9, ax=ax)
-            
-        # Adding a colorbar
-        cbar = plt.colorbar(sm, ax=ax)
-        cbar.set_label('Opinion Value')
-        
-        # Add black border around the plot
-        for spine in ax.spines.values():
-            spine.set_edgecolor('black')
-            spine.set_linewidth(2)
-        
-        # Show plot
-        plt.title(title)
-        plt.tight_layout()
-        plt.savefig(f'../Figs/Networks/graph_{title}_{args["type"]}_{args["rewiringAlgorithm"]}_{args["rewiringAlgorithm"]}.png', bbox_inches='tight', dpi = 300)
-        plt.show()
-        
 #%% Network topologies 
 
 class EmpiricalModel(Model):
@@ -1333,15 +1094,6 @@ class RandomModel(Model):
         self.graph =nx.erdos_renyi_graph(n, p)
         self.populateModel(n, skew)
 
-# not exactly sure how this works tbh
-def saveModels(models, filename):
-    with open(filename, 'wb') as f:
-        dill.dump(models, f)
-
-def loadModels(filename):
-    with open(filename, 'rb') as f:
-        models = dill.load(f)
-    return models
 
 def findClusters(G, algo = None):
     
@@ -1357,361 +1109,8 @@ def findClusters(G, algo = None):
     return partition
 
     
-def findAvgStateInClusters(model, part):
-    states = [[] for i in range(len(set(part.values())))]
-   
-    for n, v in part.items():
-        states[v].append(model.graph.nodes[n]['agent'].state)
-    clusters = []
-    sd = []
-    clsize = []
-    for c in range(len(states)):
-        clusters.append(mean(states[c]))
-        clsize.append(len(states[c]))
-        if(len(states[c])>1):
-            sd.append(stdev(states[c]))
-        else:
-            sd.append(0) 
-    return (clusters, sd, clsize)
-
-def findAvgSDinClusters(model, part):
-    states = [[] for i in range(len(set(part.values())))]
-    for n, v in part.items():
-        states[v].append(model.graph.nodes[n]['agent'].state)
-    
-    sd = []
-    for c in range(len(states)):
-        if(len(states[c])>1):
-            sd.append(stdev(states[c]))
-        else:
-            sd.append(0)
-    return sd
-
-
-    
 #%% Auxillary and data collection functions
   
-#-------- save data functions ---------
-
-def saveavgdata(models, filename, args = args):
-
-    
-    states = []
-    sds = []
-    for i in range(len(models)):
-        states.append(models[i].states)
-        sds.append(models[i].statesds)
-    array = np.array(states)
-    avg = array.mean(axis=0)
-    std = np.array(sds).mean(axis=0)
-    outs = np.column_stack((avg,std))
-    hstring = 'avg.std'
-
-    if(gridtype == 'cl'):
-        avgSds = []
-        for mod in models:
-            array = np.array(mod.clusterSD)
-            avgSd = array.mean(axis=1)
-            avgSds.append(avgSd)
-        array = np.array(avgSds)
-        avgAvgSd = array.mean(axis=0)
-        outs = np.column_stack((outs,avgAvgSd))
-        hstring += ',clstd'
-        
-    degree = []
-    degreeSD = []
-    mindegree_l = []
-    maxdegree_l = []
-
-
-    num_models = len(models)
-    for i in range(num_models):
-        degree.append(models[i].degrees)
-        degreeSD.append(models[i].degreesSD)
-        mindegree_l.append(models[i].mindegrees_l)
-        maxdegree_l.append(models[i].maxdegrees_l)
-    
-    rewiring_a = np.full((args["timesteps"], 1), args["rewiringAlgorithm"])
-    scenario_a = np.full((args["timesteps"], 1), args["rewiringMode"])  # Adjust "rewiringMode" as needed
-    type_a = np.full((args["timesteps"], 1), args["type"])
-    
-    array = np.array(degree)
-    mindegree_a = np.array(mindegree_l)
-    maxdegree_a = np.array(maxdegree_l)
-    avg_mindegree = mindegree_a.mean(axis=0)
-    avg_maxdegree = maxdegree_a.mean(axis=0)
-    avgdegree = array.mean(axis=0)
-    degreeSD = np.array(degreeSD).mean(axis=0)
-    
-    #compiling arrays
-    outs = np.column_stack((avg, std, avgdegree, degreeSD, avg_mindegree, avg_maxdegree, rewiring_a, scenario_a, type_a))
-    #hstring += ',avgdegree.degreeSD.mindegree.maxdegree.scenario.rewiring.type'
-   
-    #np.savetxt(filename,outs,delimiter=',',header=hstring) 
-    return(outs)
-
-def savesubdata(models,filename):
-    
-    outs = []
-
-    for i in range(len(models)):
-        outs.append(models[i].states)
-    
-    outs = np.array(outs)
-    np.savetxt(filename,outs,delimiter=',')
-
-#-------- drawing functions ---------
-
-def reduce_grid(model):
-    n=gridsize
-    for i in range(n):
-        for j in range(n):
-            if(i!=0 and j!=0 ):
-                model.graph.remove_edge(i*n+j, (i-1)*n+j-1)
-            if(i!=0 and j!=(n-1)):
-                model.graph.remove_edge(i*n+j, (i-1)*n+j+1)
-            """
-            if( i != n-1 and j!= n-1):
-                weight = model.getFriendshipWeight()
-                model.graph.remove_edge(i*n+j, (i+1)*n+j+1, weight = weight)
-            if(j != 0 and i != n-i):
-                weight = model.getFriendshipWeight()
-                model.graph.remove_edge(i*n+j, (i+1)*n+j-1, weight = weight)"""
-            if(j == n-1):
-                if(i == n-1):
-                    model.graph.remove_edge(i*n+j, 0)
-                else:
-                    model.graph.remove_edge(i*n+j, (i+1)*n)
-                if(i == 0):
-                    model.graph.remove_edge(i*n+j, (n-1)*n)
-                else:
-                    model.graph.remove_edge(i*n+j, (i-1)*n)
-            if( i == n-1):
-                if( j != n-1):
-                    model.graph.remove_edge(i*n+j, j+1)
-                if(j != 0):
-                    model.graph.remove_edge(i*n+j, j-1)
-                else: 
-                    model.graph.remove_edge(i*n+j, (n-1))
-
-
-
-def drawAvgState(models, avg =False, pltNr=1, title="", clusterSD = False):
-    plt.xlabel("timestep")
-    plt.ylabel("AVG // STD")
-    #mypalette = ["blue","red","green", "yellow", "orange", "violet", "grey", "grey","grey"]
-    plt.subplot()
-    #plt.subplot(1, 2, 1, title="Average State and SD")
-    
-    if(not avg):
-        plt.ylim((-1, 1))
-        for i in range(len(models)):
-            plt.plot(models[i].states ,color='#ff7f0e')
-            plt.plot(models[i].statesds, alpha=0.5 ,color='#ff7f0e')
-            if(clusterSD):
-                sds = np.array(models[i].clusterSD)
-                avgsd = sds.mean(axis=1)
-                plt.plot(avgsd, linestyle=":" ,color='#ff7f0e')
-    else:
-        states = []
-        sds = []
-        plt.ylim((-1, 1))
-        for i in range(len(models)):
-            states.append(models[i].states)
-            sds.append(models[i].statesds)
-        array = np.array(states)
-        avg = array.mean(axis=0)
-        std = np.array(sds).mean(axis=0)
-        p1 = plt.plot(avg, color='#ff7f0e', label="AVG state")
-        p2 = plt.plot(std, color='#ff7f0e', alpha=0.5, label="STD states")
-        #plt.plot(avg+std, color=col.to_rgba(mypalette[pltNr-1], 0.5))
-        #text = ["rand cont", "cl cont", "rand disc", "cl disc"]
-        text =["Clustered"]
-        handles = [mpatches.Patch(color=mypalette[c], label=text[c]) for c in range(len(text))]
-        plt.legend(handles=handles)
-        #print(models[0].states)
-        if(clusterSD):
-            avgSds = []
-            for mod in models:
-                array = np.array(mod.clusterSD)
-                avgSd = array.mean(axis=1)
-                avgSds.append(avgSd)
-            array = np.array(avgSds)
-            avgAvgSd = array.mean(axis=0)
-            plt.plot(avgAvgSd, color='#ff7f0e', linestyle=":", label="STD in clusters")
-
-        #plt.subplot(1, 2, 2)
-        #plt.ylim((0, 1))
-        #plt.plot(std, color=mypalette[pltNr-1])
-        return (p1, p2)
-
-def drawCrossSection(models, pltNr = 1):
-    values = []
-    #mypalette = ["blue","red","green", "yellow", "orange", "violet", "grey", "grey","grey"]
-    for model in models:
-        values.append(model.states[-1])
-    plt.subplot(1, 2, 2, title="Density Plot of State for Simulations")
-    ax = plt.gca()
-    #ax.set_xscale('log')
-    plt.xlim((0, 5))
-    plt.ylim((-1, 1))
-    #plt.title('Density Plot of state for simulations')
-    #plt.xlabel('avg state of cooperators after all time steps')
-    plt.xlabel('Density')
-    #plt.scatter(range(len(values)), values.sort(), color = mypalette[pltNr-1])
-    try:
-        sns.distplot(values, hist=False, kde=True, color = mypalette[pltNr-1], vertical=True)
-    except:
-        sns.distplot(values, hist=True, kde=False, color = mypalette[pltNr-1], vertical=True)
-
-    #plt.show()
-
-def drawClustersizes(models, pltNr = 1):
-    sizes = []
-    for model in models:
-        part = findClusters(model)
-        (avg, sd, size) = findAvgStateInClusters(model, part)
-        for s in size:
-            sizes.append(s)
-    plt.subplot(1, 3, 3, title="Density Plot of clustersize simulations")
-    plt.xlabel("Clustersize")
-    sns.distplot(sizes, hist=True, kde=True, color = mypalette[pltNr-1])
-
-def drawConvergence(variables, modelsList, pltNr = 1):
-    endState = []
-    for models in modelsList:
-        values = []
-        for model in models:
-            values.append(model.states[-1])
-        endState.append(mean(values))
-    plt.subplot(1,2,2)
-    plt.xlim((-1, 1))
-    plt.ylim((-1, 1))
-    plt.scatter(variables, endState, color=mypalette[pltNr-1])
-
-def drawClusterState(models, pltNr = 1, step=-1, subplot=1):
-    plt.title("Density of Avg State in Communities")
-    if(step < 0):
-        plt.subplot(1, 3, 3, title="Avg State after Simulation")
-        states = []
-        for i in range(len(models)):
-            for c in models[i].clusteravg[-1]:
-                states.append(c)
-    else:
-        plt.subplot(1, 3, subplot, title="Avg State at t="+ str(step))
-        states = []
-        for i in range(len(models)):
-            for c in models[i].clusteravg[step]:
-                states.append(c)
-    ax = plt.gca()
-    #ax.set_xscale('log')
-    plt.xlim((0, 5))
-    plt.ylim((-1, 1))
-    #plt.title('Density Plot of state for simulations')
-    #plt.xlabel('avg state of cooperators after all time steps')
-    plt.xlabel('Density')
-    plt.ylabel('State')
-    try:
-        sns.distplot(states, hist=True, kde=True, color = mypalette[pltNr-1], vertical=True)
-    except:
-        sns.distplot(states, hist=True, kde=False, color = mypalette[pltNr-1], vertical=True)
-
-def drawAvgNumberOfAgreeingFriends(models, pltNr = 1):
-    avgNbAgreeingFriends = [model.avgNbAgreeingList for model in models]
-    avgAvg = np.array(avgNbAgreeingFriends).mean(axis=0)
-    plt.title("Average Agreement of Neighbours")
-    plt.ylim((0, 1))
-    plt.xlabel("Timesteps")
-    plt.ylabel("Agreement")
-    plt.plot(avgAvg, color=mypalette[pltNr-1])
-
-
-    
-
-
-#%%
-#for testing only
-# from netin import stats
-
-# def timer(func, arg):
-#     start = time.time()
-#     func(arg)
-#     end = time.time()
-#     mins = (end - start) / 60
-#     sec = (end - start) % 60
-#     print(f'Runtime was complete: {mins:5.0f} mins {sec}s\n')
-
-#     return
-def test_run():
-    twitter, fb  = "twitter_graph_N_789", "FB_graph_N_786"
-    init_states = []
-    final_states = []
-    start = time.time()
-    plt.figure()
-    model_array = []
-    for i in range(7):
-        print(i)
-        args.update({"type": "DPAH", "plot": True, "top_file": f"{twitter}.gpickle", "timesteps": 10000, "rewiringAlgorithm": "node2vec",
-                      "rewiringMode": "None", "nwsize":300})
-        #nwsize has to equal empirical network size 
-        model = simulate(1, args)
-        init_states.append(model.states[0])
-        states = model.states
-        final_states.append(states[-1])
-        plt.plot(states)
-        model_array.append(model)
-    
-        
-    plt.ylim(-1, 1)
-    plt.title(f'{args["rewiringAlgorithm"]}')
-    plt.axline((0, np.mean(final_states)), slope= 0, color ="black")
-    plt.show()  # Ensure plot is rendered
-    return model_array
-    
-if  __name__ ==  '__main__': 
-    start = time.time()
-    models = test_run()
-    end = time.time()
-    mins = (end - start) / 60
-    sec = (end - start) % 60
-    print(f'Runtime was complete: {mins:5.0f} mins {sec}s\n')
-    
-    
-# plt.savefig(f'../Figs/_{args["rewiringAlgorithm"]}_full_args_{args["nwsize"]}_{args["timesteps"]}.jpg')
-# print(np.mean([models[i].retrain for i in range(len(models))]))
-# print(np.std([models[i].retrain for i in range(len(models))]))
-#227, 3.38 for last step rewire
-
-
-# # final_states_compile_list = list(zip(final_states_2nd, final_states_3rd))
-# # final_states_compiled = pd.DataFrame(final_states_compile_list, columns = ["final_states_t_2", 'final_states_full'])
-# # final_states_compiled.to_csv("final_states_node2vec_test.csv")
-# #final_states_2nd = final_states.copy()
-# end = time.time()
-# mins = (end - start) / 60
-# sec = (end - start) % 60
-# print(f'Runtime was complete: {mins:5.0f} mins {sec}s\n')
-
-# states = model.states
-# plt.plot(states)
-# plt.show
-# # plt.plot(init_states)
-# # plt.axhline(y=np.mean(init_states), color='r', linestyle='-')
-# # plt.show()
-# # #viz.plot_graph(model.graph, edge_width = 1, cell_size = 3, node_size = 50)
-# # # # hom = Homophily.infer_homophily_values(model.graph)
-
-
-
-# # layout = nx.spring_layout(model.graph)
-# # labels = nx.get_node_attributes(model.graph, "m")
-# # #(model.graph, pos=layout, labels = labels) 
-# # nx.draw(model.graph, pos=layout, labels = labels, arrows=True)
-# # nx.is_directed(model.graph)
-# # plt.show()
-# #model.plot_network(model.graph)
-
-
 
 
 

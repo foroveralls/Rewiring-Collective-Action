@@ -35,7 +35,7 @@ import time
 import multiprocessing
 from pathlib import Path
 import dill
-import models_checks_updated as models_checks
+import models_checks_alt_new as models_checks
 import numpy as np 
 import pickle 
 import concurrent
@@ -57,9 +57,11 @@ def init(lock_):
     models_checks.init_lock(lock_)
 
 if  __name__ ==  '__main__': 
-
+    
+    
+    
     #Constants and Variables
-    numberOfSimulations = 1
+    numberOfSimulations = 2
     numberOfProcessors =  int(0.8*multiprocessing.cpu_count()) # CPUs to use for parallelization
 
     start = time.time()
@@ -96,11 +98,13 @@ if  __name__ ==  '__main__':
     # Add combinations for "None" scenario with "wtf" only on directed topologies
     combined_list4 = [("wtf","None", topology) for topology in directed_topology_list]
     
-    # Combine all lists
-    combined_list = combined_list1 + [("random", "None", "cl")] + \
-    [("None", "None", "cl")] + combined_list2 + combined_list3 + combined_list4
+    # Add combinations for "rand" scenario on all topologies
+    combined_list_rand = [("random", "None", topology) for topology in directed_topology_list + undirected_topology_list]
     
-    #combined_list = [("node2vec", "None", "DPAH")]
+    # Combine all lists
+    combined_list = combined_list1 + combined_list_rand + combined_list2 + combined_list3 + combined_list4
+    
+    combined_list = [("node2vec", "None", "DPAH")]
     
 
     out_list = []
@@ -121,11 +125,11 @@ if  __name__ ==  '__main__':
         
         else:
             top_file = None
-            nwsize = 800
+            nwsize = 700
         
         ## You can specify simulation parameters here. If they are not set here, they will default to some values set in models.py
         argList.append({"rewiringAlgorithm": i, "nwsize": nwsize, "rewiringMode": v, "type": k,
-                        "top_file": top_file, "polarisingNode_f": 0.10, "timesteps": 50000 , "plot": False})
+                        "top_file": top_file, "polarisingNode_f": 0.10, "timesteps": 30000 , "plot": False})
        
         
         #print (argList)
@@ -137,7 +141,7 @@ if  __name__ ==  '__main__':
         
             assert argList[0]["rewiringAlgorithm"] == str(sim[0].algo), "Inconsistent values"
             # #print(sim[0]. __class__. __name__)
-            # #print(sim[0].algo) #sim[0].steps)
+            print(sim[0].test) #sim[0].steps)
             
             fname = f'../Output/{i}_linkif_{v}_top_{j}.csv'
         
@@ -145,7 +149,7 @@ if  __name__ ==  '__main__':
             end_1 = time.time()
             mins = (end_1 - start_1) / 60
             sec = (end_1 - start_1) % 60
-            print(f'algorithim run is complete: {mins:5.0f} mins {sec}s\n')
+            print(f'algorithim run is complete: {mins:5.0f} mins {round(sec)}s\n')
             
     pool.close()
     pool.join()
@@ -171,7 +175,7 @@ if  __name__ ==  '__main__':
     
     #out_list_df.to_csv(f'../Output/default_run_all_new_N_{nwsize}.csv')
     try:
-        out_list_df.to_csv(f'../Output/default_run_all_new_N_{nwsize}_{date}.csv')
+        out_list_df.to_csv(f'../Output/default_run_all_alt_N_{nwsize}_{date}.csv')
     except NameError as e:
         # Handle the case where nwsize does not exist
         print(f"Error: {e}. It seems 'nwsize' does not exist.")

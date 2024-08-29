@@ -4,3 +4,5 @@ Auxillary/fast_wtf/target
 Figs/
 Pre_processing/Data
 Output/
+Analysis/embeddings.emb
+Analysis/graph.edgelist

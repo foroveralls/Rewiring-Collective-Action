@@ -15,6 +15,7 @@ import seaborn as sns
 from statistics import stdev, median, mean
 import matplotlib.pyplot as plt
 from datetime import date
+from matplotlib.ticker import FuncFormatter
 
 date = date.today()
 #%% setting file params
@@ -28,37 +29,50 @@ file_extension = ".csv"
 file_list = list(filter(
     lambda x: file_extension in x and "default" in x, os.listdir("../Output")))
 
+file_list = {i:file_list[i] for i in range(len(file_list))}
 print(file_list)
 
-file_index = int(input("enter index:"))
+file_index = int(input("enter index: "))
 #%%
 # Set your t_max value here
-t_max = 30000
+t_max = 35000
 
 id_vars = ['t', 'scenario', 'rewiring', 'type']
 default_run = pd.read_csv(os.path.join("../Output", file_list[file_index]))
 default_run = default_run.drop(default_run.columns[0], axis=1)
 default_run['rewiring'] = default_run['rewiring'].fillna('none')
+default_run['scenario'] = default_run['scenario'].fillna('none')
+
+
 default_r_l = pd.melt(default_run, id_vars=id_vars, var_name='measurement', value_name='value')
 default_r_l['scenario_grouped'] = default_r_l['scenario'].str.cat(default_r_l['rewiring'], sep='_')
 default_r_l = default_r_l.drop(columns=['scenario', 'rewiring'])
 default_r_l['value'] = pd.to_numeric(default_r_l['value'], errors='coerce')
 
-data = default_r_l[default_r_l['measurement']=='avg_state']
+#data = default_r_l[default_r_l['measurement']=='avg_state']
+data = default_r_l[default_r_l['measurement'].isin(['avg_state', 'std_states'])]
+
 # Filter data based on t_max
 data = data.drop(data[data['t'] > t_max].index)
 
 #%% Compare All lineplot
 sns.set(style="ticks", font_scale=1.5)
 
+
+
+
+def truncate_labels(x, pos):
+    return f'{str(x)[:2]}'  # Format with two decimal places
+
+
 g = sns.relplot(
     data=data,
     x="t", y="value",
-    hue="scenario_grouped", col="type",
+    hue="scenario_grouped", col="measurement",
     kind="line",
     dashes=False,
     palette="Set2",
-    linewidth=2, 
+    linewidth=1, 
     alpha=0.8,
     markers=True, 
     height=5, aspect=1.1, facet_kws=dict(sharex=False)
@@ -72,7 +86,7 @@ g.set(xticks=np.arange(0, t_max + 1, t_max // 5))
 # Adding grid lines to each subplot
 for ax in g.axes.flat:
     ax.grid(True, linestyle='--', linewidth='0.7', color='gray', alpha=0.7)  # Customize the grid style here
-
+    ax.xaxis.set_major_formatter(FuncFormatter(truncate_labels))
 # Custom titles for each column
 custom_titles = {"FB": "Facebook", "cl": "Clustered Scale-Free"}
 for ax, title in zip(g.axes.flat, g.col_names):
