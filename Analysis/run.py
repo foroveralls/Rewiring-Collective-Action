@@ -13,34 +13,14 @@
 #paramater anaylsis for rewiring values
 #import pandas
 import os
-import sys
-
-#sys.path.append('C:\/Users\everall\Documents\Python\Projects\It-s_how_we_talk_that_matters')
-#os.chdir('C:\/Users\everall\Documents\Python\Projects\It-s_how_we_talk_that_matters')
-
-from multiprocessing import Pool
-import random
-import matplotlib
-import matplotlib.pyplot as plt
-#from networkx.drawing.nx_agraph import graphviz_layout, to_agraph
-from copy import deepcopy
-#import seaborn as sns
-#import pygraphviz as pgv
-from statistics import stdev, mean
-import imageio
 import pandas as pd 
-from scipy.stats import truncnorm
 from itertools import repeat
 import time
 import multiprocessing
-from pathlib import Path
-import dill
-import models_checks_alt_new as models_checks
+import models_checks
 import numpy as np 
-import pickle 
-import concurrent
 from datetime import date
-
+import glob
 from itertools import product 
 
 
@@ -125,7 +105,7 @@ if  __name__ ==  '__main__':
         
         else:
             top_file = None
-            nwsize = 700
+            nwsize = 200
         
         ## You can specify simulation parameters here. If they are not set here, they will default to some values set in models.py
         argList.append({"rewiringAlgorithm": i, "nwsize": nwsize, "rewiringMode": v, "type": k,
@@ -141,7 +121,7 @@ if  __name__ ==  '__main__':
         
             assert argList[0]["rewiringAlgorithm"] == str(sim[0].algo), "Inconsistent values"
             # #print(sim[0]. __class__. __name__)
-            print(sim[0].test) #sim[0].steps)
+            #print(sim[0].test) #sim[0].steps)
             
             fname = f'../Output/{i}_linkif_{v}_top_{j}.csv'
         
@@ -186,3 +166,6 @@ if  __name__ ==  '__main__':
     except Exception as e:
         # Handle any other types of errors
         print(f"An unexpected error occurred: {e}")
+        
+    for file in glob.glob("*embeddings*"):
+        os.remove(file)
