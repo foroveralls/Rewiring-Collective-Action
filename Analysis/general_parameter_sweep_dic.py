@@ -1,6 +1,6 @@
 
 #
-9# Some notes on implementation for better or worse
+# Some notes on implementation for better or worse
 # 
 # Original program written by Sigrid Bratsberg, credit where credit is due! 
 # 
