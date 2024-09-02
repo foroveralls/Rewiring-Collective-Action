@@ -35,13 +35,16 @@ print(file_list)
 file_index = int(input("enter index: "))
 #%%
 # Set your t_max value here
-t_max = 35000
+t_max = 30000
 
 id_vars = ['t', 'scenario', 'rewiring', 'type']
 default_run = pd.read_csv(os.path.join("../Output", file_list[file_index]))
 default_run = default_run.drop(default_run.columns[0], axis=1)
+print("Unique scenarios:", default_run['scenario'].unique())
+
 default_run['rewiring'] = default_run['rewiring'].fillna('none')
 default_run['scenario'] = default_run['scenario'].fillna('none')
+print(default_run['scenario'].unique())  # Confirm 'none' is now included
 
 
 default_r_l = pd.melt(default_run, id_vars=id_vars, var_name='measurement', value_name='value')
@@ -49,12 +52,17 @@ default_r_l['scenario_grouped'] = default_r_l['scenario'].str.cat(default_r_l['r
 default_r_l = default_r_l.drop(columns=['scenario', 'rewiring'])
 default_r_l['value'] = pd.to_numeric(default_r_l['value'], errors='coerce')
 
+print("Unique measurements:", default_r_l['measurement'].unique())
+
 #data = default_r_l[default_r_l['measurement']=='avg_state']
 data = default_r_l[default_r_l['measurement'].isin(['avg_state', 'std_states'])]
+print(data.shape)  # Check the size of the filtered dataframe
+print(data['measurement'].unique())
 
 # Filter data based on t_max
 data = data.drop(data[data['t'] > t_max].index)
 
+#assert 1 == 0
 #%% Compare All lineplot
 sns.set(style="ticks", font_scale=1.5)
 
@@ -64,19 +72,29 @@ sns.set(style="ticks", font_scale=1.5)
 def truncate_labels(x, pos):
     return f'{str(x)[:2]}'  # Format with two decimal places
 
-
 g = sns.relplot(
     data=data,
     x="t", y="value",
-    hue="scenario_grouped", col="measurement",
+    hue="scenario_grouped",
+    style="measurement",  # Add this line to differentiate by measurement
+    col="type", 
     kind="line",
-    dashes=False,
     palette="Set2",
-    linewidth=1, 
+    linewidth=1.5,  # Increased slightly for better visibility
     alpha=0.8,
-    markers=True, 
-    height=5, aspect=1.1, facet_kws=dict(sharex=False)
+    markers=False, 
+    height=5, aspect=1.1,
+    facet_kws=dict(sharex=False)
 )
+
+# Customize the line styles
+g._legend.get_lines()[::2]  # avg_state lines
+for line in g._legend.get_lines()[::2]:
+    line.set_linestyle('-')  # solid line for avg_state
+
+g._legend.get_lines()[1::2]  # std_states lines
+for line in g._legend.get_lines()[1::2]:
+    line.set_linestyle(':')  # dotted line for std_states
 
 # Setting titles and labels
 g.set_titles("{col_name}", fontweight='bold', color="#333333")

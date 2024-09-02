@@ -279,3 +279,43 @@ algorithim run is complete:     4 mins 31.123244762420654s
 
 Runtime is complete: 0.28797154823939003) hours,    17 mins 16.6975736618042s
 
+Started iteration:  biased_diff_cl
+algorithim run is complete:     3 mins 0.6602346897125244s
+
+Started iteration:  biased_same_cl
+algorithim run is complete:     3 mins 51.074344873428345s
+
+Started iteration:  bridge_diff_cl
+algorithim run is complete:     4 mins 52.60743069648743s
+
+Started iteration:  bridge_same_cl
+algorithim run is complete:     4 mins 28.697185516357422s
+
+Started iteration:  random_None_cl
+algorithim run is complete:     4 mins 40.06449222564697s
+
+Started iteration:  None_None_cl
+algorithim run is complete:     3 mins 56.88750123977661s
+
+Runtime is complete: 0.3473035432232751) hours,    21 mins 50.29275560379028s
+
+Started iteration:  biased_diff_cl
+algorithim run is complete:     3 mins 0.10335135459899902s
+
+Started iteration:  biased_same_cl
+algorithim run is complete:     3 mins 3.020113706588745s
+
+Started iteration:  bridge_diff_cl
+algorithim run is complete:     4 mins 10.97939157485962s
+
+Started iteration:  bridge_same_cl
+algorithim run is complete:     4 mins 28.3050434589386s
+
+Started iteration:  random_None_cl
+algorithim run is complete:     4 mins 39.27836513519287s
+
+Started iteration:  None_None_cl
+algorithim run is complete:     3 mins 7.216640949249268s
+
+Runtime is complete: 0.35811292264196604) hours,    21 mins 29.20652151107788s
+
