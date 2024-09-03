@@ -1306,63 +1306,59 @@ def findAvgSDinClusters(model, part):
   
 #-------- save data functions ---------
 
-def saveavgdata(models, filename, args = args):
-
+def saveavgdata(models, filename, args):
+    # Initialize lists to store data from all models
+    all_data = []
     
-    states = []
-    sds = []
-    for i in range(len(models)):
-        states.append(models[i].states)
-        sds.append(models[i].statesds)
-    array = np.array(states)
-    array_sd = np.array(sds)
-    avg = array.mean(axis=0)
-    std = np.array(sds).mean(axis=0)
-    outs = np.column_stack((avg,std))
-    hstring = 'avg.std'
-
-    if(gridtype == 'cl'):
-        avgSds = []
-        for mod in models:
-            array = np.array(mod.clusterSD)
-            avgSd = array.mean(axis=1)
-            avgSds.append(avgSd)
-        array = np.array(avgSds)
-        avgAvgSd = array.mean(axis=0)
-        outs = np.column_stack((outs,avgAvgSd))
-        hstring += ',clstd'
+    for model in models:
+        # Extract data for current model
+        avg = np.mean(model.states, axis=0)
+        std = np.mean(model.statesds, axis=0)
+        avgdegree = np.mean(model.degrees, axis=0)
+        degreeSD = np.mean(model.degreesSD, axis=0)
+        avg_mindegree = np.mean(model.mindegrees_l, axis=0)
+        avg_maxdegree = np.mean(model.maxdegrees_l, axis=0)
         
-    degree = []
-    degreeSD = []
-    mindegree_l = []
-    maxdegree_l = []
-
-
-    num_models = len(models)
-    for i in range(num_models):
-        degree.append(models[i].degrees)
-        degreeSD.append(models[i].degreesSD)
-        mindegree_l.append(models[i].mindegrees_l)
-        maxdegree_l.append(models[i].maxdegrees_l)
+        # Create a dictionary for the current model's data
+        model_data = {
+            't': np.arange(args["timesteps"]),
+            'avg_state': avg,
+            'std_states': std,
+            'avgdegree': avgdegree,
+            'degreeSD': degreeSD,
+            'mindegree': avg_mindegree,
+            'maxdegree': avg_maxdegree,
+            'scenario': args["rewiringAlgorithm"],
+            'rewiring': args["rewiringMode"],
+            'type': args["type"]
+        }
+        
+        # Append the current model's data to the list
+        all_data.append(pd.DataFrame(model_data))
     
-    rewiring_a = np.full((args["timesteps"], 1), args["rewiringAlgorithm"])
-    scenario_a = np.full((args["timesteps"], 1), args["rewiringMode"])  # Adjust "rewiringMode" as needed
-    type_a = np.full((args["timesteps"], 1), args["type"])
+    # Concatenate all DataFrames at once
+    combined_df = pd.concat(all_data, ignore_index=True)
     
-    array = np.array(degree)
-    mindegree_a = np.array(mindegree_l)
-    maxdegree_a = np.array(maxdegree_l)
-    avg_mindegree = mindegree_a.mean(axis=0)
-    avg_maxdegree = maxdegree_a.mean(axis=0)
-    avgdegree = array.mean(axis=0)
-    degreeSD = np.array(degreeSD).mean(axis=0)
+    # Optimize memory usage
+    combined_df = combined_df.astype({
+        't': 'int32',
+        'avg_state': 'float32',
+        'std_states': 'float32',
+        'avgdegree': 'float32',
+        'degreeSD': 'float32',
+        'mindegree': 'float32',
+        'maxdegree': 'float32',
+        'scenario': 'category',
+        'rewiring': 'category',
+        'type': 'category'
+    })
     
-    #compiling arrays
-    outs = np.column_stack((avg, std, array, array_sd, avgdegree, degreeSD, avg_mindegree, avg_maxdegree, rewiring_a, scenario_a, type_a))
-    #hstring += ',avgdegree.degreeSD.mindegree.maxdegree.scenario.rewiring.type'
-   
-    #np.savetxt(filename,outs,delimiter=',',header=hstring) 
-    return(outs)
+    # Save the combined DataFrame
+    #combined_df.to_csv(filename, index=False)
+    
+    print(f"Output saved to {filename}")
+    
+    return combined_df
 
 def savesubdata(models,filename):
     
@@ -1432,10 +1428,10 @@ def test_run():
     start = time.time()
     plt.figure()
     model_array = []
-    for i in range(7):
+    for i in range(2):
         print(i)
-        args.update({"type": "DPAH", "plot": True, "top_file": f"{twitter}.gpickle", "timesteps": 10000, "rewiringAlgorithm": "node2vec",
-                      "rewiringMode": "None", "nwsize":300})
+        args.update({"type": "DPAH", "plot": False, "top_file": f"{twitter}.gpickle", "timesteps": 1000, "rewiringAlgorithm": "node2vec",
+                      "rewiringMode": "None", "nwsize":100})
         #nwsize has to equal empirical network size 
         model = simulate(1, args)
         init_states.append(model.states[0])
@@ -1460,6 +1456,8 @@ if  __name__ ==  '__main__':
     print(f'Runtime was complete: {mins:5.0f} mins {sec}s\n')
 
 
+    fname = f'../Output/lol.csv'
+    out = saveavgdata(models, fname, args)
 #baseline run node2vec is 1 min 7 
     
 # plt.savefig(f'../Figs/_{args["rewiringAlgorithm"]}_full_args_{args["nwsize"]}_{args["timesteps"]}.jpg')

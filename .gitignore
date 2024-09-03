@@ -7,3 +7,4 @@ Output/
 Analysis/embeddings.emb
 Analysis/graph.edgelist
 Analysis/Old_other
+Auxillary/__pycache__
