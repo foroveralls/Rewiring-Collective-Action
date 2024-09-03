@@ -633,7 +633,7 @@ class Model:
           
         return nodeIndex
     
-    def break_link(self, nodeIndex, rewiredIndex, neighbours):
+    def     (self, nodeIndex, rewiredIndex, neighbours):
         
         #avoids repeated computation
         init_neighbours = neighbours
@@ -1203,7 +1203,9 @@ class Model:
 class EmpiricalModel(Model):
     def __init__(self,  filename, n, m, skew= 0, **kwargs):
         super().__init__(**kwargs)
-        self.graph = nx.read_gpickle(filename)
+        with open('filename', 'rb') as f:
+            self.graph = pickle.load(f)
+      
         #nx.draw(self.graph, node_size = 12)
        # np.savetxt("debug.txt", list(self.graph.nodes))
       
@@ -1212,7 +1214,8 @@ class EmpiricalModel(Model):
 class EmpiricalModel_w_agents(Model):
     def __init__(self,  filename, n, m, skew= 0, **kwargs):
         super().__init__(**kwargs)
-        self.graph = nx.read_gpickle(filename)
+        with open('filename', 'rb') as f:
+            self.graph = pickle.load(f)
        # np.savetxt("debug.txt", list(self.graph.nodes))
         #self.populateModel_empirical(n, skew)
         #TODO: implement populate function for this model class
