@@ -41,7 +41,7 @@ if  __name__ ==  '__main__':
     
     
     #Constants and Variables
-    numberOfSimulations = 1
+    numberOfSimulations = 50
     numberOfProcessors =  int(0.8*multiprocessing.cpu_count()) # CPUs to use for parallelization
 
     start = time.time()
@@ -84,7 +84,7 @@ if  __name__ ==  '__main__':
     # Combine all lists
     combined_list = combined_list1 + combined_list_rand + combined_list2 + combined_list3 + combined_list4
     
-    combined_list = [("node2vec", "None", "DPAH")]
+    #combined_list = [("node2vec", "None", "DPAH")]
     
 
     out_list = []
@@ -105,11 +105,11 @@ if  __name__ ==  '__main__':
         
         else:
             top_file = None
-            nwsize = 200
+            nwsize = 800
         
         ## You can specify simulation parameters here. If they are not set here, they will default to some values set in models.py
         argList.append({"rewiringAlgorithm": i, "nwsize": nwsize, "rewiringMode": v, "type": k,
-                        "top_file": top_file, "polarisingNode_f": 0.10, "timesteps": 1000 , "plot": False})
+                        "top_file": top_file, "polarisingNode_f": 0.10, "timesteps": 60000 , "plot": False})
        
         
         #print (argList)
@@ -182,8 +182,7 @@ if  __name__ ==  '__main__':
         })
     
         # Save the combined DataFrame
-        today = date.today()
-        output_file = f'../Output/default_run_all_N_{nwsize}_{today}.csv'
+        output_file = f'../Output/default_run_all_N_{nwsize}_n_{numberOfSimulations}_{date}.csv'
         combined_df.to_csv(output_file, index=False)
     
         print(f"Output saved to {output_file}")
@@ -197,30 +196,4 @@ if  __name__ ==  '__main__':
     for file in glob.glob("*embeddings*"):
         os.remove(file)
 
-    # columns = ['avg_state', 'std_states','avgdegree','degreeSD','mindegree','maxdegree','scenario','rewiring','type']
-    
-    
-    # stacked_array = np.vstack(out_list)
-    # out_list_df = pd.DataFrame(stacked_array)
-    # out_list_df['t'] = np.tile(np.arange(stacked_array.shape[0] // len(out_list)), len(out_list))    
-
-    # out_list_df.columns = columns + ['t']
-    # # Reorder columns to have 't' as the first column
-    # out_list_df = out_list_df[['t'] + columns]
-    
-    #out_list_df.to_csv(f'../Output/default_run_all_new_N_{nwsize}.csv')
-    # try:
-    #     out_list_df.to_csv(f'../Output/default_run_all_alt_N_{nwsize}_{date}.csv')
-    # except NameError as e:
-    #     # Handle the case where nwsize does not exist
-    #     print(f"Error: {e}. It seems 'nwsize' does not exist.")
-    #     out_list_df.to_csv('../Output/default_run_all_N_default.csv')
-    # except SyntaxError as e:
-    #     # Handle any potential syntax errors
-    #     print(f"Syntax Error: {e}")
-    # except Exception as e:
-    #     # Handle any other types of errors
-    #     print(f"An unexpected error occurred: {e}")
-        
-    # for file in glob.glob("*embeddings*"):
-    #     os.remove(file)
+   
