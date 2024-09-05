@@ -41,7 +41,7 @@ if  __name__ ==  '__main__':
     
     
     #Constants and Variables
-    numberOfSimulations = 1
+    numberOfSimulations = 2
     numberOfProcessors =  int(0.8*multiprocessing.cpu_count()) # CPUs to use for parallelization
 
     start = time.time()
@@ -84,7 +84,7 @@ if  __name__ ==  '__main__':
     # Combine all lists
     combined_list = combined_list1 + combined_list_rand + combined_list2 + combined_list3 + combined_list4
     
-    combined_list = [("node2vec", "None", "DPAH")]
+    #combined_list = [("node2vec", "None", "DPAH")]
     
 
     out_list = []
@@ -105,11 +105,11 @@ if  __name__ ==  '__main__':
         
         else:
             top_file = None
-            nwsize = 200
+            nwsize = 400
         
         ## You can specify simulation parameters here. If they are not set here, they will default to some values set in models.py
         argList.append({"rewiringAlgorithm": i, "nwsize": nwsize, "rewiringMode": v, "type": k,
-                        "top_file": top_file, "polarisingNode_f": 0.10, "timesteps": 1000 , "plot": False})
+                        "top_file": top_file, "polarisingNode_f": 0.10, "timesteps": 2000 , "plot": False})
        
         
         #print (argList)
@@ -145,30 +145,17 @@ if  __name__ ==  '__main__':
 
 
     def process_outputs(out_list, nwsize):
-        # Define the columns we want in our final output
-        columns = ['t', 'avg_state', 'std_states', 'avgdegree', 'degreeSD', 'mindegree', 'maxdegree', 'scenario', 'rewiring', 'type']
-    
-        # Initialize a list to store processed DataFrames
-        processed_dfs = []
-    
-        # Process each DataFrame in out_list
-        for df in out_list:
-            # Ensure all required columns are present
-            for col in columns:
-                if col not in df.columns:
-                    df[col] = np.nan
-            
-            # Select and reorder columns
-            df = df[columns]
-            
-            # Append to the list of processed DataFrames
-            processed_dfs.append(df)
-    
-        # Concatenate all processed DataFrames at once
-        combined_df = pd.concat(processed_dfs, ignore_index=True)
-    
-        # Optimize memory usage
-        combined_df = combined_df.astype({
+        # Unpack the tuples in out_list
+        avg_dfs, individual_dfs = zip(*out_list)
+        
+        # Process averaged data
+        combined_avg_df = pd.concat(avg_dfs, ignore_index=True)
+        
+        # Process individual data
+        combined_individual_df = pd.concat(individual_dfs, ignore_index=True)
+        
+        # Optimize memory usage for averaged data (already done in saveavgdata, but included here for completeness)
+        combined_avg_df = combined_avg_df.astype({
             't': 'int32',
             'avg_state': 'float32',
             'std_states': 'float32',
@@ -180,47 +167,36 @@ if  __name__ ==  '__main__':
             'rewiring': 'category',
             'type': 'category'
         })
-    
-        # Save the combined DataFrame
+        
+        # Optimize memory usage for individual data (already done in saveavgdata, but included here for completeness)
+        combined_individual_df = combined_individual_df.astype({
+            't': 'int32',
+            'model_run': 'int32',
+            'scenario': 'category',
+            'rewiring': 'category',
+            'type': 'category'
+        })
+        
+        # Save the combined averaged DataFrame
         today = date.today()
-        output_file = f'../Output/default_run_all_N_{nwsize}_{today}.csv'
-        combined_df.to_csv(output_file, index=False)
-    
-        print(f"Output saved to {output_file}")
-    
-        return combined_df
+        avg_output_file = f'../Output/default_run_avg_N_{nwsize}_{today}.csv'
+        combined_avg_df.to_csv(avg_output_file, index=False)
+        
+        # Save the combined individual DataFrame
+        individual_output_file = f'../Output/default_run_individual_N_{nwsize}_{today}.csv'
+        combined_individual_df.to_csv(individual_output_file, index=False)
+        
+        print(f"Averaged output saved to {avg_output_file}")
+        print(f"Individual output saved to {individual_output_file}")
+        
+        return combined_avg_df, combined_individual_df
 
-
-
-    combined_df = process_outputs(out_list, nwsize)
+    # Process the outputs
+    processed_avg_df, processed_individual_df = process_outputs(out_list, nwsize)
     
     for file in glob.glob("*embeddings*"):
         os.remove(file)
 
-    # columns = ['avg_state', 'std_states','avgdegree','degreeSD','mindegree','maxdegree','scenario','rewiring','type']
-    
-    
-    # stacked_array = np.vstack(out_list)
-    # out_list_df = pd.DataFrame(stacked_array)
-    # out_list_df['t'] = np.tile(np.arange(stacked_array.shape[0] // len(out_list)), len(out_list))    
 
-    # out_list_df.columns = columns + ['t']
-    # # Reorder columns to have 't' as the first column
-    # out_list_df = out_list_df[['t'] + columns]
-    
-    #out_list_df.to_csv(f'../Output/default_run_all_new_N_{nwsize}.csv')
-    # try:
-    #     out_list_df.to_csv(f'../Output/default_run_all_alt_N_{nwsize}_{date}.csv')
-    # except NameError as e:
-    #     # Handle the case where nwsize does not exist
-    #     print(f"Error: {e}. It seems 'nwsize' does not exist.")
-    #     out_list_df.to_csv('../Output/default_run_all_N_default.csv')
-    # except SyntaxError as e:
-    #     # Handle any potential syntax errors
-    #     print(f"Syntax Error: {e}")
-    # except Exception as e:
-    #     # Handle any other types of errors
-    #     print(f"An unexpected error occurred: {e}")
-        
-    # for file in glob.glob("*embeddings*"):
-    #     os.remove(file)
+
+ 

@@ -33,23 +33,19 @@ import time
 import matplotlib.patches as mpatches
 from matplotlib.colors import Normalize
 from matplotlib.cm import ScalarMappable
-import dill
+import pickle
 import igraph as ig
 import leidenalg as la
-import math
 import multiprocessing
 import matplotlib.pyplot as plt
 import seaborn as sns
 from netin import DPAH, PATCH, viz, stats
 from netin.generators.h import Homophily
 from collections import Counter
-from fast_pagerank import pagerank_power
 from Auxillary import network_stats
 import rustworkx as rx
 import multiprocessing
-from functools import partial
 import subprocess
-from multiprocessing import Process, Lock
 from Auxillary import node2vec_cpp as n2v
 
 #%%
@@ -633,7 +629,7 @@ class Model:
           
         return nodeIndex
     
-    def     (self, nodeIndex, rewiredIndex, neighbours):
+    def break_link(self, nodeIndex, rewiredIndex, neighbours):
         
         #avoids repeated computation
         init_neighbours = neighbours
@@ -1203,7 +1199,7 @@ class Model:
 class EmpiricalModel(Model):
     def __init__(self,  filename, n, m, skew= 0, **kwargs):
         super().__init__(**kwargs)
-        with open('filename', 'rb') as f:
+        with open(filename, 'rb') as f:
             self.graph = pickle.load(f)
       
         #nx.draw(self.graph, node_size = 12)
@@ -1214,7 +1210,7 @@ class EmpiricalModel(Model):
 class EmpiricalModel_w_agents(Model):
     def __init__(self,  filename, n, m, skew= 0, **kwargs):
         super().__init__(**kwargs)
-        with open('filename', 'rb') as f:
+        with open(filename, 'rb') as f:
             self.graph = pickle.load(f)
        # np.savetxt("debug.txt", list(self.graph.nodes))
         #self.populateModel_empirical(n, skew)
@@ -1310,58 +1306,68 @@ def findAvgSDinClusters(model, part):
 #-------- save data functions ---------
 
 def saveavgdata(models, filename, args):
-    # Initialize lists to store data from all models
-    all_data = []
+    # Get the maximum number of timesteps
+    max_timesteps = max(len(model.states) for model in models)
     
-    for model in models:
-        # Extract data for current model
-        avg = np.mean(model.states, axis=0)
-        std = np.mean(model.statesds, axis=0)
-        avgdegree = np.mean(model.degrees, axis=0)
-        degreeSD = np.mean(model.degreesSD, axis=0)
-        avg_mindegree = np.mean(model.mindegrees_l, axis=0)
-        avg_maxdegree = np.mean(model.maxdegrees_l, axis=0)
+    # Initialize arrays for storing data from all models
+    all_states = np.zeros((len(models), max_timesteps))
+    all_statesds = np.zeros((len(models), max_timesteps))
+    all_degrees = np.zeros((len(models), max_timesteps))
+    all_mindegrees = np.zeros((len(models), max_timesteps))
+    all_maxdegrees = np.zeros((len(models), max_timesteps))
+    
+    all_individual_data = []
+    
+    for i, model in enumerate(models):
+        timesteps = len(model.states)
         
-        # Create a dictionary for the current model's data
-        model_data = {
-            't': np.arange(args["timesteps"]),
-            'avg_state': avg,
-            'std_states': std,
-            'avgdegree': avgdegree,
-            'degreeSD': degreeSD,
-            'mindegree': avg_mindegree,
-            'maxdegree': avg_maxdegree,
+        # Store data for each model
+        all_states[i, :timesteps] = model.states
+        all_statesds[i, :timesteps] = model.statesds
+        all_degrees[i, :timesteps] = np.mean(model.degrees, axis=0)
+        all_mindegrees[i, :timesteps] = np.mean(model.mindegrees_l, axis=0)
+        all_maxdegrees[i, :timesteps] = np.mean(model.maxdegrees_l, axis=0)
+        
+        # Create individual model data
+        individual_model_data = pd.DataFrame({
+            't': np.arange(timesteps),
+            'avg_state': model.states,
+            'std_states': model.statesds,
+            'model_run': i,
             'scenario': args["rewiringAlgorithm"],
             'rewiring': args["rewiringMode"],
             'type': args["type"]
-        }
+        })
         
-        # Append the current model's data to the list
-        all_data.append(pd.DataFrame(model_data))
+        all_individual_data.append(individual_model_data)
     
-    # Concatenate all DataFrames at once
-    combined_df = pd.concat(all_data, ignore_index=True)
+    # Calculate averages using NumPy functions
+    avg_states = np.nanmean(all_states, axis=0)
+    avg_statesds = np.nanmean(all_statesds, axis=0)
+    avg_degrees = np.nanmean(all_degrees, axis=0)
+    degree_sd = np.nanstd(all_degrees, axis=0)
+    avg_mindegrees = np.nanmean(all_mindegrees, axis=0)
+    avg_maxdegrees = np.nanmean(all_maxdegrees, axis=0)
     
-    # Optimize memory usage
-    combined_df = combined_df.astype({
-        't': 'int32',
-        'avg_state': 'float32',
-        'std_states': 'float32',
-        'avgdegree': 'float32',
-        'degreeSD': 'float32',
-        'mindegree': 'float32',
-        'maxdegree': 'float32',
-        'scenario': 'category',
-        'rewiring': 'category',
-        'type': 'category'
-    })
+    # Create a dictionary for the averaged data across all models
+    avg_model_data = {
+        't': np.arange(max_timesteps),
+        'avg_state': avg_states,
+        'std_states': avg_statesds,
+        'avgdegree': avg_degrees,
+        'degreeSD': degree_sd,
+        'mindegree': avg_mindegrees,
+        'maxdegree': avg_maxdegrees,
+        'scenario': args["rewiringAlgorithm"],
+        'rewiring': args["rewiringMode"],
+        'type': args["type"]
+    }
     
-    # Save the combined DataFrame
-    #combined_df.to_csv(filename, index=False)
+    # Create DataFrames
+    combined_avg_df = pd.DataFrame(avg_model_data)
+    combined_individual_df = pd.concat(all_individual_data, ignore_index=True)
     
-    print(f"Output saved to {filename}")
-    
-    return combined_df
+    return combined_avg_df, combined_individual_df
 
 def savesubdata(models,filename):
     

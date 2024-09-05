@@ -35,11 +35,11 @@ print(file_list)
 file_index = int(input("enter index: "))
 #%%
 # Set your t_max value here
-t_max = 30000
+t_max = 1000
 
 id_vars = ['t', 'scenario', 'rewiring', 'type']
 default_run = pd.read_csv(os.path.join("../Output", file_list[file_index]))
-default_run = default_run.drop(default_run.columns[0], axis=1)
+#default_run = default_run.drop(default_run.columns[0], axis=1)
 print("Unique scenarios:", default_run['scenario'].unique())
 
 default_run['rewiring'] = default_run['rewiring'].fillna('none')
@@ -65,8 +65,6 @@ data = data.drop(data[data['t'] > t_max].index)
 #assert 1 == 0
 #%% Compare All lineplot
 sns.set(style="ticks", font_scale=1.5)
-
-
 
 
 def truncate_labels(x, pos):
@@ -133,27 +131,7 @@ plt.show()
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+#%%
 
 
 
