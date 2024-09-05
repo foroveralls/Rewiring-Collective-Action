@@ -41,7 +41,11 @@ if  __name__ ==  '__main__':
     
     
     #Constants and Variables
+<<<<<<< HEAD
     numberOfSimulations = 2
+=======
+    numberOfSimulations = 50
+>>>>>>> 13ce7e0fadef29aa72f03fcf0b4cdc6220de9f5c
     numberOfProcessors =  int(0.8*multiprocessing.cpu_count()) # CPUs to use for parallelization
 
     start = time.time()
@@ -105,11 +109,12 @@ if  __name__ ==  '__main__':
         
         else:
             top_file = None
-            nwsize = 400
+
+            nwsize = 800
         
         ## You can specify simulation parameters here. If they are not set here, they will default to some values set in models.py
         argList.append({"rewiringAlgorithm": i, "nwsize": nwsize, "rewiringMode": v, "type": k,
-                        "top_file": top_file, "polarisingNode_f": 0.10, "timesteps": 2000 , "plot": False})
+                        "top_file": top_file, "polarisingNode_f": 0.10, "timesteps": 60000 , "plot": False})
        
         
         #print (argList)
@@ -167,6 +172,7 @@ if  __name__ ==  '__main__':
             'rewiring': 'category',
             'type': 'category'
         })
+<<<<<<< HEAD
         
         # Optimize memory usage for individual data (already done in saveavgdata, but included here for completeness)
         combined_individual_df = combined_individual_df.astype({
@@ -190,6 +196,16 @@ if  __name__ ==  '__main__':
         print(f"Individual output saved to {individual_output_file}")
         
         return combined_avg_df, combined_individual_df
+=======
+    
+        # Save the combined DataFrame
+        output_file = f'../Output/default_run_all_N_{nwsize}_n_{numberOfSimulations}_{date}.csv'
+        combined_df.to_csv(output_file, index=False)
+    
+        print(f"Output saved to {output_file}")
+    
+        return combined_df
+>>>>>>> 13ce7e0fadef29aa72f03fcf0b4cdc6220de9f5c
 
     # Process the outputs
     processed_avg_df, processed_individual_df = process_outputs(out_list, nwsize)
@@ -197,6 +213,10 @@ if  __name__ ==  '__main__':
     for file in glob.glob("*embeddings*"):
         os.remove(file)
 
+<<<<<<< HEAD
 
 
  
+=======
+   
+>>>>>>> 13ce7e0fadef29aa72f03fcf0b4cdc6220de9f5c
