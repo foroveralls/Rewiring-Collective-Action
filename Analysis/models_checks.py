@@ -1219,7 +1219,7 @@ class DPAHModel(Model):
     def __init__(self, n, m, skew= 0, **kwargs):
         super().__init__(**kwargs)
         #TODO: make these not hard-coded 
-        self.graph = DPAH(n, f_m=0.5, d=0.02, h_MM=0.5, h_mm=0.5, plo_M=2.0, plo_m=2.0,
+        self.graph = DPAH(n, f_m=0.5, d=0.02, h_MM=0.75, h_mm=0.75, plo_M=2.0, plo_m=2.0,
                      seed = 42)
         
         self.graph.generate()
@@ -1237,7 +1237,7 @@ class ClusteredPowerlawModel(Model):
     def __init__(self, n, m, skew = 0, **kwargs):
         super().__init__(**kwargs)
 
-        self.graph = PATCH(n =n, k = m, f_m=0.5, h_MM=0.5, h_mm=0.5, tc = clustering,
+        self.graph = PATCH(n =n, k = m, f_m=0.5, h_MM=0.75, h_mm=0.75, tc = clustering,
                      seed = 42)
         self.graph.generate()
         #print(Homophily.infer_homophily_values(self.graph))

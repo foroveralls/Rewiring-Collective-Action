@@ -319,3 +319,127 @@ algorithim run is complete:     3 mins 7.216640949249268s
 
 Runtime is complete: 0.35811292264196604) hours,    21 mins 29.20652151107788s
 
+Started iteration:  biased_diff_DPAH
+starting save
+algorithim run is complete:     8 mins 18s
+
+Started iteration:  biased_diff_Twitter
+starting save
+algorithim run is complete:    21 mins 43s
+
+Started iteration:  biased_diff_cl
+starting save
+algorithim run is complete:     8 mins 24s
+
+Started iteration:  biased_diff_FB
+starting save
+algorithim run is complete:     8 mins 8s
+
+Started iteration:  biased_same_DPAH
+starting save
+algorithim run is complete:     9 mins 59s
+
+Started iteration:  biased_same_Twitter
+starting save
+algorithim run is complete:     8 mins 18s
+
+Started iteration:  biased_same_cl
+starting save
+algorithim run is complete:     9 mins 49s
+
+Started iteration:  biased_same_FB
+starting save
+algorithim run is complete:     9 mins 31s
+
+Started iteration:  bridge_diff_DPAH
+starting save
+algorithim run is complete:     9 mins 18s
+
+Started iteration:  bridge_diff_Twitter
+starting save
+algorithim run is complete:    21 mins 59s
+
+Started iteration:  bridge_diff_cl
+starting save
+algorithim run is complete:     9 mins 21s
+
+Started iteration:  bridge_diff_FB
+starting save
+algorithim run is complete:     8 mins 13s
+
+Started iteration:  bridge_same_DPAH
+starting save
+algorithim run is complete:    10 mins 42s
+
+Started iteration:  bridge_same_Twitter
+starting save
+algorithim run is complete:    33 mins 23s
+
+Started iteration:  bridge_same_cl
+starting save
+algorithim run is complete:     9 mins 59s
+
+Started iteration:  bridge_same_FB
+starting save
+algorithim run is complete:     8 mins 17s
+
+Started iteration:  random_None_DPAH
+starting save
+algorithim run is complete:     8 mins 46s
+
+Started iteration:  random_None_Twitter
+starting save
+algorithim run is complete:     8 mins 0s
+
+Started iteration:  random_None_cl
+starting save
+algorithim run is complete:     8 mins 41s
+
+Started iteration:  random_None_FB
+starting save
+algorithim run is complete:     7 mins 9s
+
+Started iteration:  node2vec_None_DPAH
+starting save
+algorithim run is complete:   312 mins 18s
+
+Started iteration:  node2vec_None_Twitter
+starting save
+algorithim run is complete:   319 mins 58s
+
+Started iteration:  node2vec_None_cl
+starting save
+algorithim run is complete:   309 mins 57s
+
+Started iteration:  node2vec_None_FB
+starting save
+algorithim run is complete:   312 mins 14s
+
+Started iteration:  None_None_DPAH
+starting save
+algorithim run is complete:     6 mins 27s
+
+Started iteration:  None_None_Twitter
+starting save
+algorithim run is complete:     7 mins 46s
+
+Started iteration:  None_None_cl
+starting save
+algorithim run is complete:     6 mins 14s
+
+Started iteration:  None_None_FB
+starting save
+algorithim run is complete:     6 mins 9s
+
+Started iteration:  wtf_None_DPAH
+starting save
+algorithim run is complete:    97 mins 54s
+
+Started iteration:  wtf_None_Twitter
+starting save
+algorithim run is complete:   104 mins 5s
+
+Runtime is complete: 28) hours,  1698 mins 1s
+
+Averaged output saved to ../Output/default_run_avg_N_789_2024-09-07.csv
+Individual output saved to ../Output/default_run_individual_N_789_2024-09-07.csv
