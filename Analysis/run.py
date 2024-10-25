@@ -41,11 +41,8 @@ if  __name__ ==  '__main__':
     
     
     #Constants and Variables
-<<<<<<< HEAD
-    numberOfSimulations = 2
-=======
-    numberOfSimulations = 50
->>>>>>> 13ce7e0fadef29aa72f03fcf0b4cdc6220de9f5c
+    numberOfSimulations = 8
+
     numberOfProcessors =  int(0.8*multiprocessing.cpu_count()) # CPUs to use for parallelization
 
     start = time.time()
@@ -63,8 +60,8 @@ if  __name__ ==  '__main__':
 
     
     rewiring_list_h = ["diff", "same"]
-    directed_topology_list = ["DPAH", "Twitter"]  
-    undirected_topology_list = ["cl", "FB"]  
+    directed_topology_list = ["DPAH"] # "Twitter"]  
+    undirected_topology_list = ["cl"] # "FB"]  
     
     # Create combined list for scenarios "biased" and "bridge" with "diff" and "same"
     # These can be on both directed and undirected networks
@@ -88,7 +85,7 @@ if  __name__ ==  '__main__':
     # Combine all lists
     combined_list = combined_list1 + combined_list_rand + combined_list2 + combined_list3 + combined_list4
     
-    #combined_list = [("node2vec", "None", "DPAH")]
+    combined_list = [("biased", "diff", "cl"), ("bridge", "diff", "cl") ]
     
 
     out_list = []
@@ -114,7 +111,7 @@ if  __name__ ==  '__main__':
         
         ## You can specify simulation parameters here. If they are not set here, they will default to some values set in models.py
         argList.append({"rewiringAlgorithm": i, "nwsize": nwsize, "rewiringMode": v, "type": k,
-                        "top_file": top_file, "polarisingNode_f": 0.10, "timesteps": 60000 , "plot": False})
+                        "top_file": top_file, "polarisingNode_f": 0.10, "timesteps": 80000 , "plot": False})
        
         
         #print (argList)
@@ -126,7 +123,7 @@ if  __name__ ==  '__main__':
         
             assert argList[0]["rewiringAlgorithm"] == str(sim[0].algo), "Inconsistent values"
             # #print(sim[0]. __class__. __name__)
-            #print(sim[0].test) #sim[0].steps)
+            print(sim[0].polar)
             
             fname = f'../Output/{i}_linkif_{v}_top_{j}.csv'
             print("starting save")
@@ -172,7 +169,6 @@ if  __name__ ==  '__main__':
             'rewiring': 'category',
             'type': 'category'
         })
-<<<<<<< HEAD
         
         # Optimize memory usage for individual data (already done in saveavgdata, but included here for completeness)
         combined_individual_df = combined_individual_df.astype({
@@ -196,27 +192,10 @@ if  __name__ ==  '__main__':
         print(f"Individual output saved to {individual_output_file}")
         
         return combined_avg_df, combined_individual_df
-=======
-    
-        # Save the combined DataFrame
-        output_file = f'../Output/default_run_all_N_{nwsize}_n_{numberOfSimulations}_{date}.csv'
-        combined_df.to_csv(output_file, index=False)
-    
-        print(f"Output saved to {output_file}")
-    
-        return combined_df
->>>>>>> 13ce7e0fadef29aa72f03fcf0b4cdc6220de9f5c
+
 
     # Process the outputs
     processed_avg_df, processed_individual_df = process_outputs(out_list, nwsize)
     
     for file in glob.glob("*embeddings*"):
         os.remove(file)
-
-<<<<<<< HEAD
-
-
- 
-=======
-   
->>>>>>> 13ce7e0fadef29aa72f03fcf0b4cdc6220de9f5c
