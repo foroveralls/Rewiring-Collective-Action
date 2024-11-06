@@ -41,7 +41,8 @@ if  __name__ ==  '__main__':
     
     
     #Constants and Variables
-    numberOfSimulations = 5
+
+    numberOfSimulations = 80
 
     numberOfProcessors =  int(0.8*multiprocessing.cpu_count()) # CPUs to use for parallelization
 
