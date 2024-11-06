@@ -86,7 +86,7 @@ stubbornness = 0.6
 degree = 8 
 timesteps= 100 #70000 
 continuous = True
-skew = -0.25
+skew = -0.15
 initSD = 0.15
 mypalette = ["blue","red","green", "orange", "magenta","cyan","violet", "grey", "yellow"] # set the colot of plots
 randomness = 0.10
@@ -903,7 +903,6 @@ class Model:
             initialStateGenerator = self.initialStateGenerator
         else:
             initialStateGenerator = get_truncated_normal(skew_temp, args["initSD"], -1, 1)
-            
         state = initialStateGenerator.rvs(1)[0]
         
         #implicitly checks if node_state exists
@@ -1045,167 +1044,134 @@ class Model:
             
     # this runs the model without rewiring for a while to align the opinion clusters
     #with the topological clusters
-    def populateModel_empirical(self, n, target_skew=-0.25, h_all=0.65):
-        """Two-phase model population with modular implementation"""
-        
-        def initialize_agents():
-            """Initialize all agents in the network"""
-            self.fraction_m, self.fraction_M = [], []
-            for i in range(n):
-                agent = Agent(self.getInitialState(0, gen = True), args["stubbornness"])
-                self.graph.nodes[i]['agent'] = agent
-                self.graph.nodes[i]["m"] = 1 if agent.state >= 0 else 0
-                
-                if args["polarisingNode_f"] > np.random.random():
-                    self.graph.nodes[i]['agent'].type = "polarising"
-                    
-                if not list(self.graph.adj[i].keys()):    
-                    self.randomrewiring(i, establishlinkprob=1)
-                    
-            for e in self.graph.edges():
-                self.graph[e[0]][e[1]]['weight'] = self.getFriendshipWeight()
-    
-        def get_metrics():
-            """Calculate current network metrics"""
-            states = [self.graph.nodes[i]['agent'].state for i in range(n)]
-            avg_state = np.mean(states)
-            self.update_minority_fraction(n)
-            minority_frac = sum(self.fraction_m) / n
-            h_m, h_M = network_stats.infer_homophily_values(self.graph, minority_frac)
-            return avg_state, h_m, h_M
-        
-        def should_adjust_node(node, needs_adj_min, needs_adj_maj, lock_min, lock_maj, h_m, h_M):
-            ntype = self.graph.nodes[node]["m"]
-            if (ntype and lock_min) or (not ntype and lock_maj) or \
-               (ntype and not needs_adj_min) or (not ntype and not needs_adj_maj) or \
-               (abs(h_m - h_M) > 0.1 and ((ntype and h_m > h_M) or (not ntype and h_M > h_m))):
-                return False
-            nbrs = list(self.graph.adj[node])
-            diff = sum(1 for n in nbrs if self.graph.nodes[n]["m"] != ntype)
-            return diff > len(nbrs) - diff - 1
-        
-        def flip_node_state(node):
-            """Flip a node's state and update its type"""
-            node_type = self.graph.nodes[node]["m"]
-            agent = self.graph.nodes[node]['agent']
-            new_state = random.uniform(0, 1) if node_type == 0 else random.uniform(-1, 0)
-            agent.state = new_state
-            self.graph.nodes[node]["m"] = 1 if agent.state >= 0 else 0
-            
-        def run_homophily_phase():
-            """Execute Phase 1 with balanced homophily adjustments"""
-            avg_state, h_m, h_M = get_metrics()
-            print(f"Initial metrics - h_m: {h_m:.3f}, h_M: {h_M:.3f}")
-            locked_minority = locked_majority = False
-            stagnant_iterations = 0
-            
-            for iteration in range(200):
-                if h_m > h_all or h_M > h_all:
-                    break
-                    
-                # Only lock if both homophilies are close to target
-                if not locked_minority and h_all - 0.05 <= h_m <= h_all and abs(h_m - h_M) < 0.1:
-                    locked_minority = True
-                if not locked_majority and h_all - 0.05 <= h_M <= h_all and abs(h_m - h_M) < 0.1:
-                    locked_majority = True
-                    
-                if locked_minority and locked_majority:
-                    break
-                
-                changes_made = False
-                max_changes = max(2, n // 50)  # Increased minimum changes
-                changes_count = 0
-                
-                needs_adj_min = not locked_minority and h_m < h_all - 0.05
-                needs_adj_maj = not locked_majority and h_M < h_all - 0.05
-                
-                # Prioritize adjusting the faction with lower homophily
-                nodes = list(self.graph.nodes())
-                if h_m < h_M:
-                    nodes.sort(key=lambda x: 1 if self.graph.nodes[x]["m"] == 1 else 0)
-                else:
-                    nodes.sort(key=lambda x: 1 if self.graph.nodes[x]["m"] == 0 else 0)
-                
-                for node in nodes:
-                    if changes_count >= max_changes:
-                        break
-                        
-                    if should_adjust_node(node, needs_adj_min, needs_adj_maj,
-                                       locked_minority, locked_majority, h_m, h_M):
-                        old_state = self.graph.nodes[node]["m"]
-                        agent = self.graph.nodes[node]['agent']
-                        new_state = random.uniform(0, 1) if old_state == 0 else random.uniform(-1, 0)
-                        agent.state = new_state
-                        self.graph.nodes[node]["m"] = 1 if agent.state >= 0 else 0
-                        
-                        temp_avg, temp_h_m, temp_h_M = get_metrics()
-                        
-                        # Revert if changes make things worse
-                        if temp_h_m > h_all or temp_h_M > h_all or abs(temp_h_m - temp_h_M) > 0.15:
-                            agent.state = -new_state
-                            self.graph.nodes[node]["m"] = old_state
-                        else:
-                            changes_made = True
-                            changes_count += 1
-                
-                if not changes_made:
-                    stagnant_iterations += 1
-                    if stagnant_iterations >= 3:
-                        break
-                else:
-                    stagnant_iterations = 0
-                
-                avg_state, h_m, h_M = get_metrics()
-                # if iteration % 2 == 0:
-                #     print(f"Iteration {iteration}: h_m: {h_m:.3f}, h_M: {h_M:.3f}, gap: {abs(h_m - h_M):.3f}")
-            
-            return avg_state, h_m, h_M
-        
-        def run_climate_phase():
-            """Execute Phase 2: Adjusting average state with gradual changes"""
-            print("\nPhase 2: Adjusting Average State")
-            self.politicalClimate = -0.05  # Start with smaller climate effect
-            min_climate = -0.1  # Prevent extreme negative climate
-            max_climate = 0.1   # Prevent extreme positive climate
-            
-            for iteration in range(40):  # Increased max iterations since we're moving slower
-                # Reduced interactions per adjustment
-                for _ in range(int(n*0.3)):  # Reduced from 5N to 2N interactions
-                    self.interact_init()
-                
-                avg_state, h_m, h_M = get_metrics()
-                # print(f"P2: {iteration}: Avg: {avg_state:.3f}, PC: {self.politicalClimate:.3f}, \
-                #       h_m: {h_m}, h_M: {h_M}")
-                
-                if abs(avg_state - target_skew) <= 0.03 and abs(h_m - h_all) <= 0.05 and abs(h_M - h_all) <= 0.05:
-                    break
-                
-                # Smaller climate adjustments
-                if avg_state > target_skew:
-                    self.politicalClimate -= 0.01  # Reduced from 0.02
-                else:
-                    self.politicalClimate += 0.01  # Reduced from 0.01
-                    
-                # Bound climate to prevent extremes
-                self.politicalClimate = max(min_climate, min(max_climate, self.politicalClimate))
-                
-                # More aggressive scaling back if states are becoming extreme
-                if abs(avg_state) > 0.8:  # If average state is getting too extreme
-                    self.politicalClimate *= 0.25  # More aggressive reduction
-                elif abs(h_m - h_all) > 0.1 or abs(h_M - h_all) > 0.1:
-                    self.politicalClimate *= 0.5
-    
-            return avg_state, h_m, h_M
-        
-        # Main execution
-        initialize_agents()
-        #self.plot_network(self.graph)
-        avg_state, h_m, h_M = run_homophily_phase()
-        avg_state, h_m, h_M = run_climate_phase()
-        #self.plot_network(self.graph)
-        
-        print("\nPopulation Complete")
-        print(f"Final - Avg: {avg_state:.3f}, h_m: {h_m:.3f}, h_M: {h_M:.3f}, PC: {self.politicalClimate:.3f}")
+    def populateModel_empirical(self, n, target_skew=skew, h_all=0.60):
+       """Two-phase model population with modular implementation"""
+       
+       target_skew = skew- 0.01
+       def initialize_agents():
+           """Initialize all agents in the network"""
+           self.fraction_m, self.fraction_M = [], []
+           for i in range(n):
+               agent = Agent(self.getInitialState(target_skew, gen = True), args["stubbornness"])
+               self.graph.nodes[i]['agent'] = agent
+               self.graph.nodes[i]["m"] = 1 if agent.state >= 0 else 0
+               
+               if args["polarisingNode_f"] > np.random.random():
+                   self.graph.nodes[i]['agent'].type = "polarising"
+                   
+               if not list(self.graph.adj[i].keys()):    
+                   self.randomrewiring(i, establishlinkprob=1)
+                   
+           for e in self.graph.edges():
+               self.graph[e[0]][e[1]]['weight'] = self.getFriendshipWeight()
+
+       def get_metrics():
+           """Calculate current network metrics"""
+           states = [self.graph.nodes[i]['agent'].state for i in range(n)]
+           avg_state = np.mean(states)
+           self.update_minority_fraction(n)
+           minority_frac = sum(self.fraction_m) / n
+           h_m, h_M = network_stats.infer_homophily_values(self.graph, minority_frac)
+           return avg_state, h_m, h_M
+       
+       def should_adjust_node(node, needs_adj_min, needs_adj_maj, lock_min, lock_maj, h_m, h_M):
+           ntype = self.graph.nodes[node]["m"]
+           if (ntype and lock_min) or (not ntype and lock_maj) or \
+              (ntype and not needs_adj_min) or (not ntype and not needs_adj_maj) or \
+              (abs(h_m - h_M) > 0.1 and ((ntype and h_m > h_M) or (not ntype and h_M > h_m))):
+               return False
+           nbrs = list(self.graph.adj[node])
+           diff = sum(1 for n in nbrs if self.graph.nodes[n]["m"] != ntype)
+           return diff > len(nbrs) - diff - 1
+       
+       def flip_node_state(node):
+           """Flip a node's state and update its type"""
+           node_type = self.graph.nodes[node]["m"]
+           agent = self.graph.nodes[node]['agent']
+           new_state = random.uniform(0, 1) if node_type == 0 else random.uniform(-1, 0)
+           agent.state = new_state
+           self.graph.nodes[node]["m"] = 1 if agent.state >= 0 else 0
+           
+       def run_homophily_phase():
+           """Execute Phase 1 with balanced homophily adjustments"""
+           avg_state, h_m, h_M = get_metrics()
+           print(f"Initial metrics - h_m: {h_m:.3f}, h_M: {h_M:.3f}")
+           locked_minority = locked_majority = False
+           stagnant_iterations = 0
+           
+           for iteration in range(200):
+               if h_m > h_all or h_M > h_all:
+                   break
+                   
+               # Only lock if both homophilies are close to target
+               if not locked_minority and h_all - 0.05 <= h_m <= h_all and abs(h_m - h_M) < 0.1:
+                   locked_minority = True
+               if not locked_majority and h_all - 0.05 <= h_M <= h_all and abs(h_m - h_M) < 0.1:
+                   locked_majority = True
+                   
+               if locked_minority and locked_majority:
+                   break
+               
+               changes_made = False
+               max_changes = max(2, n // 50)  # Increased minimum changes
+               changes_count = 0
+               
+               needs_adj_min = not locked_minority and h_m < h_all - 0.05
+               needs_adj_maj = not locked_majority and h_M < h_all - 0.05
+               
+               # Prioritize adjusting the faction with lower homophily
+               nodes = list(self.graph.nodes())
+               if h_m < h_M:
+                   nodes.sort(key=lambda x: 1 if self.graph.nodes[x]["m"] == 1 else 0)
+               else:
+                   nodes.sort(key=lambda x: 1 if self.graph.nodes[x]["m"] == 0 else 0)
+               
+               for node in nodes:
+                   if changes_count >= max_changes:
+                       break
+                       
+                   if should_adjust_node(node, needs_adj_min, needs_adj_maj,
+                                      locked_minority, locked_majority, h_m, h_M):
+                       old_state = self.graph.nodes[node]["m"]
+                       agent = self.graph.nodes[node]['agent']
+                       new_state = random.uniform(0, 1) if old_state == 0 else random.uniform(-1, 0)
+                       agent.state = new_state
+                       self.graph.nodes[node]["m"] = 1 if agent.state >= 0 else 0
+                       
+                       temp_avg, temp_h_m, temp_h_M = get_metrics()
+                       
+                       # Revert if changes make things worse
+                       if temp_h_m > h_all or temp_h_M > h_all or abs(temp_h_m - temp_h_M) > 0.15:
+                           agent.state = -new_state
+                           self.graph.nodes[node]["m"] = old_state
+                       else:
+                           changes_made = True
+                           changes_count += 1
+               
+               if not changes_made:
+                   stagnant_iterations += 1
+                   print(stagnant_iterations)
+                   if stagnant_iterations >= 3:
+                       break
+               else:
+                   stagnant_iterations = 0
+               
+               avg_state, h_m, h_M = get_metrics()
+               if iteration % 2 == 0:
+                    print(f"Iteration {iteration}: h_m: {h_m:.3f}, h_M: {h_M:.3f}, gap: {abs(h_m - h_M):.3f}")
+           
+           return avg_state, h_m, h_M
+       
+     
+       
+       # Main execution
+       initialize_agents()
+
+       avg_state, h_m, h_M = run_homophily_phase()
+       #self.plot_network(self.graph)
+       
+       print("\nPopulation Complete")
+       print(f"Final - Avg: {avg_state:.3f}, h_m: {h_m:.3f}, h_M: {h_M:.3f}, PC: {self.politicalClimate:.3f}")
             
     def update_minority_fraction(self, n):
         
@@ -1369,16 +1335,17 @@ class ClusteredPowerlawModel(Model):
     def __init__(self, n, m, skew = 0, **kwargs):
         super().__init__(**kwargs)
 
-        self.graph = PATCH(n =n, k = m, f_m=0.6, h_MM=args["f_all"], h_mm=args["f_all"], tc = clustering,
+        self.graph = PATCH(n =n, k = m, f_m=0.5, h_MM=args["f_all"], h_mm=args["f_all"], tc = clustering,
                      seed = 42)
         self.graph.generate()
+       
         #print(Homophily.infer_homophily_values(self.graph))
         
         
         #self.graph = nx.powerlaw_cluster_graph(n, m, clustering)
         #self.populateModel(n, skew)
         self.populateModel_netin(n, skew)
-        
+
         
 class ClusteredPowerlawModel_nh(Model):
     def __init__(self, n, m, skew = 0, **kwargs):
@@ -1528,39 +1495,6 @@ def savesubdata(models,filename):
 
 #-------- drawing functions ---------
 
-def reduce_grid(model):
-    n=gridsize
-    for i in range(n):
-        for j in range(n):
-            if(i!=0 and j!=0 ):
-                model.graph.remove_edge(i*n+j, (i-1)*n+j-1)
-            if(i!=0 and j!=(n-1)):
-                model.graph.remove_edge(i*n+j, (i-1)*n+j+1)
-            """
-            if( i != n-1 and j!= n-1):
-                weight = model.getFriendshipWeight()
-                model.graph.remove_edge(i*n+j, (i+1)*n+j+1, weight = weight)
-            if(j != 0 and i != n-i):
-                weight = model.getFriendshipWeight()
-                model.graph.remove_edge(i*n+j, (i+1)*n+j-1, weight = weight)"""
-            if(j == n-1):
-                if(i == n-1):
-                    model.graph.remove_edge(i*n+j, 0)
-                else:
-                    model.graph.remove_edge(i*n+j, (i+1)*n)
-                if(i == 0):
-                    model.graph.remove_edge(i*n+j, (n-1)*n)
-                else:
-                    model.graph.remove_edge(i*n+j, (i-1)*n)
-            if( i == n-1):
-                if( j != n-1):
-                    model.graph.remove_edge(i*n+j, j+1)
-                if(j != 0):
-                    model.graph.remove_edge(i*n+j, j-1)
-                else: 
-                    model.graph.remove_edge(i*n+j, (n-1))
-
-
 
 
 
@@ -1586,8 +1520,8 @@ def test_run():
     model_array = []
     for i in range(6):
         print(i)
-        args.update({"type": "FB", "plot": False, "top_file": f"{fb}.gpickle", "timesteps": 1, "rewiringAlgorithm": "node2vec",
-                      "rewiringMode": "None", "nwsize":786})
+        args.update({"type": "FB", "plot": False, "top_file": f"{fb}.gpickle", "timesteps": 2, "rewiringAlgorithm": "biased",
+                      "rewiringMode": "diff", "nwsize":786})
         #nwsize has to equal empirical network size 
         model = simulate(1, args)
         init_states.append(model.states[0])
@@ -1653,7 +1587,41 @@ if  __name__ ==  '__main__':
 
 
 
+ # def run_climate_phase():
+ #     """Execute Phase 2: Adjusting average state with gradual changes"""
+ #     print("\nPhase 2: Adjusting Average State")
+ #     self.politicalClimate = -0.05  # Start with smaller climate effect
+ #     min_climate = -0.1  # Prevent extreme negative climate
+ #     max_climate = 0.1   # Prevent extreme positive climate
+     
+ #     for iteration in range(40):  # Increased max iterations since we're moving slower
+ #         # Reduced interactions per adjustment
+ #         for _ in range(int(n*0.3)):  # Reduced from 5N to 2N interactions
+ #             self.interact_init()
+         
+ #         avg_state, h_m, h_M = get_metrics()
+ #         # print(f"P2: {iteration}: Avg: {avg_state:.3f}, PC: {self.politicalClimate:.3f}, \
+ #         #       h_m: {h_m}, h_M: {h_M}")
+         
+ #         if abs(avg_state - target_skew) <= 0.03 and abs(h_m - h_all) <= 0.05 and abs(h_M - h_all) <= 0.05:
+ #             break
+         
+ #         # Smaller climate adjustments
+ #         if avg_state > target_skew:
+ #             self.politicalClimate -= 0.01  # Reduced from 0.02
+ #         else:
+ #             self.politicalClimate += 0.01  # Reduced from 0.01
+             
+ #         # Bound climate to prevent extremes
+ #         self.politicalClimate = max(min_climate, min(max_climate, self.politicalClimate))
+         
+ #         # More aggressive scaling back if states are becoming extreme
+ #         if abs(avg_state) > 0.8:  # If average state is getting too extreme
+ #             self.politicalClimate *= 0.25  # More aggressive reduction
+ #         elif abs(h_m - h_all) > 0.1 or abs(h_M - h_all) > 0.1:
+ #             self.politicalClimate *= 0.5
 
+ #     return avg_state, h_m, h_M
 
 
 
