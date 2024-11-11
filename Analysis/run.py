@@ -87,7 +87,7 @@ if  __name__ ==  '__main__':
     combined_list = combined_list1 + combined_list_rand + combined_list2 + combined_list3 + combined_list4
     
     #combined_list = [("biased", "diff", "cl"), ("bridge", "diff", "cl") ]
-    combined_list =[("biased", "diff", "FB")]
+    #combined_list =[("biased", "diff", "FB")]
 
     out_list = []
     for i, v, k in combined_list:

@@ -1044,7 +1044,7 @@ class Model:
             
     # this runs the model without rewiring for a while to align the opinion clusters
     #with the topological clusters
-    def populateModel_empirical(self, n, target_skew=skew, h_all=0.60):
+    def populateModel_empirical(self, n, target_skew=skew, h_all=args["f_all"]):
        """Two-phase model population with modular implementation"""
        
        target_skew = skew- 0.01
