@@ -21,7 +21,7 @@ def init(lock_):
 
 if __name__ == '__main__':
     # Constants and Variables
-    numberOfSimulations = 8
+    numberOfSimulations = 3
     numberOfProcessors = int(0.8 * multiprocessing.cpu_count())
     lock = multiprocessing.Lock()
     
@@ -48,8 +48,8 @@ if __name__ == '__main__':
     # Parameter sweep configuration
     parameter_names = ["polarisingNode_f", "stubbornness"]
     parameters = {
-        "polarisingNode_f": np.linspace(0, 1, 7),
-        "stubbornness": np.linspace(0, 1, 7)
+        "polarisingNode_f": np.linspace(0, 1, 5),
+        "stubbornness": np.linspace(0, 1, 5)
     }
     param_product = [dict(zip(parameters.keys(), x)) for x in product(*parameters.values())]
 
@@ -72,7 +72,7 @@ if __name__ == '__main__':
                 nwsize = 786
             else:
                 top_file = None
-                nwsize = 800
+                nwsize = 300
 
             # Prepare simulation arguments
             sim_args = {
@@ -81,7 +81,7 @@ if __name__ == '__main__':
                 "rewiringMode": mode,
                 "type": topology,
                 "top_file": top_file,
-                "timesteps": 10000,
+                "timesteps": 15000,
                 "plot": False,
                 **params
             }
@@ -90,21 +90,17 @@ if __name__ == '__main__':
             sims = pool.starmap(models_checks.simulate, 
                               zip(range(numberOfSimulations), repeat(sim_args)))
             
-            # Extract final states and standard deviations
-            final_states = [sim.states[-1] for sim in sims]
-            mean_final_state = np.mean(final_states)
-            std_final_state = np.std(final_states)
-            
-            # Store results
-            results.append({
-                'state': mean_final_state,
-                'state_std': std_final_state,
-                'polarisingNode_f': params['polarisingNode_f'],
-                'stubbornness': params['stubbornness'],
-                'rewiring': mode,  # This matches the plotting script's expectations
-                'mode': algo,      # This matches the plotting script's expectations
-                'topology': topology
-            })
+            for sim in sims:
+                results.append({
+                    'state': sim.states[-1],  # Store individual final state
+                    'state_std': sim.statesds[-1],
+                    'polarisingNode_f': params['polarisingNode_f'],
+                    'stubbornness': params['stubbornness'],
+                    'rewiring': mode,
+                    'mode': algo,
+                    'topology': topology,
+                    #'run': sim.run_id  # Add run identifier
+                })
 
     pool.close()
     pool.join()

@@ -102,19 +102,27 @@ def create_single_heatmap(ax, data, col, show_cbar, scenario_name, column_labels
                fontsize=FONT_SIZE)
         return
     
-    hm = sns.heatmap(data,
+    # For each cell, calculate the fraction of runs that ended in each state
+    # and use the most common final state
+    heatmap_data = data.applymap(lambda x: np.mean(x) if isinstance(x, list) else x)
+    
+    hm = sns.heatmap(heatmap_data,
                      ax=ax,
                      cmap='viridis',
                      cbar=show_cbar,
                      cbar_kws={'label': 'value' if show_cbar else None,
                               'format': ticker.FuncFormatter(format_ticks)})
     
-    # Format ticks
-    ax.xaxis.set_major_formatter(ticker.FuncFormatter(format_ticks))
-    ax.yaxis.set_major_formatter(ticker.FuncFormatter(format_ticks))
-    ax.tick_params(axis='both', which='major', labelsize=FONT_SIZE-2)
-    ax.invert_yaxis()
+    # Add scatter points where there's significant variance in final states
+    # (indicating potential multistability)
+    for i in range(data.shape[0]):
+        for j in range(data.shape[1]):
+            cell_data = data.iloc[i, j]
+            if isinstance(cell_data, list) and len(cell_data) > 0:
+                if np.std(cell_data) > 0.1:  # Threshold for significant variance
+                    ax.plot(j + 0.5, i + 0.5, 'k.', markersize=5)
     
+    ax.invert_yaxis()
     return hm
 def set_axis_labels(ax, is_first_col, is_last_row, is_first_row, col, friendly_scenario, column_labels):
     """Set axis labels and titles with LaTeX-friendly rotation."""
@@ -160,7 +168,7 @@ def create_heatmap_grid(df, value_columns, unique_scenarios, topology, column_la
                 index='polarisingNode_f',
                 columns='stubbornness',
                 values=col,
-                aggfunc='mean'
+                aggfunc=lambda x: list(x)
             )
             
             create_single_heatmap(ax, heatmap_data, col, k == len(value_columns) - 1, friendly_scenario, column_labels)
