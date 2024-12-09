@@ -8,32 +8,24 @@ from matplotlib.lines import Line2D
 from matplotlib.ticker import FuncFormatter
 from matplotlib.ticker import AutoMinorLocator
 
-# Set unified style for all plots
+params = {"line_width": 1.1}
+
 def set_plot_style():
     """Set consistent style elements for all plots"""
     sns.set_style("white")
     plt.rcParams.update({
-        # Font settings
         'font.family': 'Arial',
-        'font.size': 12,
-        'axes.labelsize': 12,
-        'axes.titlesize': 12,
-        'xtick.labelsize': 10,
-        'ytick.labelsize': 10,
-        
-        # Line and spine settings
+        'font.size': 14,
+        'axes.labelsize': 14,
+        'axes.titlesize': 14,
+        'xtick.labelsize': 14,
+        'ytick.labelsize': 14,
         'axes.linewidth': 1.5,
-        'lines.linewidth': 2,
-        
-        # Figure settings
+        'lines.linewidth': 1.5,
         'figure.dpi': 300,
         'savefig.dpi': 300,
-        
-        # Grid settings
-        'grid.alpha': 0,
+        'grid.alpha': 0.4,
         'grid.linestyle': '--',
-        
-        # Tick settings
         'xtick.major.size': 5,
         'ytick.major.size': 5,
         'xtick.major.width': 1.5,
@@ -41,7 +33,7 @@ def set_plot_style():
         'xtick.direction': 'out',
         'ytick.direction': 'out'
     })
-    
+
 
 
 def process_data(data, t_max):
@@ -82,83 +74,118 @@ def process_scenario_name(scenario_tuple):
 
 # Global color scheme using colorblind-friendly colors
 PLOT_COLORS = {
-    'none_none': '#648FFF',    # Blue for static network
-    'random_none': '#785EF0',  # Purple
-    'biased_same': '#DC267F',   # Magenta (darker)
-    'biased_diff': '#FF69B0',   # Magenta (lighter)
-    'bridge_same': '#FE6100',  # Orange (darker)
-    'bridge_diff': '#FFB000',  # Orange (lighter)
-    'wtf_none': '#24A608',     # Green
-    'node2vec_none': '#FE6900'  # Different orange/red shade instead of black
+    'none_none': '#EE7733',    # Orange
+    'random_none': '#0077BB',  # Blue
+    'biased_same': '#33BBEE',  # Cyan
+    'biased_diff': '#009988',  # Teal
+    'bridge_same': '#CC3311',  # Red
+    'bridge_diff': '#EE3377',  # Magenta
+    'wtf_none': '#BBBBBB',     # Grey
+    'node2vec_none': '#44BB99' # Blue-green
 }
 
 
 
 def plot_network_dynamics(data, t_max=50, output_file=None):
     """Plot network dynamics across different network types"""
-    # Create a mapping for colors based on scenario_grouped
+    # Create a mapping for colors based on scenario_grouped and friendly names
     scenario_color_map = {}
+    friendly_names = {
+        'none_none': 'static',
+        'random_none': 'random',
+        'biased_same': 'local (similar)',
+        'biased_diff': 'local (opposite)',
+        'bridge_same': 'bridge (similar)',
+        'bridge_diff': 'bridge (opposite)',
+        'wtf_none': 'wtf',
+        'node2vec_none': 'node2vec'
+    }
+    
+    # Map the actual scenario names to colors
     for scenario in data['scenario_grouped'].unique():
         base_scenario = '_'.join(scenario.split('_')[:2]).lower()
         scenario_color_map[scenario] = PLOT_COLORS.get(base_scenario, '#FE6900')
 
+    # Create plot with 2x2 layout
     g = sns.relplot(
         data=data,
         x='t', y='value',
         hue='scenario_grouped',
         col='type',
         style='measure',
-        linewidth = 1.5,
+        linewidth= params["line_width"],
         kind='line',
-        facet_kws={'sharex': True, 'sharey': True},  # Force shared axes
-        height=5, aspect=1.2,
+        col_wrap=2,  # Force 2x2 layout
+        height=4, aspect=1,
         palette=scenario_color_map,
-        legend='full'
+        legend=False  # Remove default legend
     )
 
     g.set_axis_labels("Time [timestep / system size]", "Value")
-    g.set_titles("{col_name} Network")
-    g.fig.suptitle("Time evolution of cooperativity and polarization for various network types", 
-                   fontsize=16, fontweight='bold', y=1.02)
+    g.set_titles("{col_name}")
 
+    # Apply consistent styling to all subplot
     for ax in g.axes.flat:
-        # Set consistent y-axis limits and grid
         ax.set_ylim(-0.6, 1.1)
+        ax.set_xlim(0, t_max)
+        ax.grid(True, alpha=0.4, linestyle='--', which='both')
+        ax.set_axisbelow(True)
+        
+        # Update line styles for polarization
         for line in ax.lines:
             if 'polarization' in line.get_label():
                 line.set_linestyle('--')
+        
+        # Set spine width
         for spine in ax.spines.values():
             spine.set_linewidth(1.5)
 
-        # Set consistent x-axis limits and ticks
-        ax.set_xlim(0, t_max)
-        ax.grid(True, alpha=0.4, linestyle='--', which='both')
+        # Set ticks
         ax.set_xticks([0, 10, 20, 30, 40, 50])
         ax.set_yticks([-0.5, -0.25, 0, 0.25, 0.5, 0.75, 1.0])
-        
-        # Set tick parameters
         ax.tick_params(direction='out', length=5, width=1.5)
-        ax.xaxis.set_minor_locator(AutoMinorLocator())  # Add minor ticks
-        ax.set_xscale('linear')  # Force linear scale
-        
-    g.tight_layout()
-    g.fig.subplots_adjust(top=0.9, bottom=0.1)
-    
-    plt.legend(title='Rewiring Scenarios', loc='upper left')
-    # g.add_legend(title="Rewiring Scenarios", 
-    #              # Add this line
-    #             bbox_to_anchor=(0.5, -0.1), 
-    #             loc='upper center', 
-    #             ncol=3)
+        ax.xaxis.set_minor_locator(AutoMinorLocator())
+        ax.set_xscale('linear')
 
+    # Create measure type legend elements
+    measure_elements = [
+        Line2D([0], [0], color='black', linestyle='-', label='cooperativity'),
+        Line2D([0], [0], color='black', linestyle='--', label='polarization')
+    ]
+    
+    # Create scenario legend elements
+    scenario_elements = []
+    for scenario_name, color in PLOT_COLORS.items():
+        if scenario_name in friendly_names:
+            scenario_elements.append(
+                Line2D([0], [0], color=color, label=friendly_names[scenario_name])
+            )
+
+     # Add measure legend at the top right - adjusted position
+    g.fig.legend(handles=measure_elements,
+                title='Measures',
+                bbox_to_anchor=(0.9, 0.9),  # Moved closer to plot
+                loc='upper left',
+                frameon=True)
+
+   # Add scenarios legend below measures - adjusted position
+    g.fig.legend(handles=scenario_elements,
+                title='Scenarios',
+                bbox_to_anchor=(0.9, 0.5),  # Moved closer to plot
+                loc='center left',
+                frameon=True)
+
+    # Adjust layout to make room for legend
+    g.fig.tight_layout()
+    plt.subplots_adjust(right=0.88)  # Make room for the legends
+    
     if output_file:
         plt.savefig(output_file, dpi=300, bbox_inches='tight')
-    plt.show()
+    
+    return g
 
-def plot_single_topology_dynamics(data, t_max=1000, output_file=None):
-    """
-    Plot single topology dynamics with averaged trajectories for both directed and undirected networks.
-    """
+def plot_single_topology_dynamics(data, t_max=50, output_file=None):
+    """Plot single topology dynamics with proper static references and simplified titles"""
     # Setup configurations
     scenario_categories = {
         'none_none': 'static',
@@ -169,6 +196,16 @@ def plot_single_topology_dynamics(data, t_max=1000, output_file=None):
         'bridge_diff': 'bridge',  
         'wtf_none': 'wtf',
         'node2vec_none': 'node2vec'
+    }
+    
+    # Setup correct scenario mappings for colors
+    scenario_to_color = {
+        'static': 'none_none',
+        'random': 'random_none',
+        'local': {'same': 'biased_same', 'diff': 'biased_diff'},
+        'bridge': {'same': 'bridge_same', 'diff': 'bridge_diff'},
+        'wtf': 'wtf_none',
+        'node2vec': 'node2vec_none'
     }
     
     # Split data by network type
@@ -182,17 +219,16 @@ def plot_single_topology_dynamics(data, t_max=1000, output_file=None):
         scenarios = []
         for scenario_group in data['scenario_grouped'].unique():
             base_scenario = '_'.join(scenario_group.split('_')[:2]).lower()
-            if any(k == base_scenario and v == category for k, v in scenario_categories.items()):
+            if scenario_categories.get(base_scenario) == category:
                 scenarios.append(scenario_group)
         if scenarios:
-            plot_configs[label] = {'title': f"{category} rewiring" if category != 'static' 
-                                          else "static network", 'scenarios': scenarios}
+            plot_configs[label] = {'scenarios': scenarios}
 
     # Setup figure
     n_plots = len(plot_configs)
     n_cols = min(3, n_plots)
     n_rows = (n_plots + n_cols - 1) // n_cols
-    fig = plt.figure(figsize=(6*n_cols, 5*n_rows + 1.5))  # Added extra height for bottom legend
+    fig = plt.figure(figsize=(6*n_cols, 5*n_rows + 1.5))
     
     # Add combined line style and network type legend at top
     legend_ax = fig.add_axes([0.15, 0.95, 0.7, 0.02])
@@ -210,17 +246,17 @@ def plot_single_topology_dynamics(data, t_max=1000, output_file=None):
                     frameon=True, bbox_to_anchor=(0.5, 0.5))
 
     # Add bottom legend for scenario colors
-    bottom_legend_ax = fig.add_axes([0.15, 0.02, 0.7, 0.02])
+    bottom_legend_ax = fig.add_axes([0.15, 0.005, 0.7, 0.02])
     bottom_legend_ax.axis('off')
     
-    # Color legend elements
+    # Color legend elements - using friendly names
     color_elements = [
         Line2D([], [], color=PLOT_COLORS['none_none'], label='static'),
         Line2D([], [], color=PLOT_COLORS['random_none'], label='random'),
-        Line2D([], [], color=PLOT_COLORS['biased_same'], label='local (same)'),
-        Line2D([], [], color=PLOT_COLORS['biased_diff'], label='local (diff)'),
-        Line2D([], [], color=PLOT_COLORS['bridge_same'], label='bridge (same)'),
-        Line2D([], [], color=PLOT_COLORS['bridge_diff'], label='bridge (diff)'),
+        Line2D([], [], color=PLOT_COLORS['biased_same'], label='local (similar)'),
+        Line2D([], [], color=PLOT_COLORS['biased_diff'], label='local (opposite'),
+        Line2D([], [], color=PLOT_COLORS['bridge_same'], label='bridge (similar)'),
+        Line2D([], [], color=PLOT_COLORS['bridge_diff'], label='bridge (opposite)'),
         Line2D([], [], color=PLOT_COLORS['wtf_none'], label='wtf'),
         Line2D([], [], color=PLOT_COLORS['node2vec_none'], label='node2vec')
     ]
@@ -240,7 +276,6 @@ def plot_single_topology_dynamics(data, t_max=1000, output_file=None):
     for idx, (key, config) in enumerate(plot_configs.items()):
         ax = axes[idx]
         is_static = key == 'A'
-        scenario_type = config['title'].split()[0].lower()
         
         # Plot for both network types
         for measure in ['avg_state', 'polarization']:
@@ -256,7 +291,7 @@ def plot_single_topology_dynamics(data, t_max=1000, output_file=None):
                     line_props = {
                         'color': PLOT_COLORS['none_none'],
                         'linestyle': '-' if measure == 'avg_state' else '--',
-                        'linewidth': 1.5,
+                        'linewidth': params["line_width"],
                         'alpha': 0.7 if not is_static else 1.0
                     }
                     if is_directed:
@@ -268,28 +303,31 @@ def plot_single_topology_dynamics(data, t_max=1000, output_file=None):
                     
                     ax.plot(static_avg.index, static_avg.values, **line_props)
             
-            # Plot scenario data if not static network
+           # In the plotting section, modify the color selection part:
             if not is_static:
-                for sub_type in ['same', 'diff'] if scenario_type in ['local', 'bridge'] else ['none']:
-                    scenario_key = f"{scenario_type}_{sub_type}"
-                    if scenario_type == 'local':
-                        scenario_key = f"biased_{sub_type}"  # Special case for local/biased
+                for scenario in config['scenarios']:
+                    base_scenario = '_'.join(scenario.split('_')[:2]).lower()
+                    scenario_type = scenario_categories.get(base_scenario)
                     
-                    relevant_scenarios = [s for s in config['scenarios'] 
-                                       if s.lower().startswith(scenario_key.lower())]
-                    
-                    if relevant_scenarios:
+                    if scenario_type in scenario_to_color:
+                        # Get the correct color key based on scenario type
+                        if scenario_type in ['local', 'bridge']:
+                            sub_type = scenario.split('_')[-1].lower()
+                            color_key = scenario_to_color[scenario_type][sub_type]
+                        else:
+                            color_key = scenario_to_color[scenario_type]
+                            
                         for data_type, is_directed in [(dpah_data, True), (cl_data, False)]:
-                            scenario_data = data_type[data_type['scenario_grouped'].isin(relevant_scenarios)]
+                            scenario_data = data_type[data_type['scenario_grouped'] == scenario]
                             scenario_measure = scenario_data[scenario_data['measure'] == measure]
                             
                             if not scenario_measure.empty:
                                 scenario_avg = scenario_measure.groupby('t')['value'].mean()
                                 
                                 line_props = {
-                                    'color': PLOT_COLORS[scenario_key],
+                                    'color': PLOT_COLORS[color_key],
                                     'linestyle': '-' if measure == 'avg_state' else '--',
-                                    'linewidth': 1.5,
+                                    'linewidth': params["line_width"]
                                 }
                                 if is_directed:
                                     line_props.update({
@@ -302,11 +340,10 @@ def plot_single_topology_dynamics(data, t_max=1000, output_file=None):
         
         # Customize subplot
         ax.set(xlim=(0, t_max), ylim=(-0.6, 1.1),
-              xlabel= "Time [timestep / system size]",  # Simplified x-label
+              xlabel="Time [timestep / system size]",
               ylabel='Value' if idx % n_cols == 0 else '',
-              title=f'{key} {config["title"]}')
+              title=f'{key}')  # Simplified title
         
-        ax.grid(False)
         ax.grid(True, alpha=0.4, linestyle='--', which='both')
         ax.set_axisbelow(True)
         
@@ -314,19 +351,17 @@ def plot_single_topology_dynamics(data, t_max=1000, output_file=None):
             spine.set_linewidth(1.5)
             
         ax.tick_params(direction='out', length=5, width=1.5)
-        
-        # Simplified x-axis ticks
         ax.set_xticks([0, 10, 20, 30, 40, 50])
-        #ax.set_xticks(np.linspace(0, t_max, 6))
         ax.set_yticks([-0.5, -0.25, 0, 0.25, 0.5, 0.75, 1.0])
-        ax.xaxis.set_minor_locator(AutoMinorLocator())  # Add minor ticks
-        ax.set_xscale('linear')  # Force linear scale
-        #ax.set_xlabel("Time [timestep / system size]") 
+        ax.xaxis.set_minor_locator(AutoMinorLocator())
+        ax.set_xscale('linear')
 
     plt.tight_layout()
     if output_file:
         plt.savefig(output_file, dpi=300, bbox_inches='tight')
-    plt.show()
+    
+    return fig
+
 
 # Main execution
 if __name__ == "__main__":
@@ -354,7 +389,7 @@ if __name__ == "__main__":
     # Load and process the data
     data = pd.read_csv(os.path.join("../Output", file_list[file_index]))
     t_max = 30000  # Adjusted to match reference plot
-    get_N = file_list[file_index].split("_")[5]
+    get_N, get_n = file_list[file_index].split("_")[4], file_list[file_index].split("_")[6]
     
     # Process the data
     processed_data = process_data(data, t_max)
@@ -362,6 +397,6 @@ if __name__ == "__main__":
     # Generate plots
     today = date.today()
     plot_network_dynamics(processed_data, t_max, 
-                         output_file=f"../Figs/Trajectories/network_dynamics_comparison_{get_N}_{today}.pdf")
+                         output_file=f"../Figs/Trajectories/network_dynamics_comparison_N{get_N}_n{get_n}_{today}.pdf")
     plot_single_topology_dynamics(processed_data, t_max, 
-                                output_file=f"../Figs/Trajectories/single_topology_dynamics_comparison_{get_N}_{today}.pdf")
+                                output_file=f"../Figs/Trajectories/single_topology_dynamics_comparison_N{get_N}_n{get_n}_{today}.pdf")

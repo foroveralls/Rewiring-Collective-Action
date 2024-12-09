@@ -86,7 +86,7 @@ stubbornness = 0.6
 degree = 8 
 timesteps= 100 #70000 
 continuous = True
-skew = -0.15
+skew = -0.16
 initSD = 0.15
 mypalette = ["blue","red","green", "orange", "magenta","cyan","violet", "grey", "yellow"] # set the colot of plots
 randomness = 0.10
@@ -1047,7 +1047,7 @@ class Model:
     def populateModel_empirical(self, n, target_skew=skew, h_all=args["f_all"]):
        """Two-phase model population with modular implementation"""
        
-       target_skew = skew- 0.01
+       target_skew = skew
        def initialize_agents():
            """Initialize all agents in the network"""
            self.fraction_m, self.fraction_M = [], []
@@ -1187,7 +1187,7 @@ class Model:
         
         
         #for some reason the skew is offset by 0.01 after genreation, this brings it back to intended skew
-        skew = skew- 0.01
+        #skew = skew+ 0.01
         self.fraction_m, self.fraction_M = [], []
         for n in range (n):
             

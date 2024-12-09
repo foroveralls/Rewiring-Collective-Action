@@ -42,7 +42,7 @@ if  __name__ ==  '__main__':
     
     #Constants and Variables
 
-    numberOfSimulations = 80
+    numberOfSimulations = 5
 
     numberOfProcessors =  int(0.8*multiprocessing.cpu_count()) # CPUs to use for parallelization
 
@@ -86,7 +86,7 @@ if  __name__ ==  '__main__':
     # Combine all lists
     combined_list = combined_list1 + combined_list_rand + combined_list2 + combined_list3 + combined_list4
     
-    #combined_list = [("biased", "diff", "cl"), ("bridge", "diff", "cl") ]
+    combined_list = [("biased", "diff", "cl"), ("bridge", "diff", "cl") ]
     #combined_list =[("biased", "diff", "FB")]
 
     out_list = []
@@ -108,7 +108,7 @@ if  __name__ ==  '__main__':
         else:
             top_file = None
 
-            nwsize = 800
+            nwsize = 500
         
         ## You can specify simulation parameters here. If they are not set here, they will default to some values set in models.py
         argList.append({"rewiringAlgorithm": i, "nwsize": nwsize, "rewiringMode": v, "type": k,
