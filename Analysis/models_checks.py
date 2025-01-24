@@ -1186,11 +1186,11 @@ class Model:
        # Main execution
        initialize_agents()
 
-       avg_state, h_m, h_M = run_homophily_phase()
+       #avg_state, h_m, h_M = run_homophily_phase()
        #self.plot_network(self.graph)
        
        print("\nPopulation Complete")
-       print(f"Final - Avg: {avg_state:.3f}, h_m: {h_m:.3f}, h_M: {h_M:.3f}, PC: {self.politicalClimate:.3f}")
+       #print(f"Final - Avg: {avg_state:.3f}, h_m: {h_m:.3f}, h_M: {h_M:.3f}, PC: {self.politicalClimate:.3f}")
             
     def update_minority_fraction(self, n):
         

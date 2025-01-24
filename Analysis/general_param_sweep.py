@@ -18,11 +18,25 @@ from datetime import date
 
 def init(lock_):
     models_checks.init_lock(lock_)
+    
+    
+def get_optimal_process_count():
+    total_cpus = multiprocessing.cpu_count()
+    
+    # Reserve at least 2 cores for system operations
+    reserved_cpus = max(2, int(0.25 * total_cpus))
+    
+    # Use at most 75% of available CPUs
+    process_count_opt = max(1, int(0.70 * (total_cpus - reserved_cpus)))
+    
+    # process_count = int(0.3*total_cpus)
+    
+    return process_count_opt    
 
 if __name__ == '__main__':
     # Constants and Variables
-    numberOfSimulations = 3
-    numberOfProcessors = int(0.8 * multiprocessing.cpu_count())
+    numberOfSimulations = 20
+    numberOfProcessors = get_optimal_process_count()
     lock = multiprocessing.Lock()
     
     pool = multiprocessing.Pool(processes=numberOfProcessors, initializer=init, initargs=(lock,))
@@ -30,8 +44,8 @@ if __name__ == '__main__':
     
     # Network configuration
     rewiring_list_h = ["diff", "same"]
-    directed_topology_list = ["DPAH"]
-    undirected_topology_list = ["cl"]
+    directed_topology_list = ["DPAH", "Twitter"]
+    undirected_topology_list = ["cl", "FB"]
     
     # Create combined scenarios list
     combined_list1 = [(scenario, rewiring, topology)
@@ -44,12 +58,12 @@ if __name__ == '__main__':
     combined_list4 = [("wtf", "None", topology) for topology in directed_topology_list]
     combined_list = combined_list1 + combined_list2 + combined_list3 + combined_list4
 
-    combined_list = [("biased", "diff", "cl"), ("bridge", "diff", "cl") ]
+    #combined_list = [("biased", "diff", "cl"), ("bridge", "diff", "cl") ]
     # Parameter sweep configuration
     parameter_names = ["polarisingNode_f", "stubbornness"]
     parameters = {
-        "polarisingNode_f": np.linspace(0, 1, 5),
-        "stubbornness": np.linspace(0, 1, 5)
+        "polarisingNode_f": np.linspace(0, 1, 10),
+        "stubbornness": np.linspace(0, 1, 10)
     }
     param_product = [dict(zip(parameters.keys(), x)) for x in product(*parameters.values())]
 
@@ -72,7 +86,7 @@ if __name__ == '__main__':
                 nwsize = 786
             else:
                 top_file = None
-                nwsize = 300
+                nwsize = 800
 
             # Prepare simulation arguments
             sim_args = {
@@ -81,7 +95,7 @@ if __name__ == '__main__':
                 "rewiringMode": mode,
                 "type": topology,
                 "top_file": top_file,
-                "timesteps": 15000,
+                "timesteps": 40000,
                 "plot": False,
                 **params
             }

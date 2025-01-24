@@ -46,9 +46,9 @@ def get_optimal_process_count():
     # Use at most 75% of available CPUs
     process_count_opt = max(1, int(0.70 * (total_cpus - reserved_cpus)))
     
-    process_count = int(0.3*total_cpus)
+    # process_count = int(0.3*total_cpus)
     
-    return process_count
+    return process_count_opt
     
 if  __name__ ==  '__main__': 
     
@@ -81,14 +81,14 @@ if  __name__ ==  '__main__':
     pathData = '/Output'
     
     modelargs= models_checks.getargs()  # requires models.py to be imported
-    modelargs['n_threads'] = numberOfProcessors
+
     #runs = 4   ## has to be even for multiple runs also n is actually n-1 because I'm lazy
 
 
     
     rewiring_list_h = ["diff", "same"]
-    directed_topology_list = ["DPAH"] # "Twitter"]  
-    undirected_topology_list = ["cl"] # "FB"]  
+    directed_topology_list = ["DPAH", "Twitter"]  
+    undirected_topology_list = ["cl", "FB"]  
     
     # Create combined list for scenarios "biased" and "bridge" with "diff" and "same"
     # These can be on both directed and undirected networks
@@ -112,7 +112,7 @@ if  __name__ ==  '__main__':
     # Combine all lists
     combined_list = combined_list1 + combined_list_rand + combined_list2 + combined_list3 + combined_list4
     
-    combined_list = [("node2vec", "None", "cl"), ("node2vec", "None", "DPAH")]
+    #combined_list = [("node2vec", "None", "cl"), ("node2vec", "None", "DPAH")]
     #combined_list =[("biased", "diff", "FB")]
 
     out_list = []
@@ -134,11 +134,11 @@ if  __name__ ==  '__main__':
         else:
             top_file = None
 
-            nwsize = 500
+            nwsize = 800
         
         ## You can specify simulation parameters here. If they are not set here, they will default to some values set in models.py
         argList.append({"rewiringAlgorithm": i, "nwsize": nwsize, "rewiringMode": v, "type": k,
-                        "top_file": top_file, 'n_threads': numberOfProcessors, "polarisingNode_f": 0.10, "timesteps": 10000 , "plot": False})
+                        "top_file": top_file, "polarisingNode_f": 0.10, "timesteps": 40000 , "plot": False})
        
         
         #print (argList)

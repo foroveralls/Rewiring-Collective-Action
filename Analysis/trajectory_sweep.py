@@ -13,7 +13,7 @@ def init(lock_):
 
 if __name__ == '__main__':
     # Constants and Variables
-    numberOfSimulations = 80  # Increased for statistical significance
+    numberOfSimulations = 30  # Increased for statistical significance
     numberOfProcessors = int(0.8 * multiprocessing.cpu_count())
     lock = multiprocessing.Lock()
     
@@ -22,8 +22,8 @@ if __name__ == '__main__':
     
     # Network configuration
     rewiring_list_h = ["diff", "same"]
-    directed_topology_list = ["DPAH"]
-    undirected_topology_list = ["cl"]
+    directed_topology_list = ["DPAH", "Twitter"]
+    undirected_topology_list = ["cl", "FB"]
     
     # Create combined scenarios list
     combined_list1 = [(scenario, rewiring, topology)
@@ -41,8 +41,7 @@ if __name__ == '__main__':
     # Parameter sweep configuration
     parameter_names = ["polarisingNode_f", "stubbornness"]
     parameters = {
-        "polarisingNode_f": np.linspace(0, 1, 5),
-        "stubbornness": np.linspace(0, 1, 5)
+        "polarisingNode_f": np.linspace(0, 1, 10)
     }
     param_product = [dict(zip(parameters.keys(), x)) for x in product(*parameters.values())]
 
@@ -74,7 +73,7 @@ if __name__ == '__main__':
                 "rewiringMode": mode,
                 "type": topology,
                 "top_file": top_file,
-                "timesteps": 30000,
+                "timesteps": 40000,
                 "plot": False,
                 **params  # Include sweep parameters
             }
