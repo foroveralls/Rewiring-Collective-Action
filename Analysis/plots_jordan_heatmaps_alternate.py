@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
+from matplotlib import transforms
 
 # Constants
 FONT_SIZE = 14
@@ -31,12 +32,14 @@ FRIENDLY_NAMES = {
 }
 
 def setup_plotting_style():
-    """Configure the global plotting style settings."""
+    """Updated plotting style configuration"""
     plt.rcParams.update({
         'font.size': FONT_SIZE,
-        'pdf.fonttype': 42,  # Use TrueType fonts
-        'ps.fonttype': 42,   # Use TrueType fonts
-        'svg.fonttype': 'none'  # Use system fonts
+        'pdf.fonttype': 42,
+        'ps.fonttype': 42,
+        'svg.fonttype': 'none',
+        'figure.figsize': (12, 6),  # New: wider format for horizontal layout
+        'figure.dpi': 300
     })
     sns.set_theme(font_scale=FONT_SIZE/12)
     sns.set(style="ticks")
@@ -44,17 +47,17 @@ def setup_plotting_style():
         'axes.facecolor': 'white',
         'figure.facecolor': 'white',
         "axes.grid": True,
-        "grid.color": 'black',
-        'grid.linestyle': 'dotted', 
+        "grid.color": 'white',  # Changed to white for heatmap
+        'grid.linestyle': 'solid', 
         "axes.edgecolor": "black",
         "patch.edgecolor": "black",
-        "patch.linewidth": 0,
+        "patch.linewidth": 0.5,  # Reduced from original
         "axes.spines.bottom": True,
-        "grid.alpha": 0.5,
+        "grid.alpha": 0.8,  # Increased for better visibility
         "xtick.bottom": True,
         "ytick.left": True
     })
-  
+
 
 def get_data_file():
     """Get the data file path from user input."""
@@ -77,115 +80,162 @@ def prepare_dataframe(df):
     # Adjust the "rewiring" column for specific modes
     df.loc[df['mode'].isin(['wtf', 'node2vec']), 'rewiring'] = 'empirical'
     
+  
+    # Replace 'nan' with 'none' in 'rewiring' and 'mode' columns
+    df['rewiring'] = df['rewiring'].fillna('none')
+    df['mode'] = df['mode'].fillna('none')
+    
     # Create scenario column
     df['scenario'] = df['rewiring'] + ' ' + df['mode']
+    df['scenario'] = df['rewiring'] + ' ' + df['mode']
+
+   # df['polarisingNode_f'] = df['polarisingNode_f'].round(1)
+    #df['stubbornness'] = df['stubbornness'].round(1)
     
     return df
 
 def get_friendly_name(scenario):
     """Convert scenario name to friendly name."""
     parts = scenario.split()
+    print(parts)
     key = f"{parts[1]}_{parts[0]}" if len(parts) > 1 else f"{parts[0]}_none"
     return FRIENDLY_NAMES.get(key, scenario)
 
 def format_ticks(x, pos):
     """Format tick labels to 2 decimal places."""
-    return f'{x:.2f}'
+    try:
+        return f'{float(x):.1f}'  # Changed to more robust formatting
+    except (ValueError, TypeError):
+        return str(x)
 
-def create_single_heatmap(ax, data, col, show_cbar, scenario_name, column_labels):
-    """Create a single heatmap subplot."""
-    if data.empty:
-        ax.text(0.5, 0.5, 'No data available',
-               horizontalalignment='center',
-               verticalalignment='center',
-               transform=ax.transAxes,
-               fontsize=FONT_SIZE)
-        return
-    
-    # For each cell, calculate the fraction of runs that ended in each state
-    # and use the most common final state
-    heatmap_data = data.applymap(lambda x: np.mean(x) if isinstance(x, list) else x)
-    
-    hm = sns.heatmap(heatmap_data,
-                     ax=ax,
-                     cmap='viridis',
-                     cbar=show_cbar,
-                     cbar_kws={'label': 'value' if show_cbar else None,
-                              'format': ticker.FuncFormatter(format_ticks)})
-    
-    # Add scatter points where there's significant variance in final states
-    # (indicating potential multistability)
-    for i in range(data.shape[0]):
-        for j in range(data.shape[1]):
-            cell_data = data.iloc[i, j]
-            if isinstance(cell_data, list) and len(cell_data) > 0:
-                if np.std(cell_data) > 0.1:  # Threshold for significant variance
-                    ax.plot(j + 0.5, i + 0.5, 'k.', markersize=5)
-    
-    ax.invert_yaxis()
-    return hm
-def set_axis_labels(ax, is_first_col, is_last_row, is_first_row, col, friendly_scenario, column_labels):
-    """Set axis labels and titles with LaTeX-friendly rotation."""
+
+
+def set_axis_labels(ax, is_first_col, is_last_row, is_first_row, col, 
+                   friendly_scenario, column_labels):
     if is_first_col:
-        ax.set_ylabel('Polarising Node f', fontsize=FONT_SIZE)
-        
-        # Use transform_rotates_text for better PDF rendering
-        ax.text(-0.15, 0.5, friendly_scenario,
-               transform=ax.transAxes,
-               ha='right',
-               va='center',
-               fontweight='bold',
-               fontsize=FONT_SIZE,
-               rotation=45,
-               rotation_mode='anchor',  # Important for better text rendering
-               color=FRIENDLY_COLORS.get(friendly_scenario, 'black'))
-    else:
-        ax.set_ylabel('')
+        ax.set_ylabel('Polarizing Node Fraction', fontsize=FONT_SIZE)
     
-    if is_last_row:
-        ax.set_xlabel('Stubbornness', fontsize=FONT_SIZE)
-    else:
-        ax.set_xlabel('')
-    
-    if is_first_row:
-        ax.set_title(column_labels[col], fontsize=FONT_SIZE, fontweight='bold')
         
 def create_heatmap_grid(df, value_columns, unique_scenarios, topology, column_labels):
-    """Create grid of heatmaps for a given topology."""
-    fig, axes = plt.subplots(nrows=len(unique_scenarios),
-                            ncols=len(value_columns),
-                            figsize=(18, 5 * len(unique_scenarios)),
-                            sharex=True, sharey=True)
-    
-    
-    for i, scenario in enumerate(unique_scenarios):
-        friendly_scenario = get_friendly_name(scenario)
+    """Create grid of heatmaps with improved layout and label positioning."""
+    # Filter out scenarios with no data
+    scenarios_with_data = []
+    for scenario in unique_scenarios:
         scenario_data = df[(df['scenario'] == scenario) & (df['topology'] == topology)]
+        if not scenario_data.empty:
+            scenarios_with_data.append(scenario)
+    
+    n_scenarios = len(scenarios_with_data)
+    n_cols = 4  # Two scenarios per row, each with avg and std
+    n_rows = (n_scenarios + 1) // 2
+    
+    # Create figure with precise control over spacing
+    fig = plt.figure(figsize=(20, 4 * n_rows))
+    gs = fig.add_gridspec(n_rows, n_cols, 
+                         hspace=0.5,
+                         wspace=0.4,
+                         left=0.1,
+                         right=0.9,
+                         top=0.92,
+                         bottom=0.15)
+    
+    # Initialize axes array
+    axes = np.empty((n_rows, n_cols), dtype=object)
+    for i in range(n_rows):
+        for j in range(n_cols):
+            axes[i, j] = fig.add_subplot(gs[i, j])
+    
+    # Define colormaps once
+    coop_cmap = sns.diverging_palette(20, 220, as_cmap=True, center="light")
+    polar_cmap = sns.color_palette("Reds", as_cmap=True)
+    
+    for i, scenario in enumerate(scenarios_with_data):
+        row = i // 2
+        col = (i % 2) * 2
         
-        for k, col in enumerate(value_columns):
-            ax = axes[i, k] if len(unique_scenarios) > 1 else axes[k]
+        friendly_scenario = get_friendly_name(scenario)
+        scenario_data = df[(df['scenario'] == scenario) & 
+                         (df['topology'] == topology)]
+        
+        # Add scenario label at the top of each pair
+        ax1, ax2 = axes[row, col], axes[row, col + 1]
+        ax1.text(1.0, 1.15, friendly_scenario,
+                transform=ax1.transAxes,
+                ha='center',
+                va='bottom',
+                fontweight='bold',
+                fontsize=FONT_SIZE,
+                color=FRIENDLY_COLORS.get(friendly_scenario, 'black'))
+        
+        for k, value_col in enumerate(value_columns):
+            ax = axes[row, col + k]
+            
+            # Create pivot table
             heatmap_data = scenario_data.pivot_table(
                 index='polarisingNode_f',
                 columns='stubbornness',
-                values=col,
-                aggfunc=lambda x: list(x)
+                values=value_col,
+                aggfunc='mean'
             )
             
-            create_single_heatmap(ax, heatmap_data, col, k == len(value_columns) - 1, friendly_scenario, column_labels)
-            set_axis_labels(ax, k == 0, i == len(unique_scenarios) - 1, i == 0, col, friendly_scenario, column_labels)
+            # Reverse the y-axis order
+            heatmap_data = heatmap_data.iloc[::-1]
+            
+            # Set parameters based on metric type
+            if value_col == 'state':
+                cmap = coop_cmap
+                vmin, vmax = -1, 1
+                center = 0
+                cbar_label = 'Cooperation'
+              
+            else:
+                cmap = polar_cmap
+                vmin, vmax = 0, 1
+                center = None
+                cbar_label = 'Polarization'
+            
+            # Single heatmap creation
+            hm = sns.heatmap(heatmap_data,
+                           ax=ax,
+                           cmap=cmap,
+                           center=center,
+                           vmin=vmin,
+                           vmax=vmax,
+                           cbar=True,
+                           cbar_kws={'label': cbar_label})
+            
+            # Grid and formatting
+            ax.grid(True, which='major', color='white', linewidth=0.8)
+            
+            # Format tick labels
+            ax.set_yticklabels([f'{y:.1f}' for y in heatmap_data.index], rotation=0)
+            ax.set_xticklabels([f'{x:.1f}' for x in heatmap_data.columns], rotation=0)
+            
+            # Set axis labels
+            set_axis_labels(ax, col + k == 0 or col + k == 2, 
+                          row == n_rows - 1, row == 0,
+                          value_col, friendly_scenario, column_labels)
+            
+            # Add metric labels
+            if value_col == 'state':
+                ax.set_title(r'$\langle x \rangle$', fontsize=FONT_SIZE+2)
+            else:
+                ax.set_title(r'$\sigma(x)$', fontsize=FONT_SIZE+2)
     
-    # Adjust suptitle position (x=0.55 moves it slightly right)
-    fig.suptitle(f'Topology: {topology}',
-               fontsize=FONT_SIZE+6,
-               fontweight='bold',
-               y=1.01,
-               x=0.55)  # Added x parameter to center the title
-  
+    # Hide empty subplots
+    if n_scenarios % 2:
+        for j in range(-2, 0):
+            axes[-1, j].set_visible(False)
+    
+    # Add topology title
+    fig.suptitle(f'Network Topology: {topology}',
+                fontsize=FONT_SIZE+6,
+                fontweight='bold',
+                y=0.98)
+    
     return fig
-
 def save_figure(fig, topology):
     """Save the figure to file with LaTeX-friendly settings."""
-    plt.tight_layout(rect=[0.05, 0, 1, 0.95])
     save_path = f'../Figs/Heatmaps/heatmap_{topology}.pdf'
     os.makedirs(os.path.dirname(save_path), exist_ok=True)
     
@@ -197,7 +247,6 @@ def save_figure(fig, topology):
                 backend='pdf',
                 transparent=True)
     plt.show()
-
 def main():
     """Main execution function."""
     # Setup

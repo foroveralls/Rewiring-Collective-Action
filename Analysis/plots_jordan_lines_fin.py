@@ -388,7 +388,7 @@ if __name__ == "__main__":
 
     # Load and process the data
     data = pd.read_csv(os.path.join("../Output", file_list[file_index]))
-    t_max = 30000  # Adjusted to match reference plot
+    t_max = 35000  # Adjusted to match reference plot
     get_N, get_n = file_list[file_index].split("_")[4], file_list[file_index].split("_")[6]
     
     # Process the data

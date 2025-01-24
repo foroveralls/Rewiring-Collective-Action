@@ -86,7 +86,7 @@ stubbornness = 0.6
 degree = 8 
 timesteps= 100 #70000 
 continuous = True
-skew = -0.16
+skew = -0.20
 initSD = 0.15
 mypalette = ["blue","red","green", "orange", "magenta","cyan","violet", "grey", "yellow"] # set the colot of plots
 randomness = 0.10
@@ -94,7 +94,7 @@ gridtype = 'cl' # this is actually set in run.py for some reason... overrides th
 gridsize = 33   # used for grid networks
 nwsize = 100 #1089  # nwsize = 1089 used for CSF (Clustered scale free network) networks
 friendship = 0.5
-friendshipSD = 0.15
+friendshipSD = 0.19
 clustering = 0.5 # CSF clustering in louvain algorithm
 #new variables:
 breaklinkprob = 0.5
@@ -119,15 +119,16 @@ args = {"defectorUtility" : defectorUtility,
         "breaklinkprob" : breaklinkprob,
         "establishlinkprob" : establishlinkprob,
         "polarisingNode_f": polarisingNode_f,
-        "f_all": 0.6}
+        "f_all": 0.5}
 
 #%% simulate 
 def getargs():
     return args
 
 def init_lock(lock_):
-    global lock
-    lock = lock_
+    pass
+    # global lock
+    # lock = lock_
 
 def simulate(i, newArgs, func_changes = False): #RG for random graph (used for testing)
     setArgs(newArgs)
@@ -261,7 +262,8 @@ class Model:
         self.embeddings = {}
         self.polar = args["polarisingNode_f"]
         self.retrain = 0
-        self.process_id = multiprocessing.current_process().pid
+        self.lock = lock
+        self.process_id = os.getpid()
  
          
     
@@ -651,90 +653,107 @@ class Model:
             self.graph.remove_edge(nodeIndex, breaklinkNeighbourIndex)
             return breaklinkNeighbourIndex, True
                     
-
+    
+        
+        # Modified train_node2vec method for models_checks.py
     def train_node2vec(self, input_file='graph.edgelist', output_file='embeddings.emb', dimensions=64):
-       
+        """Train node2vec embeddings with controlled CPU usage"""
         if not hasattr(self, 'affected_nodes_set'):
             self.affected_nodes_set = set()
         
-        # Convert affected_nodes list to a set for efficient lookup
         self.affected_nodes_set.update(self.affected_nodes)
-        
-        # Use process-specific file names
         process_input_file = f"{input_file}_{self.process_id}"
         process_output_file = f"{output_file}_{self.process_id}"
     
-        if not self.embeddings or len(self.affected_nodes_set) > len(self.graph.nodes) * 0.5:
-            # If embeddings don't exist or too many nodes are affected, retrain all
-            n2v.save_graph_as_edgelist(self.graph, process_input_file)
-        else:
-            # Partial retraining: save only edges connected to affected nodes
-            with open(process_input_file, 'w') as f:
-                for edge in self.graph.edges():
-                    if edge[0] in self.affected_nodes or edge[1] in self.affected_nodes:
-                        f.write(f"{edge[0]} {edge[1]}\n")
-        
-        # Run node2vec on the saved edgelist
-        n2v.run_node2vec(self.node2vec_executable, process_input_file, process_output_file)
-        new_embeddings = n2v.load_embeddings(process_output_file)
-        
-        # Update embeddings
-        if not self.embeddings:
-            self.embeddings = new_embeddings
-        else:
-            # Update only the affected nodes in the main embeddings
-            for node in new_embeddings:
-                self.embeddings[node] = new_embeddings[node]
-        
-        # Clear the affected nodes list after retraining
-        self.affected_nodes_set.clear()
-    
-        # Clean up process-specific files
-        os.remove(process_input_file)
-  
-    
-    
-    
-           
-
-    def node2vec_rewire(self, nodeIndex):
-        
-    
-        def get_similar_agents(nodeIndex, embeddings=self.embeddings):
+        try:
+            # Determine if full retrain is needed
+            needs_full_retrain = (not self.embeddings or 
+                                len(self.affected_nodes_set) > len(self.graph.nodes) * 0.5)
             
+            # Write edge list
+            if needs_full_retrain:
+                n2v.save_graph_as_edgelist(self.graph, process_input_file)
+            else:
+                with open(process_input_file, 'w') as f:
+                    for edge in self.graph.edges():
+                        if edge[0] in self.affected_nodes_set or edge[1] in self.affected_nodes_set:
+                            f.write(f"{edge[0]} {edge[1]}\n")
     
+            # Calculate optimal thread count - use fewer threads for partial retraining
+            num_threads = 1 if not needs_full_retrain else 2
+    
+            try:
+                n2v.run_node2vec(
+                    self.node2vec_executable, 
+                    process_input_file,
+                    process_output_file,
+                    dimensions=dimensions,
+                    walk_length=40,
+                    num_walks=5,
+                    context_size=10,
+                    num_threads=num_threads
+                )
+                
+                if os.path.exists(process_output_file):
+                    new_embeddings = n2v.load_embeddings(process_output_file, dimensions)
+                    if not self.embeddings:
+                        self.embeddings = new_embeddings
+                    else:
+                        # Only update affected embeddings
+                        if not needs_full_retrain:
+                            self.embeddings.update({k: v for k, v in new_embeddings.items() 
+                                                 if k in self.affected_nodes_set})
+                        else:
+                            self.embeddings = new_embeddings
+                    self.affected_nodes_set.clear()
+                    return True
+                    
+            except Exception as e:
+                print(f"Error in node2vec process {self.process_id}: {str(e)}")
+                return False
+        
+        finally:
+            # Cleanup temporary files
+            for f in [process_input_file, process_output_file]:
+                if os.path.exists(f):
+                    try:
+                        os.remove(f)
+                    except OSError:
+                        pass
+        
+        return False
+                    
+    def node2vec_rewire(self, nodeIndex):
+        """Process-safe node2vec rewiring"""
+        if nodeIndex not in self.embeddings:
+            return False
+            
+        def get_similar_agents(nodeIndex):
+            if nodeIndex not in self.embeddings:
+                return []
             target_vec = self.embeddings[nodeIndex]
-            all_agents = list(self.embeddings.keys())
-            all_vectors = np.array([self.embeddings[agent] for agent in all_agents])
- 
-            similarity = np.dot(all_vectors, target_vec) / (np.linalg.norm(all_vectors, axis=1) * np.linalg.norm(target_vec))
-            similarities = [(agent, sim) for agent, sim in zip(all_agents, similarity) if agent != nodeIndex]
+            similarities = []
+            for node, vec in self.embeddings.items():
+                if node != nodeIndex and node in self.graph:
+                    sim = np.dot(vec, target_vec) / (np.linalg.norm(vec) * np.linalg.norm(target_vec))
+                    similarities.append((node, sim))
             similarities.sort(key=lambda x: x[1], reverse=True)
-            #print(nodeIndex, similarities)
             return similarities
-        
-        #first index references matrix entry(tupple), second indexes first value of tupple(node Index of agent)
-        similar_neighbours = np.array([x for x, y in get_similar_agents(nodeIndex)])
+            
+        similar_agents = get_similar_agents(nodeIndex)
+        if not similar_agents:
+            return False
+            
+        similar_neighbours = np.array([x for x, y in similar_agents])
         sim = similar_neighbours[0]
-    
-        sim, neighbours = self.neighbours_check(nodeIndex, sim, similar_neighbours)
         
-        #exits function if sim is None
+        sim, neighbours = self.neighbours_check(nodeIndex, sim, similar_neighbours)
         if sim is None:
             return False
-            print('sim is None')
-        
-        #returns whether node was rewired
-        rewire = self.rewire(nodeIndex, sim)
-        
-        if rewire:    
-            break_link = self.break_link(nodeIndex, sim, neighbours)
-            self.affected_nodes_set.update([nodeIndex, sim, break_link])
-
-    
-        return rewire
-     
-        
+            
+        return self.rewire(nodeIndex, sim)
+         
+            
         
     
     

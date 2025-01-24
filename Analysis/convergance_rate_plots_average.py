@@ -28,9 +28,11 @@ FRIENDLY_COLORS = {
 plt.rcParams.update({'font.size': FONT_SIZE})
 plt.rcParams['ps.fonttype'] = 42
 plt.rcParams['pdf.fonttype'] = 42
-sns.set_theme(font_scale=FONT_SIZE/12)  # Default font size is 12, so scale accordingly
+sns.set_theme(font_scale=FONT_SIZE/14)  # Default font size is 12, so scale accordingly
 sns.set(style="ticks")
 sns.set(rc={'axes.facecolor':'white', 
+            'font.family': 'Arial',
+            'font.size': 14,
             'figure.facecolor':'white', 
             "axes.grid": True,
             "grid.color": 'black', 
@@ -132,62 +134,113 @@ def calculate_convergence_rates(data):
     
     return pd.DataFrame(rates_list)
 
+
+
+
 def plot_convergence_rates(rates_df, output_path):
-    """Create convergence rate comparison plot with scenarios ordered by convergence rate"""
-    # Set up figure with LaTeX-friendly settings
+    """Create convergence rate comparison plot with scenarios ordered by median convergence rate,
+    using traditional statistical physics markers in black and white"""
     plt.rcParams['pdf.fonttype'] = 42
     plt.rcParams['ps.fonttype'] = 42
-    plt.figure(figsize=(10, 6))
+    plt.figure(figsize=(12, 8))
     
-    # Calculate mean rate for each scenario to determine order
-    scenario_means = rates_df.groupby('scenario')['rate'].mean().sort_values(ascending=False)
-    scenario_order = scenario_means.index.tolist()
+    # Calculate median rate for each scenario to determine order
+    scenario_medians = rates_df.groupby('scenario')['rate'].median().sort_values(ascending=False)
+    scenario_order = scenario_medians.index.tolist()
     
-    # Ensure scenarios are in order of decreasing convergence rate
+    # Create a new categorical column with ordered scenarios
+    rates_df = rates_df.copy()  # Create a copy to avoid SettingWithCopyWarning
     rates_df['scenario'] = pd.Categorical(rates_df['scenario'], 
                                         categories=scenario_order, 
                                         ordered=True)
     
-    # Create the dot plot
-    g = sns.scatterplot(
-        data=rates_df,
-        x='scenario',
-        y='rate',
-        hue='scenario',
-        s=100,
-        alpha=0.7,
-        palette=FRIENDLY_COLORS,
-        legend=False
-    )
+    # Define traditional statistical physics markers and their labels
+    topology_markers = {
+        'DPAH': 'x',      # cross
+        'cl': '+',        # plus
+        'Twitter': '*',   # asterisk
+        'FB': '.'         # point
+    }
+    
+    # Create x-coordinates for scenarios
+    x_coords = np.arange(len(scenario_order))
+    
+    # Create main scatter plot with topology markers
+    for topology, marker in topology_markers.items():
+        mask = rates_df['topology'] == topology
+        scenario_data = rates_df[mask]
+        
+        # Map scenarios to x-coordinates
+        scenario_x = [x_coords[list(scenario_order).index(s)] for s in scenario_data['scenario']]
+        
+        plt.scatter(
+            scenario_x,
+            scenario_data['rate'],
+            marker=marker,
+            s=100,  # Marker size
+            c='black',  # All markers in black
+            label=topology,
+            alpha=0.7
+        )
+    
+    # Add median values as horizontal lines
+    for i, scenario in enumerate(scenario_order):
+        median_rate = scenario_medians[scenario]
+        plt.hlines(y=median_rate, xmin=i-0.2, xmax=i+0.2, 
+                  colors='red', linestyles='solid', alpha=0.5)
     
     # Customize the plot
     plt.title('Convergence Rates Comparison', pad=20, fontsize=FONT_SIZE)
     plt.xlabel('Rewiring Strategy', labelpad=10, fontsize=FONT_SIZE)
     plt.ylabel('Convergence Rate (×10³)', labelpad=10, fontsize=FONT_SIZE)
     
-    # Handle x-axis labels with LaTeX-friendly rotation
-    ax = plt.gca()
-    ax.set_xticklabels(ax.get_xticklabels(), 
-                       rotation=45, 
-                       horizontalalignment='right',
-                       rotation_mode='anchor',
-                       fontsize=FONT_SIZE)
+    # Set x-axis ticks and labels
+    plt.xticks(x_coords, scenario_order, 
+               rotation=45, 
+               horizontalalignment='right',
+               rotation_mode='anchor',
+               fontsize=FONT_SIZE)
+    
+    # Create legend for topologies (markers)
+    legend_elements = [plt.Line2D([0], [0], marker=marker, color='black', 
+                                label=topology, markersize=10, linestyle='None')
+                      for topology, marker in topology_markers.items()]
+    
+    # Add median line to legend
+    legend_elements.append(plt.Line2D([0], [0], color='red', alpha=0.5,
+                                    label='Median', linestyle='solid'))
+    
+    # Place legend
+    plt.legend(handles=legend_elements, title="Network Topology", 
+              loc='upper left', bbox_to_anchor=(0.85, 0.95))
+    
     plt.yticks(fontsize=FONT_SIZE)
     
     # Add grid
-    plt.grid(True, linestyle='--', alpha=0.7)
+    plt.grid(True, linestyle='--', alpha=0.3)
     
-    # Adjust layout
+    # Adjust layout to accommodate legend
     plt.tight_layout()
     
-    # Save the plot with specific backend settings for better text handling
+    # Save the plot
     plt.savefig(output_path, 
-                dpi=600, 
+                dpi=300, 
                 bbox_inches='tight', 
                 format='pdf',
-                metadata={'Creator': None, 'Producer': None})
+                metadata={'Creator': "Jordan", 'Producer': None})
     plt.show()
     plt.close()
+# # Update friendly names to be more concise for publication
+# friendly_names = {
+#     'none_none': 'static',
+#     'random_none': 'random',
+#     'biased_same': 'similar',
+#     'biased_diff': 'opposite',
+#     'bridge_same': 'bridge-s',
+#     'bridge_diff': 'bridge-o',
+#     'wtf_none': 'wtf',
+#     'node2vec_none': 'n2vec'
+# }
 
 def main():
     # Get list of relevant output files

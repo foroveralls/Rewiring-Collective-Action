@@ -43,11 +43,17 @@ def validate_embeddings_file(filepath, graph_nodes, expected_dimensions=64):
     with open(filepath, 'w') as f:
         for line in cleaned_lines:
             f.write(f"{line}\n")
-#Old values, walk_length:50, dimensions:32
-def run_node2vec(node2vec_executable, input_file, output_file, dimensions=64, walk_length=40, num_walks=5, context_size=10):
+            
+def run_node2vec(node2vec_executable, input_file, output_file, dimensions=64, walk_length=40, 
+               num_walks=5, context_size=10, num_threads=1):
     if not os.path.exists(node2vec_executable):
-        raise FileNotFoundError(f"node2vec executable not found at {node2vec_executable}. Please compile it from the SNAP repository.")
+        raise FileNotFoundError(f"node2vec executable not found at {node2vec_executable}")
 
+    # Set OpenMP environment variables
+    env = os.environ.copy()
+    env['OMP_NUM_THREADS'] = str(num_threads)
+    env['MKL_NUM_THREADS'] = str(num_threads)  # Also control MKL if used
+    
     command = [
         node2vec_executable,
         f'-i:{input_file}',
@@ -57,7 +63,27 @@ def run_node2vec(node2vec_executable, input_file, output_file, dimensions=64, wa
         f'-r:{num_walks}',
         f'-k:{context_size}'
     ]
-    subprocess.run(command, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    
+    subprocess.run(command, 
+                  check=True, 
+                  stdout=subprocess.DEVNULL, 
+                  stderr=subprocess.DEVNULL,
+                  env=env)
+#Old values, walk_length:50, dimensions:32
+# def run_node2vec(node2vec_executable, input_file, output_file, dimensions=64, walk_length=40, num_walks=5, context_size=10):
+#     if not os.path.exists(node2vec_executable):
+#         raise FileNotFoundError(f"node2vec executable not found at {node2vec_executable}. Please compile it from the SNAP repository.")
+
+#     command = [
+#         node2vec_executable,
+#         f'-i:{input_file}',
+#         f'-o:{output_file}',
+#         f'-d:{dimensions}',
+#         f'-l:{walk_length}',
+#         f'-r:{num_walks}',
+#         f'-k:{context_size}'
+#     ]
+#     subprocess.run(command, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 def load_embeddings(filepath, expected_dimensions=64):
     embeddings = {}

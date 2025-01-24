@@ -80,6 +80,63 @@ def estimate_convergence_rate(trajec, loc=None, regwin=10):
     return rate
 
 
+def calculate_convergence_rates_with_sampling(data, sample_size=100):
+    """
+    Calculate convergence rates for sampled scenarios and model runs
+    
+    Parameters:
+    -----------
+    data : pandas DataFrame
+        Input data containing all trajectories
+    sample_size : int
+        Number of trajectories to sample per scenario combination
+    
+    Returns:
+    --------
+    pandas DataFrame
+        Convergence rates for sampled trajectories
+    """
+    rates_list = []
+    
+    # Group by scenario, rewiring, and type
+    grouped = data.groupby(['scenario', 'rewiring', 'type'])
+    
+    print(f"\nProcessing samples from {len(grouped)} unique combinations")
+    
+    for name, group in grouped:
+        scenario, rewiring, topology = name
+        
+        # Get unique model runs for this combination
+        unique_runs = group['model_run'].unique()
+        
+        # Sample runs if we have more than sample_size
+        if len(unique_runs) > sample_size:
+            sampled_runs = np.random.choice(unique_runs, size=sample_size, replace=False)
+            group = group[group['model_run'].isin(sampled_runs)]
+        
+        # Process each sampled run
+        for run in group['model_run'].unique():
+            trajectory = group[group['model_run'] == run]['avg_state'].values
+            
+            if len(trajectory) < 1200:
+                continue
+                
+            inflection_x = find_inflection(trajectory)
+            
+            if inflection_x:
+                try:
+                    rate = estimate_convergence_rate(trajectory, loc=inflection_x)
+                    rates_list.append({
+                        'scenario': scenario,
+                        'rewiring': rewiring,
+                        'topology': topology,
+                        'model_run': run,
+                        'rate': rate * 1000  # Scale rate as in original code
+                    })
+                except Exception as e:
+                    print(f"Error calculating rate for {scenario}_{rewiring}_{topology}_{run}: {str(e)}")
+    
+    return pd.DataFrame(rates_list)
 def calculate_convergence_rates(data):
     """Calculate convergence rates for all scenarios and model runs"""
     rates_list = []
@@ -152,47 +209,148 @@ def plot_violin(rates_df, output_path):
     plt.show()
     plt.close()
 
-def plot_barplot(rates_df, output_path):
-    """Create bar plot with error bars"""
-    plt.figure(figsize=(14, 6))
+
+def plot_violin_with_outlier_handling(rates_df, output_path, method="symlog"):
+    """
+    Create violin plot of convergence rates with improved outlier handling
     
-    # Create combined scenario label
-    rates_df['scenario_combined'] = rates_df['scenario'] + '_' + rates_df['rewiring']
+    Parameters:
+    -----------
+    rates_df : pandas DataFrame
+        DataFrame containing convergence rates and metadata
+    output_path : str
+        Path to save the output figure
+    method : str
+        Method for handling outliers:
+        - "symlog": symmetric log transformation
+        - "clip": clip outliers beyond percentiles
+        - "split": create two subplots (main distribution and outliers)
+    """
+    import matplotlib.pyplot as plt
+    import seaborn as sns
+    import numpy as np
     
-    # Calculate mean and standard error correctly
-    summary = rates_df.groupby(['scenario_combined', 'topology'])['rate'].agg([
-        'mean',
-        'count',
-        'std'
-    ]).reset_index()
+    # Close any existing plots
+    plt.close('all')
     
-    # Calculate standard error
-    summary['sem'] = summary['std'] / np.sqrt(summary['count'])
+    def create_base_figure():
+        rates_df['scenario_combined'] = rates_df['scenario'] + '_' + rates_df['rewiring']
+        return rates_df['scenario_combined']
     
-    # Create grouped bar plot using the summary data
-    bar_plot = sns.barplot(
-        data=summary,
-        x='scenario_combined',
-        y='mean',
-        hue='topology',
-        palette="Set2",
-        alpha=0.8,
-        capsize=0.05,
-        errwidth=1,
-        errorbar=('ci', 68)  # This shows 1 standard error
-    )
+    if method == "symlog":
+        fig = plt.figure(figsize=(14, 6))
+        scenario_combined = create_base_figure()
+        
+        sns.violinplot(
+            data=rates_df,
+            x='scenario_combined',
+            y='rate',
+            hue='topology',
+            palette="Set2",
+            inner='box',
+            scale='width'
+        )
+        
+        plt.yscale('symlog', linthresh=np.std(rates_df['rate']))
+        plt.title('Convergence Rates (Symmetric Log Scale)', pad=20)
+        
+    elif method == "clip":
+        # Clip outliers beyond specified percentiles while indicating their presence
+        lower_bound = np.percentile(rates_df['rate'], 5)
+        upper_bound = np.percentile(rates_df['rate'], 95)
+        
+        rates_clipped = rates_df.copy()
+        outlier_mask = (rates_df['rate'] < lower_bound) | (rates_df['rate'] > upper_bound)
+        rates_clipped.loc[rates_clipped['rate'] < lower_bound, 'rate'] = lower_bound
+        rates_clipped.loc[rates_clipped['rate'] > upper_bound, 'rate'] = upper_bound
+        
+        fig = plt.figure(figsize=(14, 6))
+        scenario_combined = create_base_figure()
+        
+        sns.violinplot(
+            data=rates_clipped,
+            x='scenario_combined',
+            y='rate',
+            hue='topology',
+            palette="Set2",
+            inner='box',
+            scale='width'
+        )
+        
+        # Add markers for clipped regions
+        plt.axhline(y=upper_bound, color='r', linestyle='--', alpha=0.5)
+        plt.axhline(y=lower_bound, color='r', linestyle='--', alpha=0.5)
+        plt.title('Convergence Rates (Clipped at 5th and 95th Percentiles)', pad=20)
+        
+    elif method == "split":
+        # Create two subplots: main distribution and outliers
+        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(14, 10), height_ratios=[3, 1])
+        scenario_combined = create_base_figure()
+        
+        # Main distribution (5-95 percentile)
+        lower_bound = np.percentile(rates_df['rate'], 5)
+        upper_bound = np.percentile(rates_df['rate'], 95)
+        
+        main_data = rates_df[rates_df['rate'].between(lower_bound, upper_bound)]
+        outlier_data = rates_df[~rates_df['rate'].between(lower_bound, upper_bound)]
+        
+        # Main distribution plot
+        sns.violinplot(
+            data=main_data,
+            x='scenario_combined',
+            y='rate',
+            hue='topology',
+            palette="Set2",
+            inner='box',
+            scale='width',
+            ax=ax1
+        )
+        ax1.set_title('Main Distribution (5-95 percentile)', pad=20)
+        
+        # Outliers plot
+        sns.stripplot(
+            data=outlier_data,
+            x='scenario_combined',
+            y='rate',
+            hue='topology',
+            palette="Set2",
+            size=4,
+            alpha=0.5,
+            ax=ax2
+        )
+        ax2.set_title('Outliers', pad=10)
     
-    plt.title('Mean Convergence Rates by Scenario', pad=20)
+    # Common styling
     plt.xlabel('Scenario', labelpad=10)
-    plt.ylabel('Mean Convergence Rate (×10³)', labelpad=10)
+    plt.ylabel('Convergence Rate (×10³)', labelpad=10)
     plt.xticks(rotation=45, ha='right')
     plt.grid(True, linestyle='--', alpha=0.7)
     plt.legend(title='Network Topology', bbox_to_anchor=(1.05, 1))
     
+    # Save figure
     plt.tight_layout()
-    plt.savefig(output_path.replace('.pdf', '_bar.pdf'), dpi=600, bbox_inches='tight')
+    output_name = output_path.replace('.pdf', f'_violin_{method}.pdf')
+    plt.savefig(output_name, dpi=600, bbox_inches='tight')
+    
+    # Show the plot
     plt.show()
+    
+    # Close the figure to free memory
+    plt.close(fig)
+    
+    # Common styling
+    plt.xlabel('Scenario', labelpad=10)
+    plt.ylabel('Convergence Rate (×10³)', labelpad=10)
+    plt.xticks(rotation=45, ha='right')
+    plt.grid(True, linestyle='--', alpha=0.7)
+    plt.legend(title='Network Topology', bbox_to_anchor=(1.05, 1))
+    
+    # Save figure
+    plt.tight_layout()
+    output_name = output_path.replace('.pdf', f'_violin_{method}.pdf')
+    plt.savefig(output_name, dpi=600, bbox_inches='tight')
     plt.close()
+
 
 def calculate_summary_statistics(rates_df, simplified=False):
     """
@@ -289,34 +447,55 @@ def save_summary_tables(rates_df, output_path):
     return detailed_summary, simple_summary
 
 
-def main():
-    # Load the data
-    file_list = [f for f in os.listdir("../Output") if "default_run_individual" in f and f.endswith(".csv")]
+def main(saved_rates = None):
     
-    if not file_list:
-        raise FileNotFoundError("No individual run files found in ../Output directory")
+    if saved_rates is None:
+        # Load the data
+        file_list = [f for f in os.listdir("../Output") if "default_run_individual" in f and f.endswith(".csv")]
+        
+        if not file_list:
+            raise FileNotFoundError("No individual run files found in ../Output directory")
+        
+        # Print file list with indices
+        for i, file in enumerate(file_list):
+            print(f"{i}: {file}")
+        
+        # Get user input for file selection
+        file_index = int(input("Enter the index of the file you want to plot: "))
+        
+        # Load the selected file
+        data_path = os.path.join("../Output", file_list[file_index])
+        
+        # # Load the most recent file
+        # latest_file = max(file_list)
+        # data_path = os.path.join("../Output", latest_file)
+        print(f"Processing file: {file_list[file_index]}")
+        
+        # Read the data
+        raw_data = pd.read_csv(data_path, low_memory=False)
     
-    # Load the most recent file
-    latest_file = max(file_list)
-    data_path = os.path.join("../Output", latest_file)
-    print(f"Processing file: {latest_file}")
+        print(f"\nData shape: {raw_data.shape}")
+        print(f"Columns: {raw_data.columns.tolist()}")
+        
+        # Fill NA values in categorical columns
+        raw_data['rewiring'] = raw_data['rewiring'].fillna('none')
+        raw_data['scenario'] = raw_data['scenario'].fillna('none')
+        
+        # No need to melt the data - we can use it directly
+        print("\nSample of data:")
+        print(raw_data.head())
+        
+        # Calculate convergence rates
+        #rates_df = calculate_convergence_rates(raw_data)
+        
+        # Calculate convergence rates with sampling
+        rates_df = calculate_convergence_rates_with_sampling(raw_data, sample_size=100)
+        
     
-    # Read the data
-    raw_data = pd.read_csv(data_path, low_memory=False)
-    
-    print(f"\nData shape: {raw_data.shape}")
-    print(f"Columns: {raw_data.columns.tolist()}")
-    
-    # Fill NA values in categorical columns
-    raw_data['rewiring'] = raw_data['rewiring'].fillna('none')
-    raw_data['scenario'] = raw_data['scenario'].fillna('none')
-    
-    # No need to melt the data - we can use it directly
-    print("\nSample of data:")
-    print(raw_data.head())
-    
-    # Calculate convergence rates
-    rates_df = calculate_convergence_rates(raw_data)
+    else:
+        rates_df = saved_rates
+        
+
     
     if len(rates_df) == 0:
         print("Warning: No valid convergence rates calculated")
@@ -329,14 +508,20 @@ def main():
     
     # Setup output directory
     os.makedirs("../Figs/Convergence", exist_ok=True)
-    N = latest_file.split("_")[5]  # Extract N from filename
+    N = file_list[file_index].split("_")[5]  # Extract N from filename
     base_output_path = f"../Figs/Convergence/convergence_rates_N{N}_{date.today()}.pdf"
     
     # Set up styling
     setup_style()
     
     # Generate all plot types
-    plot_violin(rates_df, base_output_path)
+    #plot_violin(rates_df, base_output_path)
+    
+    # Generate plots with different outlier handling methods
+    plot_violin_with_outlier_handling(rates_df, base_output_path, method="symlog")
+    plot_violin_with_outlier_handling(rates_df, base_output_path, method="clip")
+    #plot_violin_with_outlier_handling(rates_df, base_output_path, method="split")
+   
     
     # Calculate and save summary statistics
     summary_path = f"../Output/convergence_summary_N{N}_{date.today()}"
@@ -348,7 +533,7 @@ def main():
     print("\nDetailed Summary Statistics:")
     print(detailed_stats.to_string(index=False))
      
-    return simple_stats
+    return simple_stats, rates_df
 
 if __name__ == "__main__":
-    rate = main()
+    stats, rate = main()
