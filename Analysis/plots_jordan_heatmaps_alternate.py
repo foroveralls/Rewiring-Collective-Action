@@ -75,6 +75,9 @@ def get_data_file():
     file_index = int(input("Enter the index of the file you want to plot: "))
     return os.path.join("../Output", file_list[file_index])
 
+
+
+
 def prepare_dataframe(df):
     """Prepare the DataFrame for plotting."""
     # Adjust the "rewiring" column for specific modes
@@ -157,6 +160,7 @@ def create_heatmap_grid(df, value_columns, unique_scenarios, topology, column_la
         scenario_data = df[(df['scenario'] == scenario) & 
                          (df['topology'] == topology)]
         
+            
         # Add scenario label at the top of each pair
         ax1, ax2 = axes[row, col], axes[row, col + 1]
         ax1.text(1.0, 1.15, friendly_scenario,
@@ -189,9 +193,9 @@ def create_heatmap_grid(df, value_columns, unique_scenarios, topology, column_la
                 cbar_label = 'Cooperation'
               
             else:
-                cmap = polar_cmap
-                vmin, vmax = 0, 1
-                center = None
+                cmap = polar_cmap,
+                vmin, vmax = 0,
+                center = None,
                 cbar_label = 'Polarization'
             
             # Single heatmap creation

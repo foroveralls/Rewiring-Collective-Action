@@ -13,7 +13,7 @@ def init(lock_):
 
 if __name__ == '__main__':
     # Constants and Variables
-    numberOfSimulations = 30  # Increased for statistical significance
+    numberOfSimulations = 3  # Increased for statistical significance
     numberOfProcessors = int(0.8 * multiprocessing.cpu_count())
     lock = multiprocessing.Lock()
     
@@ -37,11 +37,11 @@ if __name__ == '__main__':
     combined_list_rand = [("random", "None", topology) for topology in directed_topology_list + undirected_topology_list]
     
     combined_list = combined_list1 + combined_list_rand + combined_list2 + combined_list3 + combined_list4
-
+    #combined_list = [("random", "None", "cl")]
+    
     # Parameter sweep configuration
-    parameter_names = ["polarisingNode_f", "stubbornness"]
     parameters = {
-        "polarisingNode_f": np.linspace(0, 1, 10)
+        "polarisingNode_f": np.linspace(0, 1, 2)
     }
     param_product = [dict(zip(parameters.keys(), x)) for x in product(*parameters.values())]
 
@@ -64,7 +64,7 @@ if __name__ == '__main__':
                 nwsize = 786
             else:
                 top_file = None
-                nwsize = 800
+                nwsize = 250
 
             # Prepare simulation arguments
             sim_args = {
@@ -73,7 +73,7 @@ if __name__ == '__main__':
                 "rewiringMode": mode,
                 "type": topology,
                 "top_file": top_file,
-                "timesteps": 40000,
+                "timesteps": 10,
                 "plot": False,
                 **params  # Include sweep parameters
             }
@@ -103,18 +103,48 @@ if __name__ == '__main__':
     pool.close()
     pool.join()
 
-    def process_outputs(out_list, nwsize, params):
+    def process_outputs(out_list, nwsize, parameters, param_combinations):
+        """
+        Process and save simulation outputs with parameter sweep information.
+        
+        Args:
+            out_list: List of tuples containing (avg_df, individual_df) for each simulation
+            nwsize: Network size used in simulations
+            parameters: Dictionary of parameter names and their sweep values
+            param_combinations: List of parameter combinations used in simulations
+        """
         # Unpack the tuples in out_list
         avg_dfs, individual_dfs = zip(*out_list)
         
-        # Process averaged data
-        combined_avg_df = pd.concat(avg_dfs, ignore_index=True)
+        # Calculate number of parameter combinations
+        n_combinations = len(param_combinations)
         
-        # Process individual data
-        combined_individual_df = pd.concat(individual_dfs, ignore_index=True)
+        # Process averaged data with parameter information
+        avg_df_list = []
+        for idx, df in enumerate(avg_dfs):
+            param_idx = idx // len(individual_dfs[0]['model_run'].unique())
+            if param_idx < len(param_combinations):
+                # Add parameter columns
+                for param_name, param_value in param_combinations[param_idx].items():
+                    df[param_name] = param_value
+            avg_df_list.append(df)
+        
+        # Process individual data with parameter information
+        individual_df_list = []
+        for idx, df in enumerate(individual_dfs):
+            param_idx = idx // len(df['model_run'].unique())
+            if param_idx < len(param_combinations):
+                # Add parameter columns
+                for param_name, param_value in param_combinations[param_idx].items():
+                    df[param_name] = param_value
+            individual_df_list.append(df)
+        
+        # Combine DataFrames
+        combined_avg_df = pd.concat(avg_df_list, ignore_index=True)
+        combined_individual_df = pd.concat(individual_df_list, ignore_index=True)
         
         # Optimize memory usage
-        combined_avg_df = combined_avg_df.astype({
+        dtype_dict = {
             't': 'int32',
             'avg_state': 'float32',
             'std_states': 'float32',
@@ -124,20 +154,28 @@ if __name__ == '__main__':
             'maxdegree': 'float32',
             'scenario': 'category',
             'rewiring': 'category',
-            'type': 'category'
-        })
+            'type': 'category',
+            'model_run': 'int32'
+        }
         
-        combined_individual_df = combined_individual_df.astype({
-            't': 'int32',
-            'model_run': 'int32',
-            'scenario': 'category',
-            'rewiring': 'category',
-            'type': 'category'
-        })
+        # Add parameter columns to dtype dictionary
+        for param_name in parameters.keys():
+            if isinstance(next(iter(param_combinations))[param_name], (int, np.integer)):
+                dtype_dict[param_name] = 'int32'
+            else:
+                dtype_dict[param_name] = 'float32'
+        
+        # Apply optimized dtypes
+        combined_avg_df = combined_avg_df.astype({k: v for k, v in dtype_dict.items() 
+                                                 if k in combined_avg_df.columns})
+        combined_individual_df = combined_individual_df.astype({k: v for k, v in dtype_dict.items() 
+                                                              if k in combined_individual_df.columns})
         
         # Save the combined data with parameter information in filename
         today = date.today()
-        param_str = "_".join([f"{k}_{min(v)}_{max(v)}_{len(v)}" for k, v in params.items()])
+        param_str = "_".join([f"{k}_{min(v)}_{max(v)}_{len(v)}" for k, v in parameters.items()])
+        
+        # Save files
         avg_output_file = f'../Output/param_sweep_avg_N_{nwsize}_{param_str}_{today}.csv'
         individual_output_file = f'../Output/param_sweep_individual_N_{nwsize}_{param_str}_{today}.csv'
         
@@ -146,11 +184,10 @@ if __name__ == '__main__':
         
         print(f"Averaged output saved to {avg_output_file}")
         print(f"Individual output saved to {individual_output_file}")
-        
+    
         return combined_avg_df, combined_individual_df
-
     # Process and save all outputs
-    processed_avg_df, processed_individual_df = process_outputs(out_list, nwsize, parameters)
+    processed_avg_df, processed_individual_df = process_outputs(out_list, nwsize, parameters, param_product)
     
     # Clean up temporary files
     for file in glob.glob("*embeddings*"):

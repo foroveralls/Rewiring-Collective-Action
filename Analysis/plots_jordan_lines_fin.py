@@ -10,6 +10,9 @@ from matplotlib.ticker import AutoMinorLocator
 
 params = {"line_width": 1.1}
 
+
+cm = 1/2.54
+
 def set_plot_style():
     """Set consistent style elements for all plots"""
     sns.set_style("white")
@@ -24,6 +27,7 @@ def set_plot_style():
         'lines.linewidth': 1.5,
         'figure.dpi': 300,
         'savefig.dpi': 300,
+        'figure.figsize': (17.8*cm, 8.9*cm),
         'grid.alpha': 0.4,
         'grid.linestyle': '--',
         'xtick.major.size': 5,
@@ -388,7 +392,7 @@ if __name__ == "__main__":
 
     # Load and process the data
     data = pd.read_csv(os.path.join("../Output", file_list[file_index]))
-    t_max = 35000  # Adjusted to match reference plot
+    t_max = 45000  # Adjusted to match reference plot
     get_N, get_n = file_list[file_index].split("_")[4], file_list[file_index].split("_")[6]
     
     # Process the data
