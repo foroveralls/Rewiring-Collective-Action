@@ -35,27 +35,25 @@ def calculate_metrics(df):
     """
     Calculate comprehensive metrics across different scenarios, 
     aggregating over polarisingNode_f and other parameters.
-    
-    Args:
-        df (pd.DataFrame): Input dataframe with simulation results
-    
-    Returns:
-        pd.DataFrame: Metrics for each topology and rewiring strategy
     """
     all_metrics = []
     
-    # Group by topology and scenario (without polarisingNode_f)
+    # Group by topology and scenario
     for (topology, scenario), group in df.groupby(['topology', 'scenario']):
         friendly_name = get_friendly_name(scenario)
         
-        # Separate positive and non-positive cooperation states
+        # Get positive cooperation states
         positive_states = group[group['state'] > 0]
+        
+        # Calculate backfirer metrics only for cooperative outcomes
+        backfirer_fractions = positive_states['polarisingNode_f'].values
         
         metrics = {
             'topology': topology,
             'friendly_name': friendly_name,
             
             # Overall state metrics
+            'median_cooperation': group['state'].median(),
             'mean_cooperation': group['state'].mean(),
             'std_cooperation': group['state'].std(),
             'max_cooperation': group['state'].max(),
@@ -66,11 +64,11 @@ def calculate_metrics(df):
             'median_positive_cooperation': positive_states['state'].median() if len(positive_states) > 0 else np.nan,
             'mean_positive_cooperation': positive_states['state'].mean() if len(positive_states) > 0 else np.nan,
             
-            # Backfirer metrics
-            'max_backfirer_fraction': calculate_max_backfirer_fraction(group),
-            'mean_backfirer_fraction': group['polarisingNode_f'].mean(),
-            'median_backfirer_fraction': group['polarisingNode_f'].median(),
-            'backfirer_fraction_std': group['polarisingNode_f'].std(),
+            # Backfirer metrics - only consider cases that led to cooperation
+            'max_backfirer_fraction': np.max(backfirer_fractions) if len(backfirer_fractions) > 0 else 0.0,
+            'mean_backfirer_fraction': np.mean(backfirer_fractions) if len(backfirer_fractions) > 0 else 0.0,
+            'median_backfirer_fraction': np.median(backfirer_fractions) if len(backfirer_fractions) > 0 else 0.0,
+            'backfirer_fraction_std': np.std(backfirer_fractions) if len(backfirer_fractions) > 0 else 0.0,
         }
         
         all_metrics.append(metrics)
@@ -80,31 +78,29 @@ def calculate_metrics(df):
 def calculate_summary_metrics(metrics_df):
     """
     Calculate separate summaries by topology and by rewiring strategy.
-    
-    Args:
-        metrics_df (pd.DataFrame): Metrics dataframe from calculate_metrics()
-    
-    Returns:
-        Tuple of topology and strategy summary DataFrames
+    Only include cases where cooperation occurred.
     """
+    # Filter for meaningful backfirer fractions
+    valid_metrics = metrics_df[metrics_df['max_backfirer_fraction'] > 0].copy()
+    
     # Calculate metrics for topology summary
-    topology_summary = metrics_df.groupby('topology').agg({
+    topology_summary = valid_metrics.groupby('topology').agg({
         'mean_cooperation': 'mean',
+        'median_cooperation': 'median',
         'std_cooperation': 'mean',
         'cooperative_ratio': 'mean',
         'mean_backfirer_fraction': 'mean',
-        'median_backfirer_fraction': 'median',
         'max_backfirer_fraction': 'max',
         'backfirer_fraction_std': 'std'
     }).round(3)
     
     # Calculate metrics for strategy summary
-    strategy_summary = metrics_df.groupby('friendly_name').agg({
+    strategy_summary = valid_metrics.groupby('friendly_name').agg({
         'mean_cooperation': 'mean',
+        'median_cooperation': 'median',
         'std_cooperation': 'mean',
         'cooperative_ratio': 'mean',
         'mean_backfirer_fraction': 'mean',
-        'median_backfirer_fraction': 'median',
         'max_backfirer_fraction': 'max',
         'backfirer_fraction_std': 'std'
     }).round(3)

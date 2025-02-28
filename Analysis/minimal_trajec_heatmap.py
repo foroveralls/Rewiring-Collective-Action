@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Improved heatmap generator for parameter sweeps.
+Optimized heatmap generator for parameter sweeps.
 Creates one heatmap per topology with all rewiring algorithms.
-Based on the original script with incremental improvements.
+Focused on correctly processing data and generating filled heatmaps.
 """
 
 import os
@@ -16,7 +16,8 @@ import matplotlib.gridspec as gridspec
 from scipy.ndimage import gaussian_filter1d
 import gc
 import time
-import traceback
+import multiprocessing
+from functools import partial
 
 # Constants for paper style
 FONT_SIZE = 14
@@ -41,6 +42,37 @@ FRIENDLY_NAMES = {
     'wtf_none': 'wtf',
     'node2vec_none': 'node2vec'
 }
+
+# Data cache to avoid repeated file reads
+class DataCache:
+    """Simple cache for trajectory data to avoid re-reading files."""
+    
+    def __init__(self, max_size=5):
+        """Initialize with maximum number of cached items."""
+        self.cache = {}
+        self.max_size = max_size
+        self.access_times = {}
+    
+    def get(self, key):
+        """Get data from cache if available."""
+        if key in self.cache:
+            self.access_times[key] = time.time()
+            return self.cache[key]
+        return None
+    
+    def set(self, key, data):
+        """Store data in cache, removing least recently used if full."""
+        if len(self.cache) >= self.max_size:
+            # Remove least recently used item
+            lru_key = min(self.access_times, key=self.access_times.get)
+            del self.cache[lru_key]
+            del self.access_times[lru_key]
+        
+        self.cache[key] = data
+        self.access_times[key] = time.time()
+
+# Initialize global cache
+trajectory_cache = DataCache(max_size=10)
 
 def setup_plotting_style():
     """Configure plotting style to match paper."""
@@ -95,7 +127,7 @@ def get_data_file():
 def find_inflection(seq):
     """Calculate inflection point in opinion trajectory."""
     # Apply gaussian filter to smooth the trajectory
-    smooth = gaussian_filter1d(seq, 600)  # Original value
+    smooth = gaussian_filter1d(seq, 600)  # Using original sigma value
     
     # Calculate second derivative
     d2 = np.gradient(np.gradient(smooth))
@@ -123,7 +155,7 @@ def estimate_convergence_rate(trajec, loc=None, regwin=10):
     y = trajec[loc-regwin: loc+regwin+1]
     
     # Ensure x and y are valid
-    if len(x) < 3:  # Need at least 3 points for regression
+    if len(x) < 3:  # Need at least 3 points for meaningful regression
         return 0
     
     # Linear regression
@@ -182,7 +214,7 @@ def analyze_data_structure(filepath):
         print(f"Error: File not found: {filepath}")
         sys.exit(1)
     
-    # First pass: determine column names
+    # First pass: determine column names and structure
     sample = pd.read_csv(filepath, nrows=5)
     column_names = sample.columns.tolist()
     
@@ -191,46 +223,44 @@ def analyze_data_structure(filepath):
     missing_columns = [col for col in required_columns if col not in column_names]
     
     if missing_columns:
-        print(f"Warning: Missing columns: {', '.join(missing_columns)}")
+        print(f"Error: Missing required columns: {', '.join(missing_columns)}")
+        print(f"Available columns: {', '.join(column_names)}")
+        sys.exit(1)
     
-    # Extract unique values efficiently by reading in small chunks
-    chunk_size = 50000
-    unique_values = {
-        'scenario': set(),
-        'type': set(),
-        'rewiring': set(),
-        'polarisingNode_f': set()
-    }
+    # Extract unique values efficiently using SQL-like queries
+    query_columns = ['scenario', 'type', 'rewiring', 'polarisingNode_f']
+    unique_values = {}
     
-    # Read in chunks to conserve memory
-    for chunk in pd.read_csv(filepath, usecols=[col for col in unique_values.keys() if col in column_names], 
-                           chunksize=chunk_size):
-        for col in unique_values.keys():
-            if col in chunk.columns:
-                unique_values[col].update(chunk[col].dropna().unique())
+    for col in query_columns:
+        if col in column_names:
+            # Use SQL to get unique values
+            try:
+                unique_query = f"SELECT DISTINCT [{col}] FROM filepath"
+                unique_values[col] = pd.read_csv(filepath, usecols=[col]).dropna()[col].unique()
+            except Exception as e:
+                print(f"Error reading unique values for {col}: {e}")
+                unique_values[col] = []
     
-    # Convert sets to sorted lists
-    scenarios = sorted([str(s) for s in unique_values['scenario']])
-    topologies = sorted([str(t) for t in unique_values['type']])
+    scenarios = sorted([str(s) for s in unique_values.get('scenario', [])])
+    topologies = sorted([str(t) for t in unique_values.get('type', [])])
     
     # Extract rewiring modes for each scenario
     rewiring_modes = {}
-    rewiring_values = list(unique_values['rewiring'])
+    scenario_rewiring_pairs = pd.read_csv(
+        filepath, 
+        usecols=['scenario', 'rewiring'] if 'rewiring' in column_names else ['scenario']
+    ).dropna().drop_duplicates()
     
-    # Process small chunks to find scenario-rewiring pairs
-    for chunk in pd.read_csv(filepath, usecols=['scenario', 'rewiring'] if 'rewiring' in column_names else ['scenario'], 
-                           chunksize=chunk_size):
-        pairs = chunk.dropna().drop_duplicates()
-        for _, row in pairs.iterrows():
-            scenario = row['scenario']
-            rewiring = row.get('rewiring', 'none')  # Default to 'none' if column doesn't exist
-            rewiring_modes[scenario] = rewiring
+    for _, row in scenario_rewiring_pairs.iterrows():
+        scenario = row['scenario']
+        rewiring = row.get('rewiring', 'none')  # Default to 'none' if column doesn't exist
+        rewiring_modes[scenario] = rewiring
     
     # Extract parameter values
     param_values = {}
     for param in ['polarisingNode_f']:
         if param in column_names:
-            param_values[param] = sorted(unique_values[param])
+            param_values[param] = sorted(pd.read_csv(filepath, usecols=[param]).dropna()[param].unique())
     
     print(f"Found {len(scenarios)} scenarios, {len(topologies)} topologies")
     print(f"Parameters: {list(param_values.keys())}")
@@ -239,114 +269,137 @@ def analyze_data_structure(filepath):
     
     return scenarios, topologies, rewiring_modes, param_values
 
-def extract_trajectories(filepath, topology, scenario, param_name, param_value, time_range=None, max_runs=100):
-    """Extract trajectories for a specific topology, scenario, and parameter value."""
+def extract_trajectories(filepath, topology, scenario, param_name, param_value, 
+                        time_range=None, max_runs=100):
+    """
+    Extract trajectories for a specific topology, scenario, and parameter value.
+    
+    Parameters:
+    - filepath: Path to the data file
+    - topology: Network topology to extract data for
+    - scenario: Rewiring scenario to extract data for
+    - param_name: Parameter name for the sweep
+    - param_value: Specific parameter value to extract data for
+    - time_range: Optional tuple (start_time, end_time) to filter trajectories
+    - max_runs: Maximum number of runs to extract
+    """
+    # Create cache key
+    cache_key = f"{filepath}_{topology}_{scenario}_{param_name}_{param_value}_{time_range}"
+    
+    # Check cache first
+    cached_data = trajectory_cache.get(cache_key)
+    if cached_data is not None:
+        return cached_data
+    
     print(f"Extracting trajectories for {topology}, {scenario}, {param_name}={param_value}")
     
-    # Read data in chunks to reduce memory usage
-    chunk_size = 500000
-    
     # Prepare query conditions
-    query_str = f"type == '{topology}' and scenario == '{scenario}' and {param_name} == {param_value}"
+    conditions = []
+    conditions.append(f"type == '{topology}'")
+    conditions.append(f"scenario == '{scenario}'")
+    conditions.append(f"{param_name} == {param_value}")
     
     # Add time conditions if provided
     if time_range:
         start_time, end_time = time_range
         if start_time is not None:
-            query_str += f" and t >= {start_time}"
+            conditions.append(f"t >= {start_time}")
         if end_time is not None:
-            query_str += f" and t <= {end_time}"
+            conditions.append(f"t <= {end_time}")
+    
+    # Combine conditions
+    query = " and ".join(conditions)
     
     # Read only needed columns
     columns = ['t', 'avg_state', 'model_run', param_name, 'type', 'scenario']
     
-    # Dictionary to store trajectories
-    trajectories = {}
-    run_count = 0
-    
     try:
-        # Process the file in chunks to reduce memory usage
-        for chunk in pd.read_csv(filepath, usecols=columns, chunksize=chunk_size):
-            # Filter chunk
-            filtered_chunk = chunk.query(query_str)
-            
-            if filtered_chunk.empty:
-                continue
-                
-            # Get unique run IDs in this chunk
-            chunk_run_ids = filtered_chunk['model_run'].unique()
-            
-            # Process each run
-            for run_id in chunk_run_ids:
-                # Skip if we already have enough runs
-                if run_count >= max_runs and run_id not in trajectories:
-                    continue
-                    
-                # Get data for this run
-                run_data = filtered_chunk[filtered_chunk['model_run'] == run_id]
-                
-                # Initialize trajectory if this is a new run
-                if run_id not in trajectories:
-                    trajectories[run_id] = ([], [])  # (times, states)
-                    run_count += 1
-                
-                # Extract times and states
-                times, states = trajectories[run_id]
-                times.extend(run_data['t'].values)
-                states.extend(run_data['avg_state'].values)
-            
-            # Force garbage collection after each chunk
-            del filtered_chunk
-            gc.collect()
-    
+        # Read data efficiently with vectorized operations
+        filtered_data = pd.read_csv(filepath, usecols=columns).query(query)
     except Exception as e:
         print(f"Error reading data: {e}")
         return {}
     
-    # Sort trajectories by time
-    for run_id in list(trajectories.keys()):
-        times, states = trajectories[run_id]
+    # Early return if no data
+    if filtered_data.empty:
+        print(f"No data found for {topology}, {scenario}, {param_name}={param_value}")
+        return {}
+    
+    # Get unique run IDs and limit to max_runs
+    run_ids = filtered_data['model_run'].unique()
+    
+    if len(run_ids) > max_runs:
+        # Use only the first max_runs IDs for consistency
+        run_ids = sorted(run_ids)[:max_runs]
+    
+    # Extract trajectories for selected runs
+    trajectories = {}
+    
+    for run_id in run_ids:
+        run_data = filtered_data[filtered_data['model_run'] == run_id]
         
-        # Skip if not enough data points
-        if len(times) < 5000:  # Need enough points for inflection analysis
-            del trajectories[run_id]
+        # Sort by timestep
+        run_data = run_data.sort_values('t')
+        
+        # Skip if not enough data points for inflection analysis
+        if len(run_data) < 5000:  # Need enough points for inflection (minimum threshold)
             continue
-            
-        # Sort by time
-        sorted_indices = np.argsort(times)
-        sorted_times = np.array(times)[sorted_indices]
-        sorted_states = np.array(states)[sorted_indices]
         
-        # Store sorted arrays
-        trajectories[run_id] = (sorted_times, sorted_states)
+        # Extract time and state
+        times = run_data['t'].values
+        states = run_data['avg_state'].values
+        
+        # Store as trajectory
+        trajectories[run_id] = (times, states)
+    
+    # Store in cache
+    trajectory_cache.set(cache_key, trajectories)
     
     print(f"Extracted {len(trajectories)} trajectories")
     return trajectories
 
 def calculate_convergence_rates(trajectories):
-    """Calculate convergence rates for a set of trajectories."""
+    """Calculate convergence rates for a set of trajectories using optimized vectorized operations."""
     rates = []
-    count = 0
     
     for run_id, (times, states) in trajectories.items():
-        try:
-            # Find inflection point
-            inflection_idx = find_inflection(states)
-            
-            # Calculate rate if inflection point found
-            if inflection_idx:
-                rate = estimate_convergence_rate(states, loc=inflection_idx)
-                if rate != 0:
-                    rates.append(rate * 1000)  # Scale for visualization
-        except Exception as e:
-            print(f"Error calculating rate for run {run_id}: {e}")
+        # Find inflection point
+        inflection_idx = find_inflection(states)
         
-        # Periodically force garbage collection 
-        count += 1
-        if count % 10 == 0:
-            gc.collect()
+        # Calculate rate if inflection point found
+        if inflection_idx:
+            rate = estimate_convergence_rate(states, loc=inflection_idx)
+            if rate != 0:
+                rates.append(rate * 1000)  # Scale for visualization
     
     return rates
+
+def process_scenario(args):
+    """Process a single scenario for efficient parallel execution."""
+    filepath, topology, scenario, param_name, param_values, time_range = args
+    
+    print(f"Processing {topology} - {scenario}")
+    
+    results = {
+        'rates': {},
+        'distributions': {},
+        'param_values': param_values
+    }
+    
+    for val in param_values:
+        # Extract trajectories
+        trajectories = extract_trajectories(
+            filepath, topology, scenario, param_name, val, time_range
+        )
+        
+        # Calculate rates
+        rates = calculate_convergence_rates(trajectories)
+        
+        if rates:
+            results['rates'][val] = np.median(rates)
+            results['distributions'][val] = rates
+            
+    return scenario, results
 
 def create_heatmap_for_topology(topology, valid_scenarios, results, rewiring_modes):
     """Create heatmap visualization for a single topology with all valid scenarios."""
@@ -461,17 +514,23 @@ def create_heatmap_for_topology(topology, valid_scenarios, results, rewiring_mod
     
     plt.close()
     print(f"Saved heatmap for topology {topology}")
-    gc.collect()  # Force garbage collection after saving
 
 def create_convergence_heatmaps(filepath, scenarios, topologies, rewiring_modes, param_values, 
-                              param_name='polarisingNode_f', time_range=None):
+                              param_name='polarisingNode_f', time_range=None,
+                              n_processes=None):
     """Create heatmaps showing convergence rate distributions for each topology and scenario."""
     print("Creating convergence rate heatmaps...")
     
     # Create output directory
     os.makedirs('../Figs/ConvergenceRates', exist_ok=True)
     
-    # Process each topology sequentially to minimize memory usage
+    # Set number of processes
+    if n_processes is None:
+        n_processes = min(multiprocessing.cpu_count() - 1, 8)  # Leave one core free
+    
+    print(f"Using {n_processes} parallel processes")
+    
+    # Process each topology
     for topology in topologies:
         print(f"\nProcessing topology: {topology}")
         
@@ -483,23 +542,13 @@ def create_convergence_heatmaps(filepath, scenarios, topologies, rewiring_modes,
         
         # Only test one parameter value to see if there's any data
         test_param_value = param_values[param_name][0]
-        
         for scenario in scenarios:
-            try:
-                print(f"Checking if data exists for {topology}/{scenario}")
-                trajectories = extract_trajectories(
-                    filepath, topology, scenario, param_name, test_param_value, time_range, max_runs=1
-                )
-                
-                if trajectories:
-                    valid_scenarios.append(scenario)
-                    print(f"Found data for {topology}/{scenario}")
-                
-                # Clear trajectories to free memory
-                trajectories.clear()
-                gc.collect()
-            except Exception as e:
-                print(f"Error checking data for {scenario}: {e}")
+            trajectories = extract_trajectories(
+                filepath, topology, scenario, param_name, test_param_value, time_range, max_runs=1
+            )
+            
+            if trajectories:
+                valid_scenarios.append(scenario)
         
         if not valid_scenarios:
             print(f"No data for topology {topology}, skipping")
@@ -507,55 +556,26 @@ def create_convergence_heatmaps(filepath, scenarios, topologies, rewiring_modes,
         
         print(f"Found data for {len(valid_scenarios)} scenarios: {valid_scenarios}")
         
-        # Process each scenario sequentially
-        for scenario in valid_scenarios:
-            print(f"Processing scenario: {scenario}")
-            
-            try:
-                # Process scenario
-                scenario_results = {
-                    'rates': {},
-                    'distributions': {},
-                    'param_values': param_values[param_name]
-                }
-                
-                for val_idx, val in enumerate(param_values[param_name]):
-                    print(f"  Parameter {param_name}={val} ({val_idx+1}/{len(param_values[param_name])})")
-                    
-                    # Extract trajectories
-                    trajectories = extract_trajectories(
-                        filepath, topology, scenario, param_name, val, time_range, max_runs=50
-                    )
-                    
-                    # Calculate rates
-                    rates = calculate_convergence_rates(trajectories)
-                    
-                    if rates:
-                        scenario_results['rates'][val] = np.median(rates)
-                        scenario_results['distributions'][val] = rates
-                    
-                    # Clear trajectories to free memory
-                    trajectories.clear()
-                    gc.collect()
-                
-                # Store results for this scenario
-                all_results[scenario] = scenario_results
-                
-                # Force garbage collection after each scenario
-                gc.collect()
-            
-            except Exception as e:
-                print(f"Error processing scenario {scenario}: {e}")
-                traceback.print_exc()
+        # Prepare arguments for parallel processing
+        args_list = [
+            (filepath, topology, scenario, param_name, param_values[param_name], time_range)
+            for scenario in valid_scenarios
+        ]
+        
+        # Process scenarios in parallel
+        start_time = time.time()
+        with multiprocessing.Pool(processes=n_processes) as pool:
+            results = pool.map(process_scenario, args_list)
+        
+        # Collect results
+        for scenario, scenario_results in results:
+            all_results[scenario] = scenario_results
+        
+        end_time = time.time()
+        print(f"Parallel processing completed in {end_time - start_time:.2f} seconds")
         
         # Create heatmap
         create_heatmap_for_topology(topology, valid_scenarios, all_results, rewiring_modes)
-        
-        # Clear results to free memory
-        all_results.clear()
-        valid_scenarios.clear()
-        gc.collect()
-        print(f"Finished processing topology: {topology}")
 
 def main():
     """Main execution function to create heatmaps for all topologies."""
@@ -564,56 +584,39 @@ def main():
     
     # Get data file path - Modify this path to point to your file
     data_path = get_data_file()  # Interactive file selection
-   
-    
-    print(f"Processing file: {data_path}")
-    print(f"File size: {os.path.getsize(data_path) / (1024 * 1024):.2f} MB")
-    
-    # Force garbage collection before starting
-    gc.collect()
     
     # Analyze data structure
     scenarios, topologies, rewiring_modes, param_values = analyze_data_structure(data_path)
     
-    print(scenarios, topologies, rewiring_modes)
     # CUSTOMIZE HERE: Filter to specific topologies and scenarios
     # Comment out these lines to process all detected topologies/scenarios
-    topologies = ["cl"]  # Only process these topologies
-    scenarios = ["random"]  # Only process these scenarios
+    topologies = ["cl", "FB"]  # Only process these topologies
+    scenarios = ["random", "biased"]  # Only process these scenarios
     
     # CUSTOMIZE HERE: Set time range for analysis (in timesteps)
     # Set to None to use all available timesteps
     time_range = (5000, 30000)  # Only analyze between timesteps 5000 and 30000
     
+    # CUSTOMIZE HERE: Set number of parallel processes
+    # Set to 1 if having issues with multiprocessing in Spyder
+    n_processes = max(1, multiprocessing.cpu_count() - 1)  # Use all but one core
+    
     print(f"Processing topologies: {topologies}")
     print(f"Processing scenarios: {scenarios}")
     print(f"Time range: {time_range}")
+    print(f"Using {n_processes} processes")
     
     # Create convergence rate heatmaps for selected topologies and scenarios
     create_convergence_heatmaps(
         data_path, scenarios, topologies, rewiring_modes, param_values,
-        time_range=time_range
+        time_range=time_range, n_processes=n_processes
     )
     
-    # Final garbage collection
-    gc.collect()
+    print("Processing complete. All heatmaps created successfully.")
 
 if __name__ == "__main__":
     # Track and print total execution time
-    import traceback
-    
-    try:
-        start_time = time.time()
-        main()
-        end_time = time.time()
-        print(f"Total execution time: {end_time - start_time:.2f} seconds")
-    except Exception as e:
-        # Save the crash report to a file
-        crash_file = "heatmap_crash_report.txt"
-        with open(crash_file, "w") as f:
-            f.write(f"Error: {str(e)}\n\n")
-            f.write(traceback.format_exc())
-        
-        print(f"\nERROR: {str(e)}")
-        print(f"Crash report saved to {crash_file}")
-        print("Please check the crash report for details.")
+    start_time = time.time()
+    main()
+    end_time = time.time()
+    print(f"Total execution time: {end_time - start_time:.2f} seconds")

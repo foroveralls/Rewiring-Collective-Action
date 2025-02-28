@@ -35,7 +35,7 @@ def get_optimal_process_count():
 
 if __name__ == '__main__':
     # Constants and Variables
-    numberOfSimulations = 20
+    numberOfSimulations = 30
     numberOfProcessors = get_optimal_process_count()
     lock = multiprocessing.Lock()
     
@@ -95,7 +95,7 @@ if __name__ == '__main__':
                 "rewiringMode": mode,
                 "type": topology,
                 "top_file": top_file,
-                "timesteps": 40000,
+                "timesteps": 45000,
                 "plot": False,
                 **params
             }

@@ -11,6 +11,7 @@ from datetime import date
 # Set the seaborn theme parameters
 
 
+cm = 1/2.54
 # Global settings
 FONT_SIZE = 14
 FRIENDLY_COLORS = {
@@ -24,10 +25,54 @@ FRIENDLY_COLORS = {
     'node2vec': '#44BB99'     # Blue-green
 }
 
+
+
+
+def setup_plotting_style():
+    """Set consistent style elements for all plots"""
+    sns.set_style("white")
+    plt.rcParams.update({
+        'font.family': 'Arial',
+        'font.size': 14,
+        'axes.labelsize': 14,
+        'axes.titlesize': 14,
+        'xtick.labelsize': 14,
+        'ytick.labelsize': 14,
+        'axes.linewidth': 1.5,
+        'lines.linewidth': 1.5,
+        'figure.dpi': 300,
+        'savefig.dpi': 300,
+        'figure.figsize': (11.4*cm, 7*cm), 
+        'grid.alpha': 0.4,
+        'grid.linestyle': '--',
+        'xtick.major.size': 5,
+        'ytick.major.size': 5,
+        'xtick.major.width': 1.5,
+        'ytick.major.width': 1.5,
+        'xtick.direction': 'out',
+        'ytick.direction': 'out'
+    })
+    
+    sns.set_theme(font_scale=FONT_SIZE/12)
+    sns.set(style="ticks")
+    sns.set(rc={
+        'axes.facecolor': 'white',
+        'figure.facecolor': 'white',
+        "axes.grid": True,
+        "grid.color": 'black',  # Changed to white for heatmap
+        'grid.linestyle': 'solid', 
+        "axes.edgecolor": "black",
+        "patch.edgecolor": "black",
+        "patch.linewidth": 0.5,  # Reduced from original
+        "axes.spines.bottom": True,
+        "grid.alpha": 0.4,  # Increased for better visibility
+        "xtick.bottom": True,
+        "ytick.left": True
+    })
+    
+    pass
 # Set the seaborn theme parameters
-plt.rcParams.update({'font.size': FONT_SIZE})
-plt.rcParams['ps.fonttype'] = 42
-plt.rcParams['pdf.fonttype'] = 42
+
 sns.set_theme(font_scale=FONT_SIZE/14)  # Default font size is 12, so scale accordingly
 sns.set(style="ticks")
 sns.set(rc={'axes.facecolor':'white', 
@@ -39,9 +84,9 @@ sns.set(rc={'axes.facecolor':'white',
             'grid.linestyle': 'dotted', 
             "axes.edgecolor": "black", 
             "patch.edgecolor": "black",
-            "patch.linewidth": 0, 
+            "patch.linewidth": 0.5, 
             "axes.spines.bottom": True, 
-            "grid.alpha": 0.5, 
+            "grid.alpha": 0.8, 
             "xtick.bottom": True, 
             "ytick.left": True})
 
@@ -142,7 +187,7 @@ def plot_convergence_rates(rates_df, output_path):
     using traditional statistical physics markers in black and white"""
     plt.rcParams['pdf.fonttype'] = 42
     plt.rcParams['ps.fonttype'] = 42
-    plt.figure(figsize=(12, 8))
+    plt.figure(figsize=(11, 8))
     
     # Calculate median rate for each scenario to determine order
     scenario_medians = rates_df.groupby('scenario')['rate'].median().sort_values(ascending=False)
@@ -212,7 +257,7 @@ def plot_convergence_rates(rates_df, output_path):
     
     # Place legend
     plt.legend(handles=legend_elements, title="Network Topology", 
-              loc='upper left', bbox_to_anchor=(0.85, 0.95))
+              loc='upper left', bbox_to_anchor=(0.80, 0.95))
     
     plt.yticks(fontsize=FONT_SIZE)
     
@@ -230,17 +275,6 @@ def plot_convergence_rates(rates_df, output_path):
                 metadata={'Creator': "Jordan", 'Producer': None})
     plt.show()
     plt.close()
-# # Update friendly names to be more concise for publication
-# friendly_names = {
-#     'none_none': 'static',
-#     'random_none': 'random',
-#     'biased_same': 'similar',
-#     'biased_diff': 'opposite',
-#     'bridge_same': 'bridge-s',
-#     'bridge_diff': 'bridge-o',
-#     'wtf_none': 'wtf',
-#     'node2vec_none': 'n2vec'
-# }
 
 def main():
     # Get list of relevant output files
@@ -282,13 +316,16 @@ def main():
     N = file_list[file_index].split("_")[5]  # Extract N from filename
     output_path = f"../Figs/Convergence/convergence_rates_N{N}_{date.today()}.pdf"
     
+    setup_plotting_style()
+    
     # Create and save the plot
     plot_convergence_rates(rates_df, output_path)
     print(f"Convergence rate plot saved to: {output_path}")
     
     # Print summary statistics with friendly names
     print("\nConvergence Rate Summary Statistics:")
-    print(rates_df.groupby(['scenario'])['rate'].describe())
+    (rates_df.groupby(['scenario'])['rate'].describe())
+    print()
     
     return rates_df
 

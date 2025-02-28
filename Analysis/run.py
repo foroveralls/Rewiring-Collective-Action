@@ -56,7 +56,7 @@ if  __name__ ==  '__main__':
             
     #Constants and Variables
 
-    numberOfSimulations = 4
+    numberOfSimulations = 90
     #numberOfProcessors = int(0.5 * multiprocessing.cpu_count())  # Reduced from 0.5
 
     # Update the number of processors
@@ -112,8 +112,8 @@ if  __name__ ==  '__main__':
     # Combine all lists
     combined_list = combined_list1 + combined_list_rand + combined_list2 + combined_list3 + combined_list4
     
-    #combined_list = [("node2vec", "None", "cl"), ("node2vec", "None", "DPAH")]
-    #combined_list =[("biased", "diff", "FB")]
+    #combined_list = [("node2vec", "None", "cl")]#("node2vec", "None", "DPAH")]
+  
 
     out_list = []
     for i, v, k in combined_list:
@@ -138,7 +138,7 @@ if  __name__ ==  '__main__':
         
         ## You can specify simulation parameters here. If they are not set here, they will default to some values set in models.py
         argList.append({"rewiringAlgorithm": i, "nwsize": nwsize, "rewiringMode": v, "type": k,
-                        "top_file": top_file, "polarisingNode_f": 0.10, "timesteps": 40000 , "plot": False})
+                        "top_file": top_file, "polarisingNode_f": 0.10, "timesteps": 5000 , "plot": False})
        
         
         #print (argList)
@@ -208,11 +208,13 @@ if  __name__ ==  '__main__':
         
         # Save the combined averaged DataFrame
         today = date.today()
-        avg_output_file = f'../Output/default_run_avg_N_{nwsize}_n_{numberOfSimulations}_{today}.csv'
+        avg_output_file = f'../Output/default_run_avg_N_{nwsize}_n_ \
+        {numberOfSimulations}_pNf_{argList[0]["polarisingNode_f"]}_pc_{models_checks.politicalClimate}_{today}.csv'
         combined_avg_df.to_csv(avg_output_file, index=False)
         
         # Save the combined individual DataFrame
-        individual_output_file = f'../Output/default_run_individual_N_{nwsize}_n_{numberOfSimulations}_{today}.csv'
+        individual_output_file = f'../Output/default_run_individual_N_{nwsize}_n_ \
+        {numberOfSimulations}_pNf_{argList[0]["polarisingNode_f"]}_pc_{models_checks.politicalClimate}_{today}.csv'
         combined_individual_df.to_csv(individual_output_file, index=False)
         
         print(f"Averaged output saved to {avg_output_file}")

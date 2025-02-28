@@ -1,0 +1,2 @@
+total_algorithms,vs_static_rate_count,vs_static_rate_pct,vs_static_coop_count,vs_static_coop_pct,vs_random_rate_count,vs_random_rate_pct,vs_random_coop_count,vs_random_coop_pct,directed_vs_static_rate_pct,undirected_vs_static_rate_pct
+2139,1751,81.86068256194483,1361,63.62786348761104,1264,59.093034128097244,873,40.813464235624124,91.69520547945206,70.03089598352214

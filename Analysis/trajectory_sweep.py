@@ -13,7 +13,7 @@ def init(lock_):
 
 if __name__ == '__main__':
     # Constants and Variables
-    numberOfSimulations = 3  # Increased for statistical significance
+    numberOfSimulations = 90  # Increased for statistical significance
     numberOfProcessors = int(0.8 * multiprocessing.cpu_count())
     lock = multiprocessing.Lock()
     
@@ -41,7 +41,7 @@ if __name__ == '__main__':
     
     # Parameter sweep configuration
     parameters = {
-        "polarisingNode_f": np.linspace(0, 1, 2)
+        "polarisingNode_f": np.linspace(0, 1, 10)
     }
     param_product = [dict(zip(parameters.keys(), x)) for x in product(*parameters.values())]
 
@@ -64,7 +64,7 @@ if __name__ == '__main__':
                 nwsize = 786
             else:
                 top_file = None
-                nwsize = 250
+                nwsize = 800
 
             # Prepare simulation arguments
             sim_args = {
@@ -73,7 +73,7 @@ if __name__ == '__main__':
                 "rewiringMode": mode,
                 "type": topology,
                 "top_file": top_file,
-                "timesteps": 10,
+                "timesteps": 45000,
                 "plot": False,
                 **params  # Include sweep parameters
             }

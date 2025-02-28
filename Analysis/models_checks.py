@@ -554,15 +554,15 @@ class Model:
                
                    
            if rewired == True: #links are only broken if a link is established
+               if random.random() < breaklinkprob:
+                    init_neighbours =  list(self.graph.adj[nodeIndex].keys())
+                    if(len(init_neighbours) < 2):
+                        return nodeIndex
                 
-                init_neighbours =  list(self.graph.adj[nodeIndex].keys())
-                if(len(init_neighbours) < 2):
-                    return nodeIndex
-            
-                else:
-                     #print('breaking a link')
-                     breaklinkNeighbourIndex = init_neighbours[random.randint(0, len(init_neighbours)-1)]
-                     self.graph.remove_edge(nodeIndex, breaklinkNeighbourIndex)
+                    else:
+                         #print('breaking a link')
+                         breaklinkNeighbourIndex = init_neighbours[random.randint(0, len(init_neighbours)-1)]
+                         self.graph.remove_edge(nodeIndex, breaklinkNeighbourIndex)
 
 
     def bridgerewiring(self, nodeIndex):
@@ -742,16 +742,20 @@ class Model:
             
         similar_agents = get_similar_agents(nodeIndex)
         if not similar_agents:
-            return False
+            return False, []
             
         similar_neighbours = np.array([x for x, y in similar_agents])
         sim = similar_neighbours[0]
         
         sim, neighbours = self.neighbours_check(nodeIndex, sim, similar_neighbours)
+       
         if sim is None:
-            return False
-            
-        return self.rewire(nodeIndex, sim)
+            return False, False
+        
+        sim_neighbours = list(self.graph.adj[sim].keys()) if sim is not None else []
+        affected_nodes = [sim] + sim_neighbours
+        
+        return self.rewire(nodeIndex, sim), affected_nodes
          
             
         
@@ -783,101 +787,117 @@ class Model:
             self.train_node2vec()
             self.trained = True
     
-        rewired = self.node2vec_rewire(nodeIndex)
+        rewired, affected = self.node2vec_rewire(nodeIndex)
            
         if rewired:
+            self.affected_nodes.append(nodeIndex)
+            self.affected_nodes.extend(affected)
             self.trained = False
               
             
           
 
-    def wtf_1(self, topk=5, alpha=0.70, max_iter=50):
-        
-        TOPK = topk
-
+    def _get_personalized_recommendations(self, nodeIndex, topk=5):
+        """Get personalized recommendations for a specific node"""
         # Convert NetworkX graph to rustworkx graph
         G = rx.networkx_converter(self.graph)
         
-        def _ppr(nodeIndex, G, p, top, max_iter):
-            pp = {node: 0 for node in G.nodes()}
-            pp[nodeIndex] = 1.0
-            pr = rx.pagerank(G, alpha=p, personalization=pp, max_iter=max_iter)
-            pr_values = np.array(list(pr.values()))
-            pr_indices = np.argsort(pr_values)[::-1]
-            pr_indices = pr_indices[pr_indices != nodeIndex][:top]
-            return pr_indices
-
-        def get_circle_of_trust_per_node(G, p, top, max_iter):
-            return [_ppr(nodeIndex, G, p, top, max_iter) for nodeIndex in range(len(G.nodes()))]
-
-        def frequency_by_circle_of_trust(G, cot_per_node, top):
-            unique_elements, counts_elements = np.unique(np.concatenate(cot_per_node), return_counts=True)
-            count_dict = {el: count for el, count in zip(unique_elements, counts_elements)}
-            return [count_dict.get(nodeIndex, 0) for nodeIndex in range(len(G.nodes()))]
-
-        def _salsa(nodeIndex, cot, G, top):
-            BG = rx.PyGraph()
-            hubs = [f'h{vi}' for vi in cot]
-            hub_indices = BG.add_nodes_from(hubs)
-            edges = [(f'h{vi}', vj) for vi in cot for vj in G.neighbors(vi)]
-            authorities = list(set(e[1] for e in edges))
-            auth_indices = BG.add_nodes_from(authorities)
-            
-            hub_index_map = {h: idx for idx, h in enumerate(hubs)}
-            auth_index_map = {a: idx for idx, a in enumerate(authorities)}
-            
-            edges = [(hub_index_map[f'h{vi}'], auth_index_map[vj]) for vi, vj in edges if f'h{vi}' in hub_index_map and vj in auth_index_map]
-            
-            BG.add_edges_from(edges)
-            centrality = rx.eigenvector_centrality(BG)
-            centrality = {n: c for n, c in centrality.items() if isinstance(n, int) and n not in cot and n != nodeIndex and n not in G.neighbors(nodeIndex)}
-            sorted_centrality = sorted(centrality.items(), key=lambda item: item[1], reverse=True)
-            return np.array([n for n, _ in sorted_centrality[:top]])
-
-        def frequency_by_who_to_follow(G, cot_per_node, top):
-            results = [_salsa(nodeIndex, cot, G, top) for nodeIndex, cot in enumerate(cot_per_node)]
-            unique_elements, counts_elements = np.unique(np.concatenate(results), return_counts=True)
-            count_dict = {el: count for el, count in zip(unique_elements, counts_elements)}
-            return [count_dict.get(nodeIndex, 0) for nodeIndex in range(len(G.nodes()))]
-
-        def wtf_full_old(G, alpha, top, max_iter):
-            cot_per_node = get_circle_of_trust_per_node(G, alpha, top, max_iter)
-            wtf = frequency_by_who_to_follow(G, cot_per_node, top)
-            return wtf
-
-        # Calculate recommendations 
-        self.ranking = wtf_full_old(G, alpha, TOPK, max_iter)
+        # Get circle of trust for this specific node
+        pp = {node: 0 for node in G.nodes()}
+        pp[nodeIndex] = 1.0
+        pr = rx.pagerank(G, alpha=0.70, personalization=pp, max_iter=50)
+        pr_values = np.array(list(pr.values()))
+        pr_indices = np.argsort(pr_values)[::-1]
+        pr_indices = pr_indices[pr_indices != nodeIndex][:topk]
+        cot = pr_indices
         
-        return
+        # Use SALSA to get recommendations based on this node's circle of trust
+        BG = rx.PyGraph()
+        hubs = [f'h{vi}' for vi in cot]
+        hub_indices = BG.add_nodes_from(hubs)
+        edges = [(f'h{vi}', vj) for vi in cot for vj in G.neighbors(vi)]
+        authorities = list(set(e[1] for e in edges))
+        auth_indices = BG.add_nodes_from(authorities)
+        
+        hub_index_map = {h: idx for idx, h in enumerate(hubs)}
+        auth_index_map = {a: idx for idx, a in enumerate(authorities)}
+        
+        edges = [(hub_index_map[f'h{vi}'], auth_index_map[vj]) for vi, vj in edges 
+                 if f'h{vi}' in hub_index_map and vj in auth_index_map]
+        
+        BG.add_edges_from(edges)
+        centrality = rx.eigenvector_centrality(BG)
+        centrality = {n: c for n, c in centrality.items() 
+                      if isinstance(n, int) and n not in cot and n != nodeIndex 
+                      and n not in G.neighbors(nodeIndex)}
+        sorted_centrality = sorted(centrality.items(), key=lambda item: item[1], reverse=True)
+        recommendations = np.array([n for n, _ in sorted_centrality[:topk]])
+        
+        return recommendations
       
  
-    def wtf_rewire(self, nodeIndex):
-        rewireIndex = np.argmax(self.ranking)
-        rewireIndex, neighbours = self.neighbours_check(nodeIndex, rewireIndex, self.ranking)
+    # def wtf_rewire(self, nodeIndex):
+    #     rewireIndex = np.argmax(self.ranking)
+    #     rewireIndex, neighbours = self.neighbours_check(nodeIndex, rewireIndex, self.ranking)
         
+    #     rewired = self.rewire(nodeIndex, rewireIndex)
+        
+    #     if rewired:    
+    #         brokenIndex = self.break_link(nodeIndex, rewireIndex, neighbours)
+    #         #need to check how brokenIndex works here
+    #         self.affected_nodes += [nodeIndex, rewireIndex, brokenIndex]
+            
+    #     return rewired
+            
+
+
+    def wtf_rewire(self, nodeIndex):
+        """Rewire based on personalized recommendations"""
+        # Get personalized recommendations for this node
+        recommendations = self._get_personalized_recommendations(nodeIndex)
+        
+        # If no recommendations, return False
+        if len(recommendations) == 0:
+            return False
+        
+        # Find the first recommended node that's not already a neighbor
+        neighbours = list(self.graph.adj[nodeIndex].keys())
+        rewireIndex = None
+        
+        for rec in recommendations:
+            if rec not in neighbours:
+                rewireIndex = rec
+                break
+        
+        # If no valid recommendation found
+        if rewireIndex is None:
+            return False
+        
+        # Rewire to the recommended node
         rewired = self.rewire(nodeIndex, rewireIndex)
         
-        if rewired:    
-            brokenIndex = self.break_link(nodeIndex, rewireIndex, neighbours)
-            #need to check how brokenIndex works here
-            self.affected_nodes += [nodeIndex, rewireIndex, brokenIndex]
+        # If rewired successfully, break an existing link
+        if rewired:
+            if random.random() < breaklinkprob:
+                brokenIndex, success = self.break_link(nodeIndex, rewireIndex, neighbours)
+                if success:
+                    # Track affected nodes for future retraining
+                    self.affected_nodes += [nodeIndex, rewireIndex, brokenIndex]
             
         return rewired
             
-
-        
     def call_wtf(self, nodeIndex):
         #checking if the ranking has been affected by rewiring previously
-        if not self.trained and nodeIndex in self.affected_nodes:
-            #self.retrain += 1 
-            self.wtf_1()
-            self.affected_nodes = []
-            self.trained = True
+        # if not self.trained and nodeIndex in self.affected_nodes:
+        #     #self.retrain += 1 
+        #     self.wtf_1()
+        #     self.affected_nodes = []
+        #     self.trained = True
         
-        rewired = self.wtf_rewire(nodeIndex)
+        self.wtf_rewire(nodeIndex)
         
-        if rewired:
-            self.trained = False
+        # if rewired:
+        #     self.trained = False
     
 
 
@@ -969,10 +989,10 @@ class Model:
             self.trained = True
             #print("initial training complete")
             
-        elif args["rewiringAlgorithm"] in "wtf":
-            self.wtf_1()
-            self.trained = True
-            #print("initial training complete")
+        # elif args["rewiringAlgorithm"] in "wtf":
+        #     self.wtf_1()
+        #     self.trained = True
+        #     #print("initial training complete")
        
         for i in range(steps):
             
@@ -1537,10 +1557,10 @@ def test_run():
     start = time.time()
     plt.figure()
     model_array = []
-    for i in range(6):
+    for i in range(5):
         print(i)
-        args.update({"type": "FB", "plot": False, "top_file": f"{fb}.gpickle", "timesteps": 2, "rewiringAlgorithm": "biased",
-                      "rewiringMode": "diff", "nwsize":786})
+        args.update({"type": "DPAH", "plot": False, "top_file": f"{twitter}.gpickle", "timesteps": 15000, "rewiringAlgorithm": "node2vec",
+                      "rewiringMode": "diff", "nwsize":300})
         #nwsize has to equal empirical network size 
         model = simulate(1, args)
         init_states.append(model.states[0])
