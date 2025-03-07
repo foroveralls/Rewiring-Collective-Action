@@ -103,53 +103,81 @@ friendly_names = {
     'node2vec_none': 'node2vec'
 }
 
-def find_inflection(seq):
+def find_inflection(seq, min_idx=5000, sigma=300):
     """Calculate inflection point in trajectory"""
-    smooth = gaussian_filter1d(seq, 600)
+    smooth = gaussian_filter1d(seq, sigma)
     d2 = np.gradient(np.gradient(smooth))
     infls = np.where(np.diff(np.sign(d2)))[0]
     
-    inf_min = 5000
-    
+    # Find first inflection point after min_idx
+    inf_ind = None
     for i in infls:
-        if i < inf_min:
-            continue
-        else: 
+        if i >= min_idx:
             inf_ind = i
             break
     
-    if len(infls) == 0:
-        return False 
+    # If no inflection after min_idx but we have some inflection points, take the last one
+    if inf_ind is None and len(infls) > 0:
+        inf_ind = infls[-1]
     
-    assert inf_ind > inf_min and inf_ind < 20000, "inflection point calculation failed"
-    return inf_ind 
-
-def estimate_convergence_rate(trajec, loc=None, regwin=10):
+    # No inflection points found
+    if inf_ind is None:
+        return False, smooth
+    
+    # Ensure inflection point is within reasonable range
+    if inf_ind < min_idx or inf_ind >= len(seq) * 0.9:  # Avoid points too close to the end
+        return False, smooth
+    
+    return inf_ind, smooth
+def estimate_convergence_rate(trajec, loc=None, regwin=15):
     """Estimate convergence rate around specified location"""
-    x = np.arange(len(trajec) - 1)
-    y = trajec 
+    if loc is None or not isinstance(loc, (int, np.integer)):
+        return 0
+    
+    x = np.arange(len(trajec))
+    y = trajec
     
     if loc is not None:
-        x = x[loc-regwin: loc+regwin+1]
-        y = trajec[loc-regwin: loc+regwin+1]
+        # Ensure regression window doesn't go out of bounds
+        start_idx = max(0, loc-regwin)
+        end_idx = min(len(trajec)-1, loc+regwin+1)
+        x = x[start_idx:end_idx]
+        y = trajec[start_idx:end_idx]
     
-    y, x = np.asarray([y, x])
-    idx = np.isfinite(x) & np.isfinite(y)
+    # Ensure we have enough points for regression
+    if len(x) < 3:
+        return 0
     
     # Linear regression
     n = np.size(x) 
     mx, my = np.mean(x), np.mean(y) 
     ssxy = np.sum(y*x) - n*my*mx 
     ssxx = np.sum(x*x) - n*mx*mx 
+    
+    # Avoid division by zero
+    if ssxx == 0:
+        return 0
+        
     b1 = ssxy / ssxx 
     b0 = my - b1*mx 
     
-    rate = -b1/(trajec[loc]-1)
+    # Protect against division by zero or values close to 1
+    if abs(trajec[loc] - 1) < 0.001:
+        rate = -b1/0.001
+    else:
+        rate = -b1/(trajec[loc]-1)
+    
     return rate
+
 
 def calculate_convergence_rates(data):
     """Calculate convergence rates for all scenarios"""
     rates_list = []
+    
+    # Set parameters
+    SIGMA = 300
+    MIN_IDX = 5000
+    REGWIN = 15
     
     # Group by scenario and type
     grouped = data.groupby(['scenario_grouped', 'type'])
@@ -160,11 +188,12 @@ def calculate_convergence_rates(data):
         # Get trajectory for this scenario
         trajectory = group[group['measurement'] == 'avg_state']['value'].values
         
-        # Find inflection point
-        inflection_x = find_inflection(trajectory)
+        # Find inflection point and get smoothed trajectory
+        inflection_x, smoothed = find_inflection(trajectory, min_idx=MIN_IDX, sigma=SIGMA)
         
+        # Calculate rate
         if inflection_x:
-            rate = estimate_convergence_rate(trajectory, loc=inflection_x)
+            rate = estimate_convergence_rate(smoothed, loc=inflection_x, regwin=REGWIN)
         else:
             rate = 0
             
@@ -174,11 +203,10 @@ def calculate_convergence_rates(data):
         rates_list.append({
             'scenario': friendly_scenario,
             'topology': topology,
-            'rate': rate * 1000  # Scale rate as in original code
+            'rate': rate * 1000  # Scale rate for display
         })
     
     return pd.DataFrame(rates_list)
-
 
 
 

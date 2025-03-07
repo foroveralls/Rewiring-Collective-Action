@@ -5,39 +5,45 @@ import numpy as np
 import matplotlib.pyplot as plt
 from datetime import date
 from matplotlib.lines import Line2D
-from matplotlib.ticker import FuncFormatter
-from matplotlib.ticker import AutoMinorLocator
+from matplotlib.ticker import FuncFormatter, ScalarFormatter, AutoMinorLocator
+import matplotlib.ticker as ticker
+from matplotlib import rcParams
 
-params = {"line_width": 1.1}
-
+# Line width parameters - organized by element type for clarity
+line_params = {
+    "data_line_width": 0.7,   # Width of actual data lines
+    "axis_line_width": 1.0,   # Width of axis spines
+    "grid_line_width": 0.5,   # Width of grid lines
+    "tick_major_width": 1.2,  # Width of major tick marks
+    "tick_minor_width": 0.8,  # Width of minor tick marks
+    "markersize" : 3
+    
+}
 
 cm = 1/2.54
 
+FONT_SIZE = 7
+SAVE_SIZE = (17.8*cm, 8.9*cm)
 def set_plot_style():
     """Set consistent style elements for all plots"""
     sns.set_style("white")
     plt.rcParams.update({
-        'font.family': 'Arial',
-        'font.size': 14,
-        'axes.labelsize': 14,
-        'axes.titlesize': 14,
-        'xtick.labelsize': 14,
-        'ytick.labelsize': 14,
-        'axes.linewidth': 1.5,
-        'lines.linewidth': 1.5,
+        'font.size': FONT_SIZE,
+        'axes.labelsize': FONT_SIZE,
+        'axes.titlesize': FONT_SIZE,
+        'xtick.labelsize': FONT_SIZE,
+        'ytick.labelsize': FONT_SIZE,
+        'axes.linewidth': line_params["axis_line_width"],  # Control axis border thickness
+        'lines.linewidth': 1.5,  # Default line width (overridden for data lines)
         'figure.dpi': 300,
         'savefig.dpi': 300,
         'figure.figsize': (17.8*cm, 8.9*cm),
         'grid.alpha': 0.4,
         'grid.linestyle': '--',
-        'xtick.major.size': 5,
-        'ytick.major.size': 5,
-        'xtick.major.width': 1.5,
-        'ytick.major.width': 1.5,
-        'xtick.direction': 'out',
-        'ytick.direction': 'out'
+        'mathtext.default': 'regular',
+        'axes.formatter.use_mathtext': True,
+        'axes.axisbelow': True  # Make sure grid is below everything
     })
-
 
 
 def process_data(data, t_max):
@@ -88,10 +94,149 @@ PLOT_COLORS = {
     'node2vec_none': '#44BB99' # Blue-green
 }
 
+# Mapping of network type codes to display names
+NETWORK_DISPLAY_NAMES = {
+    'cl': 'CSF',
+    'DPAH': 'DPAH',
+    'Twitter': 'Twitter',
+    'FB': 'FB'
+}
 
+def ensure_grid_visibility(ax):
+    """Apply aggressive grid visibility settings to an axis"""
+    # Clear any existing grid
+    ax.grid(False)
+    
+    # Set the background color to very light gray to make the grid more visible
+    ax.set_facecolor('white')
+    
+    # Draw a new grid with strong visibility settings
+    ax.grid(
+        True,
+        which='major',
+        color='gray',     # Specific color
+        linestyle='--',
+        linewidth=line_params["grid_line_width"],    # Use parameter for grid line width
+        alpha=0.3,        # Higher alpha
+        zorder=1          # Very low zorder to ensure it's behind everything
+    )
+    
+    # Ensure the grid is behind other elements
+    ax.set_axisbelow(True)
+    
+    # After setting the grid, we need to make sure data and spines have higher zorder
+    for line in ax.get_lines():
+        line.set_zorder(10)  # Ensure lines are above grid
+    
+    # Make spines very prominent
+    for spine in ax.spines.values():
+        spine.set_visible(True)
+        spine.set_zorder(100)  # Highest zorder
+        spine.set_linewidth(line_params["axis_line_width"])  # Use parameter for spine width
+
+def apply_grid_fix(plot_obj, output_file=None):
+    """Apply grid fixes to either a relplot or a figure with axes"""
+    if hasattr(plot_obj, 'axes') and hasattr(plot_obj, 'fig'):  # For relplot objects
+        for ax in plot_obj.axes.flat:
+            ensure_grid_visibility(ax)
+        fig = plot_obj.fig
+    else:  # For regular figure objects
+        for ax in plot_obj.axes:
+            if hasattr(ax, 'get_lines') and len(ax.get_lines()) > 0:  # Only apply to actual plot axes
+                ensure_grid_visibility(ax)
+        fig = plot_obj
+    
+    # Now save the plot if an output file was specified
+    if output_file:
+        fig.savefig(output_file, dpi=300, bbox_inches='tight')
+    
+    return plot_obj
+
+def apply_grid_fix_to_network_dynamics(data, t_max=50, output_file=None):
+    # Create the plot using the existing function
+    g = plot_network_dynamics(data, t_max, None)  # Don't save yet
+    return apply_grid_fix(g, output_file)
+
+def apply_grid_fix_to_single_topology(data, t_max=50, output_file=None):
+    # Create the plot using the existing function
+    fig = plot_single_topology_dynamics(data, t_max, None)  # Don't save yet
+    return apply_grid_fix(fig, output_file)
+
+def configure_axis_style(ax, t_max):
+    """Apply common axis styling configuration"""
+    ax.set_ylim(-0.6, 1.1)
+    ax.set_xlim(0, t_max)
+    
+    # Make sure grid is drawn and visible
+    ax.grid(True, alpha=0.4, linestyle='--', which='major', zorder=5)
+    ax.set_axisbelow(True)
+    
+    # Set spine width and ensure they're on top
+    for spine in ax.spines.values():
+        spine.set_visible(True) 
+        spine.set_linewidth(line_params["axis_line_width"])  # Use parameter
+        spine.set_zorder(100)  # Make sure spines are on top
+
+    # Set x-ticks with scientific notation (×10^n format)
+    sci_formatter = ScalarFormatter(useMathText=True)
+    sci_formatter.set_scientific(True)
+    sci_formatter.set_powerlimits((-2, 1))  # Force scientific notation
+    sci_formatter._precision = 2  # Set precision directly (more digits)
+    ax.xaxis.set_major_formatter(sci_formatter)
+    ax.set_xticks([0, 10000, 20000, 30000, 40000])
+    
+    # Set y-ticks
+    ax.set_yticks([-0.5, -0.25, 0, 0.25, 0.5, 0.75, 1.0])
+    
+    # NEW CODE: Add formatter for y-axis to display only one decimal place
+    ax.yaxis.set_major_formatter(plt.FormatStrFormatter('%.1f'))
+    
+    # Add minor tick locators
+    ax.xaxis.set_minor_locator(AutoMinorLocator(5))
+    ax.yaxis.set_minor_locator(AutoMinorLocator(2))
+    
+    # Reset and set tick parameters
+    for axis in ['x', 'y']:
+        # Reset existing tick parameters
+        ax.tick_params(axis=axis, reset=True)
+        
+        # Set major ticks with higher zorder
+        ax.tick_params(
+            axis=axis, 
+            which='major', 
+            direction='out', 
+            length=5, 
+            width=line_params["tick_major_width"],  # Use parameter
+            colors='black',
+            zorder=100,  # High zorder to ensure visibility
+            bottom=True, top=False, left=True, right=False,  # Explicit positioning
+            labelbottom=True, labeltop=False, labelleft=True, labelright=False
+        )
+        
+        # Set minor ticks with higher zorder
+        ax.tick_params(
+            axis=axis, 
+            which='minor', 
+            direction='out', 
+            length=3, 
+            width=line_params["tick_minor_width"],  # Use parameter
+            colors='black',
+            zorder=100,  # High zorder to ensure visibility
+            bottom=True, top=False, left=True, right=False,  # Explicit positioning
+            labelbottom=False, labeltop=False, labelleft=False, labelright=False
+        )
+
+def add_markers_for_directed(line, is_directed, measure='avg_state'):
+    """Set line styles without adding markers"""
+    # Only set the line style based on measure, ignore is_directed
+    if measure == 'polarization' or line.get_linestyle() == '--':
+        line.set_linestyle('--')
+        line.set_dashes((4, 2))
+    else:
+        line.set_linestyle('-')  # Explicitly ensure cooperativity lines are solid
 
 def plot_network_dynamics(data, t_max=50, output_file=None):
-    """Plot network dynamics across different network types"""
+    """Plot network dynamics across different network types with improved styling"""
     # Create a mapping for colors based on scenario_grouped and friendly names
     scenario_color_map = {}
     friendly_names = {
@@ -110,86 +255,145 @@ def plot_network_dynamics(data, t_max=50, output_file=None):
         base_scenario = '_'.join(scenario.split('_')[:2]).lower()
         scenario_color_map[scenario] = PLOT_COLORS.get(base_scenario, '#FE6900')
 
-    # Create plot with 2x2 layout
+    # Separate data for directed and undirected networks
+    directed_networks = ['DPAH', 'Twitter']
+    undirected_networks = ['cl', 'FB']
+    
+    # Create separate dataframes for avg_state and polarization
+    avg_state_data = data[data['measure'] == 'avg_state'].copy()
+    polarization_data = data[data['measure'] == 'polarization'].copy()
+
+    # First get the standard figure size from rcParams
+    width, height = plt.rcParams['figure.figsize']
+    
+    # Create plot with 2x2 layout for avg_state - explicitly set linestyle to solid
     g = sns.relplot(
-        data=data,
+        data=avg_state_data,
         x='t', y='value',
         hue='scenario_grouped',
         col='type',
-        style='measure',
-        linewidth= params["line_width"],
+        linewidth=line_params["data_line_width"],
+        linestyle='-',  # Force solid lines for all cooperativity
         kind='line',
-        col_wrap=2,  # Force 2x2 layout
+        col_wrap=2,  # Force a 2x2 layout
         height=4, aspect=1,
         palette=scenario_color_map,
         legend=False  # Remove default legend
     )
 
-    g.set_axis_labels("Time [timestep / system size]", "Value")
-    g.set_titles("{col_name}")
+    g.fig.set_size_inches(11.4*cm, 11.4*cm)
 
-    # Apply consistent styling to all subplot
+    # Add polarization data with dashed lines
+    for ax_idx, ax in enumerate(g.axes.flat):
+        # Get the network type for this subplot
+        network_type = list(avg_state_data['type'].unique())[ax_idx]
+        
+        # Plot polarization data with dashed lines
+        for scenario in polarization_data['scenario_grouped'].unique():
+            pol_data = polarization_data[
+                (polarization_data['scenario_grouped'] == scenario) & 
+                (polarization_data['type'] == network_type)
+            ]
+            
+            if not pol_data.empty:
+                # Plot with dashed lines only (no markers)
+                ax.plot(
+                    pol_data['t'], 
+                    pol_data['value'], 
+                    linestyle='--',  # Always use dashed line for polarization
+                    dashes=(4, 2),   # Explicit dash pattern
+                    color=scenario_color_map[scenario],
+                    linewidth=line_params["data_line_width"]  # Use parameter for data lines
+                )
+
+    g.set_axis_labels("$Time, t$", "Cooperativity, ⟨x⟩")
+    for ax, title in zip(g.axes.flat, [NETWORK_DISPLAY_NAMES.get(network, network) 
+                                 for network in avg_state_data['type'].unique()]):
+        ax.set_title(title)
+    
+    # Apply consistent styling to all subplots
     for ax in g.axes.flat:
-        ax.set_ylim(-0.6, 1.1)
-        ax.set_xlim(0, t_max)
-        ax.grid(True, alpha=0.4, linestyle='--', which='both')
-        ax.set_axisbelow(True)
+        configure_axis_style(ax, t_max)
+    
+    # Adjust spacing between subplots and figure edges - adjusted for better spacing
+    g.fig.subplots_adjust(top=0.86, bottom=0.18, hspace=0.35, wspace=0.22, left=0.1, right=0.95)
+    
+    # After creating the relplot and setting up subplots
+    for i, ax in enumerate(g.axes.flat):
+        configure_axis_style(ax, t_max)
         
-        # Update line styles for polarization
-        for line in ax.lines:
-            if 'polarization' in line.get_label():
-                line.set_linestyle('--')
+        # Determine if this is in the bottom rowcsv
+        # For a 2x2 grid with col_wrap=2, axes 2 and 3 are the bottom row
+        is_bottom_row = i >= 2  # Assuming 4 subplots with indices 0,1,2,3
         
-        # Set spine width
-        for spine in ax.spines.values():
-            spine.set_linewidth(1.5)
+        # Hide x-axis labels for all but bottom row
+        if not is_bottom_row:
+            ax.set_xlabel("")
+            # Hide the scientific notation (×10⁴)
+            ax.xaxis.offsetText.set_visible(False)
+    
+    # Final pass to ensure line styles are correct
+    for ax in g.axes.flat:
+        lines = ax.get_lines()
+        num_scenarios = len(avg_state_data['scenario_grouped'].unique())
+        
+        # First set are cooperativity lines - ensure they're solid
+        for i in range(min(num_scenarios, len(lines))):
+            lines[i].set_linestyle('-')
+        
+        # Remaining lines are polarization - ensure they're dashed
+        for i in range(min(num_scenarios, len(lines)), len(lines)):
+            lines[i].set_linestyle('--')
+            lines[i].set_dashes((4, 2))
+            
+    # Create combined figure legend at top with more space and distance from plot
+    # Moved higher for better separation
+    fig = g.fig
+    legend_ax = fig.add_axes([0.15, 0.90, 0.7, 0.04])  # [left, bottom, width, height] - Moved up
+    legend_ax.axis('off')
+    
+    # Line style legend elements - with simpler labels (no directed/undirected distinction)
+    line_style_elements = [
+        Line2D([], [], color='black', linestyle='-', label='cooperativity'),
+        Line2D([], [], color='black', linestyle='--', dashes=(4, 2), label='polarization')
+    ]
+    # Use 2 columns for the simplified legend
+    legend_ax.legend(handles=line_style_elements, ncol=2, loc='center', 
+                    frameon=True, bbox_to_anchor=(0.5, 0.5),
+                    handletextpad=0.5, columnspacing=0.5, fontsize = FONT_SIZE-1)
 
-        # Set ticks
-        ax.set_xticks([0, 10, 20, 30, 40, 50])
-        ax.set_yticks([-0.5, -0.25, 0, 0.25, 0.5, 0.75, 1.0])
-        ax.tick_params(direction='out', length=5, width=1.5)
-        ax.xaxis.set_minor_locator(AutoMinorLocator())
-        ax.set_xscale('linear')
-
-    # Create measure type legend elements
-    measure_elements = [
-        Line2D([0], [0], color='black', linestyle='-', label='cooperativity'),
-        Line2D([0], [0], color='black', linestyle='--', label='polarization')
+    # Add bottom legend for scenario colors - moved lower for better separation
+    bottom_legend_ax = fig.add_axes([0.15, 0.03, 0.7, 0.05])  # [left, bottom, width, height] - Moved down
+    bottom_legend_ax.axis('off')
+    
+    # Color legend elements - using friendly names
+    color_elements = [
+        Line2D([], [], color=PLOT_COLORS['none_none'], label='static'),
+        Line2D([], [], color=PLOT_COLORS['random_none'], label='random'),
+        Line2D([], [], color=PLOT_COLORS['biased_same'], label='local (similar)'),
+        Line2D([], [], color=PLOT_COLORS['biased_diff'], label='local (opposite)'),
+        Line2D([], [], color=PLOT_COLORS['bridge_same'], label='bridge (similar)'),
+        Line2D([], [], color=PLOT_COLORS['bridge_diff'], label='bridge (opposite)'),
     ]
     
-    # Create scenario legend elements
-    scenario_elements = []
-    for scenario_name, color in PLOT_COLORS.items():
-        if scenario_name in friendly_names:
-            scenario_elements.append(
-                Line2D([0], [0], color=color, label=friendly_names[scenario_name])
-            )
-
-     # Add measure legend at the top right - adjusted position
-    g.fig.legend(handles=measure_elements,
-                title='Measures',
-                bbox_to_anchor=(0.9, 0.9),  # Moved closer to plot
-                loc='upper left',
-                frameon=True)
-
-   # Add scenarios legend below measures - adjusted position
-    g.fig.legend(handles=scenario_elements,
-                title='Scenarios',
-                bbox_to_anchor=(0.9, 0.5),  # Moved closer to plot
-                loc='center left',
-                frameon=True)
-
-    # Adjust layout to make room for legend
-    g.fig.tight_layout()
-    plt.subplots_adjust(right=0.88)  # Make room for the legends
+    # Add wtf and node2vec if they exist in the data
+    if 'wtf_none' in scenario_color_map or any('wtf' in s for s in data['scenario_grouped']):
+        color_elements.append(Line2D([], [], color=PLOT_COLORS['wtf_none'], label='wtf'))
     
+    if 'node2vec_none' in scenario_color_map or any('node2vec' in s for s in data['scenario_grouped']):
+        color_elements.append(Line2D([], [], color=PLOT_COLORS['node2vec_none'], label='node2vec'))
+    
+    bottom_legend_ax.legend(handles=color_elements, ncol=4, loc='center', 
+                          frameon=True, bbox_to_anchor=(0.5, 0.5), fontsize = FONT_SIZE-1,
+                          columnspacing = 0.5)
+
     if output_file:
         plt.savefig(output_file, dpi=300, bbox_inches='tight')
     
     return g
 
 def plot_single_topology_dynamics(data, t_max=50, output_file=None):
-    """Plot single topology dynamics with proper static references and simplified titles"""
+    """Plot single topology dynamics with proper static references and simplified titles with y-axis label Cooperativity"""
     # Setup configurations
     scenario_categories = {
         'none_none': 'static',
@@ -232,25 +436,33 @@ def plot_single_topology_dynamics(data, t_max=50, output_file=None):
     n_plots = len(plot_configs)
     n_cols = min(3, n_plots)
     n_rows = (n_plots + n_cols - 1) // n_cols
-    fig = plt.figure(figsize=(6*n_cols, 5*n_rows + 1.5))
+    fig = plt.figure(figsize=(17.8*cm, 11.2*cm))
     
-    # Add combined line style and network type legend at top
-    legend_ax = fig.add_axes([0.15, 0.95, 0.7, 0.02])
+    # Adjust spacing for the single topology dynamics plot - increased margins
+    top, bottom, hspace, wspace, left, right = 0.90, 0.16, 0.27, 0.22, 0.1, 0.95
+    
+    plot_width = right - left
+    
+    plt.subplots_adjust(top=top, bottom=bottom, hspace=hspace, wspace=wspace, left=left, right=right)
+    
+    # Add combined line style and network type legend at top - moved higher
+    legend_ax = fig.add_axes([left, 0.95, plot_width, 0.05])  # [left, bottom, width, height] - Moved up
     legend_ax.axis('off')
     
-    # Line style legend elements
+    # Line style legend elements - updated to include dashed line with marker
     line_style_elements = [
         Line2D([], [], color='black', linestyle='-', label='cooperativity'),
-        Line2D([], [], color='black', linestyle='--', label='polarization'),
-        Line2D([], [], color='black', linestyle='-', marker='>', markersize=5, 
+        Line2D([], [], color='black', linestyle='--', dashes=(4, 2), label='polarization'),
+        Line2D([], [], color='black', linestyle='-', marker='>', markersize=2, 
                markevery=0.1, label='directed (DPAH)'),
-        Line2D([], [], color='black', linestyle='-', label='undirected (cl)')
+        Line2D([], [], color='black', linestyle='-', label='undirected (CSF)')
     ]
-    legend_ax.legend(handles=line_style_elements, ncol=4, loc='center', 
-                    frameon=True, bbox_to_anchor=(0.5, 0.5))
+    legend_ax.legend(handles=line_style_elements, ncol=5, loc='center', 
+                    frameon=True, bbox_to_anchor=(0.5, 0.5),
+                    fontsize=FONT_SIZE-1)
 
-    # Add bottom legend for scenario colors
-    bottom_legend_ax = fig.add_axes([0.15, 0.005, 0.7, 0.02])
+    # Add bottom legend for scenario colors - moved lower
+    bottom_legend_ax = fig.add_axes([left, 0.03, plot_width, 0.01])  # [left, bottom, width, height] - Moved down
     bottom_legend_ax.axis('off')
     
     # Color legend elements - using friendly names
@@ -258,7 +470,7 @@ def plot_single_topology_dynamics(data, t_max=50, output_file=None):
         Line2D([], [], color=PLOT_COLORS['none_none'], label='static'),
         Line2D([], [], color=PLOT_COLORS['random_none'], label='random'),
         Line2D([], [], color=PLOT_COLORS['biased_same'], label='local (similar)'),
-        Line2D([], [], color=PLOT_COLORS['biased_diff'], label='local (opposite'),
+        Line2D([], [], color=PLOT_COLORS['biased_diff'], label='local (opposite)'),
         Line2D([], [], color=PLOT_COLORS['bridge_same'], label='bridge (similar)'),
         Line2D([], [], color=PLOT_COLORS['bridge_diff'], label='bridge (opposite)'),
         Line2D([], [], color=PLOT_COLORS['wtf_none'], label='wtf'),
@@ -267,8 +479,9 @@ def plot_single_topology_dynamics(data, t_max=50, output_file=None):
     bottom_legend_ax.legend(handles=color_elements, ncol=4, loc='center', 
                           frameon=True, bbox_to_anchor=(0.5, 0.5))
 
-    # Create main subplot grid
-    gs = plt.GridSpec(n_rows, n_cols, figure=fig, top=0.92, bottom=0.1)
+    # Create main subplot grid with adjusted spacing
+    gs = plt.GridSpec(n_rows, n_cols, figure=fig,
+                    top=top, bottom=bottom, hspace=hspace, wspace=wspace, left=left, right=right)
     axes = [fig.add_subplot(gs[i // n_cols, i % n_cols]) 
             for i in range(min(n_rows * n_cols, n_plots))]
     
@@ -295,19 +508,25 @@ def plot_single_topology_dynamics(data, t_max=50, output_file=None):
                     line_props = {
                         'color': PLOT_COLORS['none_none'],
                         'linestyle': '-' if measure == 'avg_state' else '--',
-                        'linewidth': params["line_width"],
+                        'linewidth': line_params["data_line_width"],  # Use parameter for data lines
                         'alpha': 0.7 if not is_static else 1.0
                     }
+                    
+                    # Only add dashes parameter for polarization (dashed lines)
+                    if measure == 'polarization':
+                        line_props['dashes'] = (4, 2)
+                        
                     if is_directed:
+                        # Add markers to both avg_state and polarization for directed networks
                         line_props.update({
                             'marker': '>',
-                            'markersize': 5,
-                            'markevery': 0.1
+                            'markersize': 2,
+                            'markevery': 0.1 if measure == 'avg_state' else 0.15  # Slightly different spacing for polarization
                         })
                     
                     ax.plot(static_avg.index, static_avg.values, **line_props)
             
-           # In the plotting section, modify the color selection part:
+            # Plot scenario data
             if not is_static:
                 for scenario in config['scenarios']:
                     base_scenario = '_'.join(scenario.split('_')[:2]).lower()
@@ -331,41 +550,44 @@ def plot_single_topology_dynamics(data, t_max=50, output_file=None):
                                 line_props = {
                                     'color': PLOT_COLORS[color_key],
                                     'linestyle': '-' if measure == 'avg_state' else '--',
-                                    'linewidth': params["line_width"]
+                                    'linewidth': line_params["data_line_width"]  # Use parameter for data lines
                                 }
+                                
+                                # Only add dashes parameter for polarization (dashed lines)
+                                if measure == 'polarization':
+                                    line_props['dashes'] = (4, 2)
+                                    
                                 if is_directed:
+                                    # Add markers to both avg_state and polarization for directed networks
                                     line_props.update({
                                         'marker': '>',
-                                        'markersize': 5,
-                                        'markevery': 0.1
+                                        'markersize': 2,
+                                        'markevery': 0.1 if measure == 'avg_state' else 0.15  # Slightly different spacing for polarization
                                     })
                                 
                                 ax.plot(scenario_avg.index, scenario_avg.values, **line_props)
         
+        # Determine if this is in the bottom row
+        is_bottom_row = idx >= (n_plots - n_cols)
+        
         # Customize subplot
         ax.set(xlim=(0, t_max), ylim=(-0.6, 1.1),
-              xlabel="Time [timestep / system size]",
-              ylabel='Value' if idx % n_cols == 0 else '',
-              title=f'{key}')  # Simplified title
-        
-        ax.grid(True, alpha=0.4, linestyle='--', which='both')
-        ax.set_axisbelow(True)
-        
-        for spine in ax.spines.values():
-            spine.set_linewidth(1.5)
+              # Only set xlabel for bottom row
+              xlabel="$Time, t$" if is_bottom_row else "",
+              ylabel='Cooperativity, ⟨x⟩' if idx % n_cols == 0 else '',
+              title=f'{key}')
             
-        ax.tick_params(direction='out', length=5, width=1.5)
-        ax.set_xticks([0, 10, 20, 30, 40, 50])
-        ax.set_yticks([-0.5, -0.25, 0, 0.25, 0.5, 0.75, 1.0])
-        ax.xaxis.set_minor_locator(AutoMinorLocator())
-        ax.set_xscale('linear')
-
-    plt.tight_layout()
+        # Apply common axis styling
+        configure_axis_style(ax, t_max)
+        
+        
+        # Hide scientific notation for non-bottom row
+        if not is_bottom_row:
+            ax.xaxis.offsetText.set_visible(False)
     if output_file:
         plt.savefig(output_file, dpi=300, bbox_inches='tight')
     
     return fig
-
 
 # Main execution
 if __name__ == "__main__":
@@ -400,7 +622,8 @@ if __name__ == "__main__":
     
     # Generate plots
     today = date.today()
-    plot_network_dynamics(processed_data, t_max, 
-                         output_file=f"../Figs/Trajectories/network_dynamics_comparison_N{get_N}_n{get_n}_{today}.pdf")
-    plot_single_topology_dynamics(processed_data, t_max, 
-                                output_file=f"../Figs/Trajectories/single_topology_dynamics_comparison_N{get_N}_n{get_n}_{today}.pdf")
+    apply_grid_fix_to_network_dynamics(processed_data, t_max, 
+                       output_file=f"../Figs/Trajectories/network_dynamics_comparison_N{get_N}_n{get_n}_{today}.pdf")
+    
+    apply_grid_fix_to_single_topology(processed_data, t_max, 
+                      output_file=f"../Figs/Trajectories/single_topology_dynamics_comparison_N{get_N}_n{get_n}_{today}.pdf")
