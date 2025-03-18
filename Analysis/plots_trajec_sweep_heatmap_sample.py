@@ -1,43 +1,68 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
-Created on Fri Mar  7 19:15:15 2025
-
-@author: jpoveralls
-"""
-
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Sampled heatmap generator for large parameter sweep files.
-Processes only a fraction of runs per parameter combination to reduce memory usage and processing time.
-Based on the original heatmap script with sampling capabilities.
+Memory-optimized heatmap generator for parameter sweep visualization using Polars.
+Designed to handle very large CSV files (50GB+) by using lazy evaluation,
+streaming processing, and aggressive memory management.
 """
 
 import os
-import sys
 import numpy as np
-import pandas as pd
+import polars as pl
 import matplotlib.pyplot as plt
 import seaborn as sns
-import matplotlib.gridspec as gridspec
 from scipy.ndimage import gaussian_filter1d
 import gc
+import sys
 import time
 import traceback
 import random
+from functools import lru_cache
+import psutil  # For memory monitoring
+import warnings
+from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 
-# Constants for paper style
+# Suppress warnings about fragmented DataFrames
+warnings.filterwarnings("ignore")
+
+# ====================== CONFIGURATION ======================
+# Optimized settings for large files
+
+# Input file - change this to your CSV file path
+INPUT_FILE = "../Output/param_sweep_individual_N_789_polarisingNode_f_0.0_1.0_10_2025-03-07.csv"
+
+# Output directory
+OUTPUT_DIR = "../Figs/ConvergenceRates"
+
+# Sampling parameters - optimized for large files
+SAMPLE_FRACTION = 0.05  # Sample 5% of runs for analysis
+CHUNK_SIZE = 50000     # Process in larger chunks with Polars for better performance
+MAX_SAMPLES_PER_COMBINATION = 50  # Maximum number of runs to analyze per parameter combination
+
+# Time range for analysis (in timesteps)
+TIME_RANGE = (5000, 30000)  # (start_time, end_time)
+
+# Parameter to analyze
+PARAM_NAME = "polarisingNode_f"
+
+# Plot settings
 FONT_SIZE = 14
+RANDOM_SEED = 42
+
+# Cache sizes - reduced for large files
+INFLECTION_CACHE_SIZE = 128
+CONVERGENCE_CACHE_SIZE = 128
+
+# Scenario names and colors
 FRIENDLY_COLORS = {
-    'static': '#EE7733',      # Orange
-    'random': '#0077BB',      # Blue
-    'local (similar)': '#33BBEE',    # Cyan
-    'local (opposite)': '#009988',   # Teal
-    'bridge (similar)': '#CC3311',   # Red
-    'bridge (opposite)': '#EE3377',  # Magenta
-    'wtf': '#BBBBBB',         # Grey
-    'node2vec': '#44BB99'     # Blue-green
+    'static': '#EE7733',
+    'random': '#0077BB',
+    'local (similar)': '#33BBEE',
+    'local (opposite)': '#009988',
+    'bridge (similar)': '#CC3311',
+    'bridge (opposite)': '#EE3377',
+    'wtf': '#BBBBBB',
+    'node2vec': '#44BB99'
 }
 
 FRIENDLY_NAMES = {
@@ -51,37 +76,15 @@ FRIENDLY_NAMES = {
     'node2vec_none': 'node2vec'
 }
 
-# Set random seed for reproducible sampling
-RANDOM_SEED = 42
-random.seed(RANDOM_SEED)
-np.random.seed(RANDOM_SEED)
+# ====================== MEMORY MONITORING ======================
 
-def setup_plotting_style():
-    """Configure plotting style to match paper."""
-    plt.rcParams.update({
-        'font.size': FONT_SIZE,
-        'pdf.fonttype': 42,
-        'ps.fonttype': 42,
-        'svg.fonttype': 'none',
-        'figure.figsize': (20, 12),
-        'figure.dpi': 300
-    })
-    sns.set_theme(font_scale=FONT_SIZE/12)
-    sns.set(style="ticks")
-    sns.set(rc={
-        'axes.facecolor': 'white',
-        'figure.facecolor': 'white',
-        "axes.grid": True,
-        "grid.color": 'white',
-        'grid.linestyle': 'solid', 
-        "axes.edgecolor": "black",
-        "patch.edgecolor": "black",
-        "patch.linewidth": 0.5,
-        "axes.spines.bottom": True,
-        "grid.alpha": 0.8,
-        "xtick.bottom": True,
-        "ytick.left": True
-    })
+def print_memory_usage(message=""):
+    """Print current memory usage with optional message."""
+    process = psutil.Process(os.getpid())
+    mem_info = process.memory_info()
+    print(f"Memory usage {message}: {mem_info.rss / (1024**3):.2f} GB")
+
+# ====================== FUNCTIONS ======================
 
 def get_data_file():
     """Get the data file path from user input or command line argument."""
@@ -108,39 +111,57 @@ def get_data_file():
     except ValueError:
         print("Invalid input. Using the first file.")
         return os.path.join("../Output", file_list[0])
+    
+def setup_plotting():
+    """Configure plotting style."""
+    plt.rcParams.update({
+        'font.size': FONT_SIZE,
+        'figure.figsize': (20, 12),
+        'figure.dpi': 300
+    })
+    sns.set_theme(font_scale=FONT_SIZE/12)
+    sns.set_style("ticks")
 
-def find_inflection(seq):
+@lru_cache(maxsize=INFLECTION_CACHE_SIZE)
+def find_inflection(seq_tuple):
     """Calculate inflection point in opinion trajectory."""
-    # Apply gaussian filter to smooth the trajectory
-    smooth = gaussian_filter1d(seq, 600)  # Original value
+    seq = np.array(seq_tuple)
     
-    # Calculate second derivative
-    d2 = np.gradient(np.gradient(smooth))
+    if len(seq) < 7000:
+        return False
     
-    # Find where second derivative changes sign
-    infls = np.where(np.diff(np.sign(d2)))[0]
+    # Smooth trajectory and find inflection points
+    try:
+        smooth = gaussian_filter1d(seq, 600)
+        d2 = np.gradient(np.gradient(smooth))
+        infls = np.where(np.diff(np.sign(d2)))[0]
+    except Exception as e:
+        print(f"Error in filtering: {e}")
+        return False
     
-    # Set minimum threshold for inflection point
+    # Find valid inflection points for depolarization
     inf_min = 5000
-    
-    # Find the first inflection point after the minimum threshold
     for i in infls:
         if i >= inf_min and i < 20000:
-            return i
+            window_size = min(100, len(seq) - i - 1)
+            if window_size > 10 and np.polyfit(range(window_size), seq[i:i+window_size], 1)[0] > 0:
+                return i
     
     return False
 
-def estimate_convergence_rate(trajec, loc=None, regwin=10):
-    """Estimate convergence rate around specified location using linear regression."""
+@lru_cache(maxsize=CONVERGENCE_CACHE_SIZE)
+def estimate_convergence_rate(trajec_tuple, loc=None, regwin=10):
+    """Estimate convergence rate using linear regression."""
+    trajec = np.array(trajec_tuple)
+    
     if loc is None or loc < regwin or loc + regwin >= len(trajec):
         return 0
     
-    # Setup x and y arrays for regression window
+    # Calculate regression
     x = np.arange(loc-regwin, loc+regwin+1)
     y = trajec[loc-regwin: loc+regwin+1]
     
-    # Ensure x and y are valid
-    if len(x) < 3:  # Need at least 3 points for regression
+    if len(x) < 3:
         return 0
     
     # Linear regression
@@ -149,281 +170,415 @@ def estimate_convergence_rate(trajec, loc=None, regwin=10):
     ssxy = np.sum(y*x) - n*my*mx
     ssxx = np.sum(x*x) - n*mx*mx
     
-    # Calculate slope
     if ssxx == 0:
         return 0
     b1 = ssxy / ssxx
     
-    # Calculate convergence rate
+    # Only return positive rates (depolarization)
+    if b1 <= 0:
+        return 0
+        
     denominator = abs(trajec[loc] - 1)
     if denominator < 0.001:
-        rate = -b1 / 0.001
+        rate = b1 / 0.001
     else:
-        rate = -b1 / denominator
+        rate = b1 / denominator
     
     return rate
 
-def get_friendly_scenario_name(scenario, rewiring):
-    """Convert scenario name to friendly name based on its rewiring mode."""
-    # Handle NaN values
-    if pd.isna(scenario):
+def get_friendly_name(scenario, rewiring):
+    """Get user-friendly algorithm name."""
+    if scenario is None:
         return "Unknown"
-    if pd.isna(rewiring):
+    
+    if rewiring is None:
         rewiring = "none"
     
-    # Convert to string and lowercase for consistency
     scenario = str(scenario).lower()
     rewiring = str(rewiring).lower()
     
-    if scenario == "none":
-        key = "none_none"
-    elif scenario == "random":
-        key = "random_none"
-    elif scenario == "wtf":
-        key = "wtf_none"
-    elif scenario == "node2vec":
-        key = "node2vec_none"
-    elif scenario in ["biased", "bridge"]:
-        key = f"{scenario}_{rewiring}"
-    else:
+    key = f"{scenario}_{rewiring}"
+    if scenario in ["none", "random", "wtf", "node2vec"]:
         key = f"{scenario}_none"
     
     return FRIENDLY_NAMES.get(key, f"{scenario} ({rewiring})")
 
-def analyze_data_structure(filepath):
-    """Analyze the structure of the data file to determine scenarios, topologies, etc."""
-    print(f"Analyzing data structure of {filepath}...")
+def get_schema_info(filepath):
+    """Get schema information from CSV file efficiently."""
+    print(f"Getting schema from {filepath}...")
+    try:
+        # Use Polars LazyFrame to inspect the schema without loading the data
+        schema = pl.scan_csv(filepath, n_rows=10).collect().schema
+        dtypes = {name: str(dtype) for name, dtype in schema.items()}
+        print(f"Schema: {dtypes}")
+        return list(schema.keys()), dtypes
+    except Exception as e:
+        print(f"Error getting schema: {e}")
+        # Try a more direct approach if scanning fails
+        try:
+            headers = pl.read_csv(filepath, n_rows=1).columns
+            print(f"Headers: {headers}")
+            return headers, {}
+        except Exception as e2:
+            print(f"Error reading headers: {e2}")
+            return [], {}
+
+def estimate_row_count(filepath):
+    """Estimate number of rows in a large CSV file without reading it entirely."""
+    print(f"Estimating row count for {filepath}...")
     
-    # Check if file exists
-    if not os.path.exists(filepath):
-        print(f"Error: File not found: {filepath}")
-        sys.exit(1)
+    file_size = os.path.getsize(filepath)
     
-    # First pass: determine column names
-    sample = pd.read_csv(filepath, nrows=5)
-    column_names = sample.columns.tolist()
+    # For very large files, estimate based on sampling
+    if file_size > 1e9:  # > 1GB
+        try:
+            # Read first and last MB to estimate line counts
+            line_size_samples = []
+            
+            # Sample the beginning
+            with open(filepath, 'rb') as f:
+                sample = f.read(1024 * 1024)  # 1MB
+                lines = sample.count(b'\n')
+                line_size_samples.append(len(sample) / max(1, lines))
+            
+            # Sample the middle
+            with open(filepath, 'rb') as f:
+                f.seek(file_size // 2)
+                # Find the next newline
+                sample_line = f.readline()
+                sample = f.read(1024 * 1024)  # 1MB
+                lines = sample.count(b'\n')
+                line_size_samples.append(len(sample) / max(1, lines))
+            
+            # Calculate average line size
+            avg_line_size = sum(line_size_samples) / len(line_size_samples)
+            estimated_lines = int(file_size / avg_line_size)
+            
+            print(f"Estimated {estimated_lines:,} lines based on sampling")
+            return estimated_lines
+            
+        except Exception as e:
+            print(f"Error in estimation: {e}")
     
-    # Look for specific columns we need
-    required_columns = ['scenario', 'type', 'rewiring', 'polarisingNode_f', 't', 'avg_state', 'model_run']
-    missing_columns = [col for col in required_columns if col not in column_names]
+    # For smaller files, or if estimation fails
+    try:
+        with open(filepath, 'rb') as f:
+            return sum(1 for _ in f)
+    except Exception as e:
+        print(f"Error counting lines: {e}")
+        return 1000000  # Default assumption
+
+def sample_unique_values(filepath, column, limit=20):
+    """Sample unique values for a column in a large CSV file."""
+    print(f"Sampling unique values for {column}...")
     
-    if missing_columns:
-        print(f"Warning: Missing columns: {', '.join(missing_columns)}")
+    try:
+        # Use lazy evaluation to efficiently get unique values
+        unique_vals = (
+            pl.scan_csv(filepath)
+            .select(pl.col(column).unique())
+            .collect()
+            .to_series()
+            .to_list()
+        )
+        
+        if column == PARAM_NAME:
+            # Convert parameter values to float and sort them
+            unique_vals = sorted([float(v) for v in unique_vals if v is not None])
+        
+        print(f"Found {len(unique_vals)} unique values for {column}")
+        return unique_vals
     
-    # Extract unique values efficiently by reading in small chunks
-    chunk_size = 50000
-    unique_values = {
-        'scenario': set(),
-        'type': set(),
-        'rewiring': set(),
-        'polarisingNode_f': set()
-    }
+    except Exception as e:
+        print(f"Error sampling unique values: {e}")
+        
+        # Fallback to direct sampling for very large files
+        try:
+            # Sample from different parts of the file
+            file_size = os.path.getsize(filepath)
+            positions = [0, file_size // 3, 2 * file_size // 3]
+            
+            unique_values = set()
+            for pos in positions:
+                # Skip to position and read a chunk
+                df = pl.read_csv(filepath, n_rows=10000, skip_rows=max(1, pos // 1000))
+                if column in df.columns:
+                    unique_values.update(df.select(pl.col(column)).to_series().unique().to_list())
+            
+            if column == PARAM_NAME:
+                # Convert parameter values to float and sort them
+                unique_values = sorted([float(v) for v in unique_values if v is not None])
+            
+            print(f"Found {len(unique_values)} unique values for {column} using fallback")
+            return list(unique_values)
+        
+        except Exception as e2:
+            print(f"Fallback sampling also failed: {e2}")
+            return []
+
+def find_topologies_and_scenarios(filepath):
+    """Find all topologies and scenarios in the data."""
+    print("Finding topologies and scenarios...")
     
-    # Read in chunks to conserve memory
-    for chunk in pd.read_csv(filepath, usecols=[col for col in unique_values.keys() if col in column_names], 
-                           chunksize=chunk_size):
-        for col in unique_values.keys():
-            if col in chunk.columns:
-                unique_values[col].update(chunk[col].dropna().unique())
+    topologies = sample_unique_values(filepath, 'type')
+    scenarios = sample_unique_values(filepath, 'scenario')
     
-    # Convert sets to sorted lists
-    scenarios = sorted([str(s) for s in unique_values['scenario']])
-    topologies = sorted([str(t) for t in unique_values['type']])
+    print(f"Found topologies: {topologies}")
+    print(f"Found scenarios: {scenarios}")
     
-    # Extract rewiring modes for each scenario
+    return topologies, scenarios
+
+def get_parameter_values(filepath, param_name=PARAM_NAME):
+    """Get all unique parameter values."""
+    print(f"Finding unique values for {param_name}...")
+    
+    param_values = sample_unique_values(filepath, param_name)
+    print(f"Parameter values: {param_values}")
+    
+    return param_values
+
+def get_rewiring_modes(filepath, scenarios):
+    """Determine rewiring mode for each scenario."""
+    print("Finding rewiring modes...")
+    
     rewiring_modes = {}
-    rewiring_values = list(unique_values['rewiring'])
     
-    # Process small chunks to find scenario-rewiring pairs
-    for chunk in pd.read_csv(filepath, usecols=['scenario', 'rewiring'] if 'rewiring' in column_names else ['scenario'], 
-                           chunksize=chunk_size):
-        pairs = chunk.dropna().drop_duplicates()
-        for _, row in pairs.iterrows():
-            scenario = str(row['scenario'])
-            rewiring = str(row.get('rewiring', 'none'))  # Default to 'none' if column doesn't exist
-            rewiring_modes[scenario] = rewiring
+    # Default values for known scenarios
+    for scenario in scenarios:
+        scenario_lower = str(scenario).lower()
+        if scenario_lower in ['none', 'random', 'wtf', 'node2vec']:
+            rewiring_modes[scenario] = 'none'
+        else:
+            rewiring_modes[scenario] = 'diff'  # Default
     
-    # Extract parameter values
-    param_values = {}
-    for param in ['polarisingNode_f']:
-        if param in column_names:
-            param_values[param] = sorted(unique_values[param])
+    # Try to determine actual rewiring modes from data
+    try:
+        # Sample data to check rewiring modes
+        query = (
+            pl.scan_csv(filepath)
+            .filter(pl.col("scenario").is_in(scenarios))
+            .select(["scenario", "rewiring"])
+            .collect()
+        )
+        
+        # Group by scenario and find most common rewiring mode
+        for scenario in scenarios:
+            scenario_data = query.filter(pl.col("scenario") == scenario)
+            if len(scenario_data) > 0:
+                # Count occurrence of each rewiring mode
+                counts = (
+                    scenario_data
+                    .group_by("rewiring")
+                    .agg(pl.count())
+                    .sort("count", descending=True)
+                )
+                
+                if len(counts) > 0:
+                    rewiring_modes[scenario] = counts[0, "rewiring"]
+        
+    except Exception as e:
+        print(f"Error determining rewiring modes: {e}")
     
-    print(f"Found {len(scenarios)} scenarios, {len(topologies)} topologies")
-    print(f"Parameters: {list(param_values.keys())}")
-    print(f"Topologies: {topologies}")
-    print(f"Scenarios: {scenarios}")
-    
-    return scenarios, topologies, rewiring_modes, param_values
+    print(f"Rewiring modes: {rewiring_modes}")
+    return rewiring_modes
 
-def sample_run_ids(filepath, topology, scenario, param_name, param_value, sample_fraction=0.3):
-    """
-    Sample a subset of run IDs for a specific topology, scenario, and parameter value.
-    Returns a set of run IDs to include in the analysis.
-    """
-    print(f"Sampling {sample_fraction:.1%} of run IDs for {topology}, {scenario}, {param_name}={param_value}")
+def find_valid_scenarios(filepath, topology, scenarios):
+    """Find scenarios that exist for a specific topology."""
+    print(f"Finding valid scenarios for {topology}...")
     
-    # Read data in chunks to reduce memory usage
-    chunk_size = 100000
-    
-    # Prepare query conditions for the pandas query
-    query_str = f"type == '{topology}' and scenario == '{scenario}' and {param_name} == {param_value}"
-    
-    # Columns needed to identify unique runs
-    columns = ['model_run', 'type', 'scenario', param_name]
-    
-    # Set to store all run IDs for this combination
-    all_run_ids = set()
+    valid_scenarios = []
     
     try:
-        # First pass: Find all unique run IDs for this parameter combination
-        for chunk in pd.read_csv(filepath, usecols=columns, chunksize=chunk_size):
-            # Filter chunk using efficient query
-            filtered_chunk = chunk.query(query_str)
-            
-            # Extract unique run IDs
-            run_ids = filtered_chunk['model_run'].unique()
-            all_run_ids.update(run_ids)
-            
-            # Force garbage collection
-            del filtered_chunk
-            gc.collect()
+        # Query for scenarios that exist for this topology
+        query = (
+            pl.scan_csv(filepath)
+            .filter(pl.col("type") == topology)
+            .select("scenario")
+            .unique()
+            .collect()
+        )
         
-        # Convert to sorted list for reproducible sampling
-        all_run_ids = sorted(list(all_run_ids))
+        # Check which scenarios from our list exist
+        existing_scenarios = set(query["scenario"].to_list())
+        valid_scenarios = [s for s in scenarios if s in existing_scenarios]
         
-        # Calculate how many runs to sample
-        n_sample = max(1, int(len(all_run_ids) * sample_fraction))
+        print(f"Found {len(valid_scenarios)} valid scenarios for {topology}")
         
-        # Sample run IDs
-        sampled_run_ids = set(random.sample(all_run_ids, n_sample))
-        
-        print(f"Sampled {len(sampled_run_ids)} run IDs out of {len(all_run_ids)} total runs")
-        
-        return sampled_run_ids
-    
     except Exception as e:
-        print(f"Error sampling run IDs: {e}")
-        return set()
+        print(f"Error finding valid scenarios: {e}")
+        # Default to all scenarios if query fails
+        valid_scenarios = scenarios
+    
+    return valid_scenarios
 
-def extract_trajectories(filepath, topology, scenario, param_name, param_value, 
-                        sampled_run_ids=None, time_range=None):
-    """
-    Extract trajectories for a specific topology, scenario, and parameter value.
-    If sampled_run_ids is provided, only extract data for those runs.
-    """
-    print(f"Extracting trajectories for {topology}, {scenario}, {param_name}={param_value}")
-    if sampled_run_ids:
-        print(f"Using {len(sampled_run_ids)} sampled run IDs")
+def extract_run_trajectories(filepath, topology, scenario, param_value, time_range):
+    """Extract trajectories for a specific combination using Polars."""
+    print(f"Extracting trajectories for {topology}/{scenario}, param={param_value}")
     
-    # Read data in chunks to reduce memory usage
-    chunk_size = 500000
-    
-    # Prepare query conditions for filtering within pandas
-    query_str = f"type == '{topology}' and scenario == '{scenario}' and {param_name} == {param_value}"
-    
-    # Add time conditions if provided
-    if time_range:
-        start_time, end_time = time_range
-        if start_time is not None:
-            query_str += f" and t >= {start_time}"
-        if end_time is not None:
-            query_str += f" and t <= {end_time}"
-    
-    # Read only needed columns
-    columns = ['t', 'avg_state', 'model_run', param_name, 'type', 'scenario']
-    
-    # Dictionary to store trajectories
-    trajectories = {}
+    # Set time constraints
+    start_time, end_time = time_range
     
     try:
-        # Process the file in chunks to reduce memory usage
-        for chunk in pd.read_csv(filepath, usecols=columns, chunksize=chunk_size):
-            # Filter chunk using query_str
-            filtered_chunk = chunk.query(query_str)
+        # Use Polars LazyFrame for efficient filtering
+        query = (
+            pl.scan_csv(filepath)
+            .filter(
+                (pl.col("type") == topology) & 
+                (pl.col("scenario") == scenario) & 
+                (pl.col(PARAM_NAME) == param_value) &
+                (pl.col("t") >= start_time) & 
+                (pl.col("t") <= end_time)
+            )
+        )
+        
+        # Get unique run IDs
+        run_ids = query.select("model_run").unique().collect()["model_run"].to_list()
+        
+        # Randomly sample run IDs
+        random.seed(RANDOM_SEED)
+        num_samples = min(MAX_SAMPLES_PER_COMBINATION, int(len(run_ids) * SAMPLE_FRACTION))
+        sampled_run_ids = random.sample(run_ids, max(1, num_samples))
+        
+        print(f"Sampled {len(sampled_run_ids)} of {len(run_ids)} runs")
+        
+        # Extract trajectories for sampled runs
+        all_rates = []
+        
+        # Process runs in parallel using ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=min(8, os.cpu_count())) as executor:
+            # Submit trajectory extraction tasks
+            futures = []
+            for run_id in sampled_run_ids:
+                futures.append(
+                    executor.submit(
+                        process_single_run, 
+                        filepath, topology, scenario, param_value, 
+                        run_id, time_range
+                    )
+                )
             
-            if filtered_chunk.empty:
-                continue
-                
-            # If we have sampled run IDs, further filter the chunk
-            if sampled_run_ids:
-                filtered_chunk = filtered_chunk[filtered_chunk['model_run'].isin(sampled_run_ids)]
-                
-            if filtered_chunk.empty:
-                continue
-                
-            # Get unique run IDs in this filtered chunk
-            chunk_run_ids = filtered_chunk['model_run'].unique()
-            
-            # Process each run's data
-            for run_id in chunk_run_ids:
-                # Get data for this run
-                run_data = filtered_chunk[filtered_chunk['model_run'] == run_id]
-                
-                # Initialize trajectory if this is a new run
-                if run_id not in trajectories:
-                    trajectories[run_id] = ([], [])  # (times, states)
-                
-                # Extract times and states
-                times, states = trajectories[run_id]
-                times.extend(run_data['t'].values)
-                states.extend(run_data['avg_state'].values)
-            
-            # Force garbage collection after each chunk
-            del filtered_chunk
-            gc.collect()
-    
+            # Collect results
+            for future in futures:
+                rate = future.result()
+                if rate > 0:
+                    all_rates.append(rate * 1000)  # Scale for visualization
+        
+        return all_rates
+        
     except Exception as e:
-        print(f"Error reading data: {e}")
+        print(f"Error extracting trajectories: {e}")
         traceback.print_exc()
+        return []
+
+def process_single_run(filepath, topology, scenario, param_value, run_id, time_range):
+    """Process a single run to calculate convergence rate."""
+    try:
+        # Extract data for this run
+        run_data = (
+            pl.scan_csv(filepath)
+            .filter(
+                (pl.col("type") == topology) & 
+                (pl.col("scenario") == scenario) & 
+                (pl.col(PARAM_NAME) == param_value) &
+                (pl.col("model_run") == run_id) &
+                (pl.col("t") >= time_range[0]) & 
+                (pl.col("t") <= time_range[1])
+            )
+            .select(["t", "avg_state"])
+            .sort("t")
+            .collect()
+        )
+        
+        # Check if we have enough data points
+        if len(run_data) < 1000:
+            return 0
+            
+        # Convert to numpy array for analysis
+        states = run_data["avg_state"].to_numpy()
+        states_tuple = tuple(states)
+        
+        # Find inflection point
+        inflection_idx = find_inflection(states_tuple)
+        
+        if inflection_idx:
+            # Calculate convergence rate
+            rate = estimate_convergence_rate(states_tuple, loc=inflection_idx)
+            return rate
+        
+        return 0
+        
+    except Exception as e:
+        print(f"Error processing run {run_id}: {e}")
+        return 0
+
+def process_topology(filepath, topology, scenarios, param_values, rewiring_modes):
+    """Process all scenarios for a topology using Polars for efficiency."""
+    print(f"\nProcessing topology: {topology}")
+    print_memory_usage(f"before processing {topology}")
+    
+    # Find valid scenarios for this topology
+    valid_scenarios = find_valid_scenarios(filepath, topology, scenarios)
+    
+    if not valid_scenarios:
+        print(f"No valid scenarios found for topology {topology}")
         return {}
     
-    # Sort trajectories by time
-    for run_id in list(trajectories.keys()):
-        times, states = trajectories[run_id]
+    # Initialize results
+    results = {}
+    
+    # Process each scenario for this topology
+    for scenario in valid_scenarios:
+        print(f"Processing scenario: {scenario}")
         
-        # Skip if not enough data points
-        min_points = 1000  # Reduced from 5000 for faster processing
-        if len(times) < min_points:
-            del trajectories[run_id]
-            continue
-            
-        # Sort by time
-        sorted_indices = np.argsort(times)
-        sorted_times = np.array(times)[sorted_indices]
-        sorted_states = np.array(states)[sorted_indices]
+        scenario_results = {
+            'rates': {},
+            'distributions': {},
+            'param_values': param_values
+        }
         
-        # Store sorted arrays
-        trajectories[run_id] = (sorted_times, sorted_states)
-    
-    print(f"Extracted {len(trajectories)} trajectories")
-    return trajectories
-
-def calculate_convergence_rates(trajectories):
-    """Calculate convergence rates for a set of trajectories."""
-    rates = []
-    
-    for run_id, (times, states) in trajectories.items():
-        try:
-            # Find inflection point
-            inflection_idx = find_inflection(states)
+        # Process each parameter value
+        for param_value in param_values:
+            print(f"  Parameter {PARAM_NAME}={param_value}")
             
-            # Calculate rate if inflection point found
-            if inflection_idx:
-                rate = estimate_convergence_rate(states, loc=inflection_idx)
-                if rate != 0:
-                    rates.append(rate * 1000)  # Scale for visualization
-        except Exception as e:
-            print(f"Error calculating rate for run {run_id}: {e}")
+            try:
+                rates = extract_run_trajectories(
+                    filepath, topology, scenario, param_value, TIME_RANGE
+                )
+                
+                if rates:
+                    scenario_results['rates'][param_value] = np.median(rates)
+                    scenario_results['distributions'][param_value] = rates
+                    print(f"    Found {len(rates)} valid rates, median: {np.median(rates):.4f}")
+                else:
+                    print(f"    No valid rates found")
+                    
+            except Exception as e:
+                print(f"Error processing {scenario}/{param_value}: {e}")
+                traceback.print_exc()
+            
+            # Force garbage collection after each parameter
+            gc.collect()
+        
+        # Store results if we found any data
+        if any(scenario_results['distributions']):
+            results[scenario] = scenario_results
+        
+        # Clear memory
+        print_memory_usage(f"after processing {scenario}")
     
-    # Force garbage collection
-    gc.collect()
-    
-    return rates
+    return results
 
-def create_heatmap_for_topology(topology, valid_scenarios, results, rewiring_modes):
-    """Create heatmap visualization for a single topology with all valid scenarios."""
-    print(f"Creating heatmap for topology: {topology}")
+def create_heatmap(topology, results, rewiring_modes):
+    """Generate heatmap visualization for convergence rates."""
+    print(f"Creating heatmap for {topology}")
+    
+    # Get list of valid scenarios
+    valid_scenarios = [s for s in results.keys() 
+                     if results[s]['distributions']]  # Only include scenarios with data
+    
+    if not valid_scenarios:
+        print("No valid data to plot")
+        return
     
     # Determine grid layout
     n_scenarios = len(valid_scenarios)
@@ -431,17 +586,17 @@ def create_heatmap_for_topology(topology, valid_scenarios, results, rewiring_mod
     n_rows = (n_scenarios + n_cols - 1) // n_cols
     
     # Create figure
-    fig, axs = plt.subplots(n_rows, n_cols, figsize=(6*n_cols, 5*n_rows), 
-                           squeeze=False)
+    fig, axs = plt.subplots(n_rows, n_cols, figsize=(6*n_cols, 5*n_rows), squeeze=False)
     
     # Find global min/max rates for consistent scale
     all_rates = []
     for scenario in valid_scenarios:
         for rates in results[scenario]['distributions'].values():
-            all_rates.extend(rates)
+            if len(all_rates) < 10000:  # Limit sample size for memory
+                all_rates.extend(rates[:min(len(rates), 100)])  # Take at most 100 values from each
     
     if all_rates:
-        rate_min = np.percentile(all_rates, 1)  # 1st percentile to exclude outliers
+        rate_min = np.percentile(all_rates, 1)  # 1st percentile
         rate_max = np.percentile(all_rates, 99)  # 99th percentile
     else:
         rate_min, rate_max = 0, 1
@@ -457,8 +612,9 @@ def create_heatmap_for_topology(topology, valid_scenarios, results, rewiring_mod
         col = i % n_cols
         ax = axs[row, col]
         
-        # Get friendly name
-        friendly_name = get_friendly_scenario_name(scenario, rewiring_modes.get(scenario, 'none'))
+        # Get friendly name and color
+        friendly_name = get_friendly_name(scenario, rewiring_modes.get(scenario, 'none'))
+        title_color = FRIENDLY_COLORS.get(friendly_name, 'black')
         
         # Get data for this scenario
         scenario_data = results[scenario]
@@ -491,8 +647,7 @@ def create_heatmap_for_topology(topology, valid_scenarios, results, rewiring_mod
         cbar = plt.colorbar(im, ax=ax)
         cbar.set_label('Normalized Count')
         
-        # Set title and labels with algorithm-specific color
-        title_color = FRIENDLY_COLORS.get(friendly_name, 'black')
+        # Set title and labels
         ax.set_title(friendly_name, color=title_color, fontsize=FONT_SIZE+2, fontweight='bold')
         ax.set_xlabel('Polarizing Node Fraction', fontsize=FONT_SIZE)
         ax.set_ylabel('Convergence Rate (×10³)', fontsize=FONT_SIZE)
@@ -522,198 +677,71 @@ def create_heatmap_for_topology(topology, valid_scenarios, results, rewiring_mod
         axs[row, col].set_visible(False)
     
     # Add overall title
-    plt.suptitle(f'Convergence Rate Distributions - {topology.upper()} (Sampled)', 
+    plt.suptitle(f'Convergence Rate Distributions - {topology.upper()}', 
                 fontsize=FONT_SIZE+4, y=0.98, fontweight='bold')
     
     # Save figure
     plt.tight_layout(rect=[0, 0, 1, 0.95])
     
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
     for ext in ['pdf', 'png']:
-        save_path = f'../Figs/ConvergenceRates/convergence_rate_{topology}_sampled.{ext}'
+        save_path = f'{OUTPUT_DIR}/convergence_rate_{topology}.{ext}'
         plt.savefig(save_path, bbox_inches='tight', dpi=300)
     
     plt.close()
-    print(f"Saved heatmap for topology {topology}")
-    gc.collect()  # Force garbage collection after saving
-
-def create_convergence_heatmaps(filepath, scenarios, topologies, rewiring_modes, param_values, 
-                              param_name='polarisingNode_f', time_range=None, sample_fraction=0.3):
-    """
-    Create heatmaps showing convergence rate distributions for each topology and scenario.
-    Only processes a fraction of the data to reduce memory usage and processing time.
-    """
-    print(f"Creating convergence rate heatmaps with {sample_fraction:.1%} data sampling...")
-    
-    # Create output directory
-    os.makedirs('../Figs/ConvergenceRates', exist_ok=True)
-    
-    # Process each topology sequentially to minimize memory usage
-    for topology in topologies:
-        print(f"\nProcessing topology: {topology}")
-        
-        # Store results for this topology
-        all_results = {}
-        
-        # Quick check to find valid scenarios with data
-        valid_scenarios = []
-        
-        # Only test one parameter value to see if there's any data
-        test_param_value = param_values[param_name][0]
-        
-        for scenario in scenarios:
-            try:
-                print(f"Checking if data exists for {topology}/{scenario}")
-                # Use sampling to check for data existence
-                sampled_run_ids = sample_run_ids(
-                    filepath, topology, scenario, param_name, test_param_value, 0.05  # Small sample to check existence
-                )
-                
-                if sampled_run_ids:
-                    valid_scenarios.append(scenario)
-                    print(f"Found data for {topology}/{scenario}")
-                
-                # Clear sampled_run_ids to free memory
-                sampled_run_ids.clear()
-                gc.collect()
-            except Exception as e:
-                print(f"Error checking data for {scenario}: {e}")
-        
-        if not valid_scenarios:
-            print(f"No data for topology {topology}, skipping")
-            continue
-        
-        print(f"Found data for {len(valid_scenarios)} scenarios: {valid_scenarios}")
-        
-        # Process each scenario sequentially
-        for scenario in valid_scenarios:
-            print(f"Processing scenario: {scenario}")
-            
-            try:
-                # Process scenario
-                scenario_results = {
-                    'rates': {},
-                    'distributions': {},
-                    'param_values': param_values[param_name]
-                }
-                
-                for val_idx, val in enumerate(param_values[param_name]):
-                    print(f"  Parameter {param_name}={val} ({val_idx+1}/{len(param_values[param_name])})")
-                    
-                    # Sample run IDs for this parameter combination
-                    sampled_run_ids = sample_run_ids(
-                        filepath, topology, scenario, param_name, val, sample_fraction
-                    )
-                    
-                    # Extract trajectories only for sampled runs
-                    trajectories = extract_trajectories(
-                        filepath, topology, scenario, param_name, val, 
-                        sampled_run_ids=sampled_run_ids, time_range=time_range
-                    )
-                    
-                    # Calculate rates
-                    rates = calculate_convergence_rates(trajectories)
-                    
-                    if rates:
-                        scenario_results['rates'][val] = np.median(rates)
-                        scenario_results['distributions'][val] = rates
-                    
-                    # Clear trajectories and sampled_run_ids to free memory
-                    trajectories.clear()
-                    sampled_run_ids.clear()
-                    gc.collect()
-                
-                # Store results for this scenario
-                all_results[scenario] = scenario_results
-                
-                # Force garbage collection after each scenario
-                gc.collect()
-            
-            except Exception as e:
-                print(f"Error processing scenario {scenario}: {e}")
-                traceback.print_exc()
-        
-        # Create heatmap
-        create_heatmap_for_topology(topology, valid_scenarios, all_results, rewiring_modes)
-        
-        # Clear results to free memory
-        all_results.clear()
-        valid_scenarios.clear()
-        gc.collect()
-        print(f"Finished processing topology: {topology}")
+    print(f"Saved heatmap for {topology}")
+    gc.collect()
 
 def main():
-    """Main execution function to create heatmaps for all topologies with sampling."""
-    # Setup plotting style
-    setup_plotting_style()
+    """Main execution function."""
+    random.seed(RANDOM_SEED)
+    np.random.seed(RANDOM_SEED)
+    setup_plotting()
     
-    # Get configuration from command line or interactive mode
-    if len(sys.argv) > 1:
-        # Command line mode
-        data_path = sys.argv[1]
-        sample_fraction = float(sys.argv[2]) if len(sys.argv) > 2 else 0.3
-    else:
-        # Interactive mode
-        data_path = get_data_file()
-        sample_fraction = float(input("Enter sample fraction (e.g. 0.3 for 30%): ") or 0.3)
+    # Get input file path
+    input_file = get_data_file() if INPUT_FILE == "../Output/param_sweep_individual_N_789_polarisingNode_f_0.0_1.0_10_2025-03-07.csv" else INPUT_FILE
     
-    print(f"Processing file: {data_path}")
-    print(f"File size: {os.path.getsize(data_path) / (1024 * 1024):.2f} MB")
-    print(f"Using sample fraction: {sample_fraction:.1%}")
-    
-    # Force garbage collection before starting
-    gc.collect()
-    
-    # Analyze data structure
-    scenarios, topologies, rewiring_modes, param_values = analyze_data_structure(data_path)
-    
-    # Ask for which topologies and scenarios to process
-    print("\nAvailable topologies:", topologies)
-    topo_input = input("Enter topologies to process (comma-separated, or 'all'): ")
-    if topo_input.lower() != 'all':
-        selected_topologies = [t.strip() for t in topo_input.split(',')]
-        topologies = [t for t in selected_topologies if t in topologies]
-    
-    print("\nAvailable scenarios:", scenarios)
-    scen_input = input("Enter scenarios to process (comma-separated, or 'all'): ")
-    if scen_input.lower() != 'all':
-        selected_scenarios = [s.strip() for s in scen_input.split(',')]
-        scenarios = [s for s in selected_scenarios if s in scenarios]
-    
-    # Set time range for analysis (in timesteps)
-    time_input = input("Enter time range as start,end (e.g. 5000,30000) or press Enter for all: ")
-    if time_input:
-        time_parts = time_input.split(',')
-        time_range = (int(time_parts[0]), int(time_parts[1]))
-    else:
-        time_range = None
-    
-    print(f"Processing topologies: {topologies}")
-    print(f"Processing scenarios: {scenarios}")
-    print(f"Time range: {time_range}")
-    
-    # Create convergence rate heatmaps for selected topologies and scenarios
-    create_convergence_heatmaps(
-        data_path, scenarios, topologies, rewiring_modes, param_values,
-        time_range=time_range, sample_fraction=sample_fraction
-    )
-    
-    # Final garbage collection
-    gc.collect()
-
-if __name__ == "__main__":
-    # Track and print total execution time
     try:
         start_time = time.time()
-        main()
-        end_time = time.time()
-        print(f"Total execution time: {end_time - start_time:.2f} seconds")
-    except Exception as e:
-        # Save the crash report to a file
-        crash_file = "sampled_heatmap_crash_report.txt"
-        with open(crash_file, "w") as f:
-            f.write(f"Error: {str(e)}\n\n")
-            f.write(traceback.format_exc())
+        print(f"Processing file: {input_file}")
+        print_memory_usage("at start")
         
-        print(f"\nERROR: {str(e)}")
-        print(f"Crash report saved to {crash_file}")
-        print("Please check the crash report for details.")
+        # Get file schema
+        headers, dtypes = get_schema_info(input_file)
+        if not headers:
+            print("Error: Could not read schema from file")
+            return
+        
+        # Get topologies and scenarios
+        topologies, scenarios = find_topologies_and_scenarios(input_file)
+        
+        # Get parameter values
+        param_values = get_parameter_values(input_file, PARAM_NAME)
+        
+        # Get rewiring modes
+        rewiring_modes = get_rewiring_modes(input_file, scenarios)
+        
+        # Process each topology
+        for topology in topologies:
+            results = process_topology(
+                input_file, topology, scenarios,
+                param_values, rewiring_modes
+            )
+            
+            if results:
+                create_heatmap(topology, results, rewiring_modes)
+            
+            # Clear memory
+            results = {}
+            gc.collect()
+            print_memory_usage(f"after processing topology {topology}")
+        
+        end_time = time.time()
+        print(f"Total execution time: {(end_time - start_time) / 60:.2f} minutes")
+        
+    except Exception as e:
+        print(f"Error: {e}")
+        traceback.print_exc()
+
+if __name__ == "__main__":
+    main()

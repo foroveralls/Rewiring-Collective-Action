@@ -6,6 +6,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 from matplotlib import transforms
+from datetime import date
 
 # Constants
 FONT_SIZE = 14
@@ -193,9 +194,9 @@ def create_heatmap_grid(df, value_columns, unique_scenarios, topology, column_la
                 cbar_label = 'Cooperation'
               
             else:
-                cmap = polar_cmap,
-                vmin, vmax = 0,
-                center = None,
+                cmap = polar_cmap
+                vmin, vmax = 0, 1
+                center = None
                 cbar_label = 'Polarization'
             
             # Single heatmap creation
@@ -240,7 +241,7 @@ def create_heatmap_grid(df, value_columns, unique_scenarios, topology, column_la
     return fig
 def save_figure(fig, topology):
     """Save the figure to file with LaTeX-friendly settings."""
-    save_path = f'../Figs/Heatmaps/heatmap_{topology}.pdf'
+    save_path = f'../Figs/Heatmaps/heatmap_{topology}_{date.today()}.pdf'
     os.makedirs(os.path.dirname(save_path), exist_ok=True)
     
     # Save with specific PDF settings for better text rendering
