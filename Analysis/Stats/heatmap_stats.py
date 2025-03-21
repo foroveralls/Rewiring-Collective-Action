@@ -108,7 +108,7 @@ def calculate_summary_metrics(metrics_df):
     return topology_summary, strategy_summary
 
 
-def save_metrics(metrics_df, topology_summary, strategy_summary, output_dir='../Output'):
+def save_metrics(metrics_df, topology_summary, strategy_summary, output_dir='../../Output'):
     """Save all metrics to a single file with clear sections."""
     today = date.today().strftime("%Y%m%d")
     output_path = os.path.join(output_dir, f'heatmap_metrics_{today}.csv')
@@ -137,7 +137,7 @@ def save_metrics(metrics_df, topology_summary, strategy_summary, output_dir='../
 def main():
     """Main execution function."""
     # Get data file path
-    file_list = [f for f in os.listdir("../Output") if f.endswith(".csv") and "heatmap" in f]
+    file_list = [f for f in os.listdir("../../Output") if f.endswith(".csv") and "heatmap" in f]
     
     if not file_list:
         print("No suitable files found in the Output directory.")
@@ -147,7 +147,7 @@ def main():
         print(f"{i}: {file}")
     
     file_index = int(input("Enter the index of the file you want to analyze: "))
-    data_path = os.path.join("../Output", file_list[file_index])
+    data_path = os.path.join("../../Output", file_list[file_index])
     
     # Load and prepare data
     df = pd.read_csv(data_path)

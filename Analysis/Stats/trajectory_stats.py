@@ -254,16 +254,25 @@ def calculate_summaries(comparative_metrics):
     }
     
     # 2. Algorithm type statistics (average of runs by algorithm type)
-    algo_stats = non_baseline.groupby('friendly_name').agg({
-        'better_than_static_rate': 'mean',
-        'better_than_static_coop': 'mean',
-        'better_than_random_rate': 'mean',
-        'better_than_random_coop': 'mean',
-        'convergence_rate': 'mean',
-        'final_cooperativity': 'mean',
-        'final_polarization': 'mean',
-        'time_to_majority': 'mean'
-    }).reset_index()
+    # Use a more direct approach to avoid multi-index issues
+    algo_stats = pd.DataFrame()
+    algo_stats['friendly_name'] = non_baseline['friendly_name'].unique()
+    
+    # Calculate metrics for each algorithm type
+    for algo in algo_stats['friendly_name']:
+        algo_data = non_baseline[non_baseline['friendly_name'] == algo]
+        algo_stats.loc[algo_stats['friendly_name'] == algo, 'better_than_static_rate_mean'] = algo_data['better_than_static_rate'].mean()
+        algo_stats.loc[algo_stats['friendly_name'] == algo, 'better_than_static_coop_mean'] = algo_data['better_than_static_coop'].mean()
+        algo_stats.loc[algo_stats['friendly_name'] == algo, 'better_than_random_rate_mean'] = algo_data['better_than_random_rate'].mean()
+        algo_stats.loc[algo_stats['friendly_name'] == algo, 'better_than_random_coop_mean'] = algo_data['better_than_random_coop'].mean()
+        algo_stats.loc[algo_stats['friendly_name'] == algo, 'convergence_rate_mean'] = algo_data['convergence_rate'].mean()
+        algo_stats.loc[algo_stats['friendly_name'] == algo, 'convergence_rate_median'] = algo_data['convergence_rate'].median()
+        algo_stats.loc[algo_stats['friendly_name'] == algo, 'final_cooperativity_mean'] = algo_data['final_cooperativity'].mean()
+        algo_stats.loc[algo_stats['friendly_name'] == algo, 'final_cooperativity_median'] = algo_data['final_cooperativity'].median()
+        algo_stats.loc[algo_stats['friendly_name'] == algo, 'final_polarization_mean'] = algo_data['final_polarization'].mean()
+        algo_stats.loc[algo_stats['friendly_name'] == algo, 'final_polarization_median'] = algo_data['final_polarization'].median()
+        algo_stats.loc[algo_stats['friendly_name'] == algo, 'time_to_majority_mean'] = algo_data['time_to_majority'].mean()
+        algo_stats.loc[algo_stats['friendly_name'] == algo, 'time_to_majority_median'] = algo_data['time_to_majority'].median()
     
     # Add metric_type column
     algo_stats['metric_type'] = 'algorithm_summary'
@@ -272,23 +281,39 @@ def calculate_summaries(comparative_metrics):
     algo_counts = {
         'metric_type': 'algorithm_type_statistics',
         'total_algorithm_types': len(algo_stats),
-        'algo_better_static_rate': sum(algo_stats['better_than_static_rate'] > 0.5),
-        'algo_better_static_rate_pct': sum(algo_stats['better_than_static_rate'] > 0.5) / len(algo_stats) * 100,
-        'algo_better_static_coop': sum(algo_stats['better_than_static_coop'] > 0.5),
-        'algo_better_static_coop_pct': sum(algo_stats['better_than_static_coop'] > 0.5) / len(algo_stats) * 100,
-        'algo_better_random_rate': sum(algo_stats['better_than_random_rate'] > 0.5),
-        'algo_better_random_rate_pct': sum(algo_stats['better_than_random_rate'] > 0.5) / len(algo_stats) * 100,
-        'algo_better_random_coop': sum(algo_stats['better_than_random_coop'] > 0.5),
-        'algo_better_random_coop_pct': sum(algo_stats['better_than_random_coop'] > 0.5) / len(algo_stats) * 100
+        'algo_better_static_rate': sum(algo_stats['better_than_static_rate_mean'] > 0.5),
+        'algo_better_static_rate_pct': sum(algo_stats['better_than_static_rate_mean'] > 0.5) / len(algo_stats) * 100,
+        'algo_better_static_coop': sum(algo_stats['better_than_static_coop_mean'] > 0.5),
+        'algo_better_static_coop_pct': sum(algo_stats['better_than_static_coop_mean'] > 0.5) / len(algo_stats) * 100,
+        'algo_better_random_rate': sum(algo_stats['better_than_random_rate_mean'] > 0.5),
+        'algo_better_random_rate_pct': sum(algo_stats['better_than_random_rate_mean'] > 0.5) / len(algo_stats) * 100,
+        'algo_better_random_coop': sum(algo_stats['better_than_random_coop_mean'] > 0.5),
+        'algo_better_random_coop_pct': sum(algo_stats['better_than_random_coop_mean'] > 0.5) / len(algo_stats) * 100
     }
     
-    # 3. Network class statistics
-    network_stats = non_baseline.groupby('network_class').agg({
-        'better_than_static_rate': 'mean',
-        'better_than_static_coop': 'mean',
-        'better_than_random_rate': 'mean',
-        'better_than_random_coop': 'mean'
-    }).reset_index()
+    # 3. Network class statistics - ENHANCED with more metrics
+    # Use a simpler approach to avoid multi-index issues
+    network_stats = pd.DataFrame()
+    network_stats['network_class'] = non_baseline['network_class'].unique()
+    
+    # Calculate metrics for each network class
+    for network_class in network_stats['network_class']:
+        class_data = non_baseline[non_baseline['network_class'] == network_class]
+        network_stats.loc[network_stats['network_class'] == network_class, 'better_than_static_rate_mean'] = class_data['better_than_static_rate'].mean()
+        network_stats.loc[network_stats['network_class'] == network_class, 'better_than_static_coop_mean'] = class_data['better_than_static_coop'].mean()
+        network_stats.loc[network_stats['network_class'] == network_class, 'better_than_random_rate_mean'] = class_data['better_than_random_rate'].mean()
+        network_stats.loc[network_stats['network_class'] == network_class, 'better_than_random_coop_mean'] = class_data['better_than_random_coop'].mean()
+        network_stats.loc[network_stats['network_class'] == network_class, 'convergence_rate_mean'] = class_data['convergence_rate'].mean()
+        network_stats.loc[network_stats['network_class'] == network_class, 'convergence_rate_median'] = class_data['convergence_rate'].median()
+        network_stats.loc[network_stats['network_class'] == network_class, 'final_cooperativity_mean'] = class_data['final_cooperativity'].mean()
+        network_stats.loc[network_stats['network_class'] == network_class, 'final_cooperativity_median'] = class_data['final_cooperativity'].median()
+        network_stats.loc[network_stats['network_class'] == network_class, 'final_polarization_mean'] = class_data['final_polarization'].mean()
+        network_stats.loc[network_stats['network_class'] == network_class, 'final_polarization_median'] = class_data['final_polarization'].median()
+        network_stats.loc[network_stats['network_class'] == network_class, 'time_to_majority_mean'] = class_data['time_to_majority'].mean()
+        network_stats.loc[network_stats['network_class'] == network_class, 'time_to_majority_median'] = class_data['time_to_majority'].median()
+    
+    # Flatten multiindex columns
+    network_stats.columns = ['_'.join(col).strip('_') if col[1] else col[0] for col in network_stats.columns.values]
     
     # Add metric_type column
     network_stats['metric_type'] = 'network_statistics'
@@ -300,22 +325,70 @@ def calculate_summaries(comparative_metrics):
         opposite = non_baseline[non_baseline['friendly_name'] == f"{base} (opposite)"]
         
         if not similar.empty and not opposite.empty:
-            similar_time = similar['time_to_majority'].mean()
-            opposite_time = opposite['time_to_majority'].mean()
+            # Add more comprehensive metrics
+            metrics = {
+                'metric_type': 'similar_vs_opposite_base',
+                'base_algorithm': base,
+                'similar_rate_mean': similar['convergence_rate'].mean(),
+                'similar_rate_median': similar['convergence_rate'].median(),
+                'opposite_rate_mean': opposite['convergence_rate'].mean(),
+                'opposite_rate_median': opposite['convergence_rate'].median(),
+                'similar_coop_mean': similar['final_cooperativity'].mean(),
+                'similar_coop_median': similar['final_cooperativity'].median(),
+                'opposite_coop_mean': opposite['final_cooperativity'].mean(),
+                'opposite_coop_median': opposite['final_cooperativity'].median(),
+                'similar_polar_mean': similar['final_polarization'].mean(),
+                'similar_polar_median': similar['final_polarization'].median(),
+                'opposite_polar_mean': opposite['final_polarization'].mean(),
+                'opposite_polar_median': opposite['final_polarization'].median(),
+                'similar_time_mean': similar['time_to_majority'].mean(),
+                'similar_time_median': similar['time_to_majority'].median(),
+                'opposite_time_mean': opposite['time_to_majority'].mean(),
+                'opposite_time_median': opposite['time_to_majority'].median()
+            }
             
-            if not np.isnan(similar_time) and not np.isnan(opposite_time) and opposite_time != 0:
-                time_ratio = similar_time / opposite_time
-                similar_vs_opposite_base.append({
-                    'metric_type': 'similar_vs_opposite_base',
-                    'base_algorithm': base,
-                    'time_ratio': time_ratio,
-                    'percent_difference': (time_ratio - 1) * 100,
-                    'similar_time': similar_time,
-                    'opposite_time': opposite_time,
-                    'faster_strategy': 'opposite' if time_ratio > 1 else 'similar'
-                })
+            # Calculate ratios for means
+            for metric in ['rate', 'coop', 'polar', 'time']:
+                sim_val = metrics[f'similar_{metric}_mean']
+                opp_val = metrics[f'opposite_{metric}_mean']
+                
+                if not np.isnan(sim_val) and not np.isnan(opp_val) and opp_val != 0:
+                    ratio = sim_val / opp_val
+                    metrics[f'{metric}_ratio'] = ratio
+                    metrics[f'{metric}_percent_difference'] = (ratio - 1) * 100
+                    
+                    # For rate/coop, higher is better; for polar/time, lower is better
+                    better = 'similar' if (ratio > 1 and metric in ['rate', 'coop']) or (ratio < 1 and metric in ['polar', 'time']) else 'opposite'
+                    metrics[f'{metric}_better'] = better
+            
+            similar_vs_opposite_base.append(metrics)
     
-    # 5. Similar vs opposite comparison (aggregated across all algorithms)
+    # 5. Base algorithm comparison (aggregating local vs bridge) - NEW SECTION
+    base_algorithm_stats = []
+    for base in ['local', 'bridge']:
+        base_data = non_baseline[non_baseline['algorithm_base'] == base]
+        
+        if not base_data.empty:
+            metrics = {
+                'metric_type': 'base_algorithm_statistics',
+                'base_algorithm': base,
+                'run_count': len(base_data),
+                'convergence_rate_mean': base_data['convergence_rate'].mean(),
+                'convergence_rate_median': base_data['convergence_rate'].median(),
+                'final_cooperativity_mean': base_data['final_cooperativity'].mean(),
+                'final_cooperativity_median': base_data['final_cooperativity'].median(),
+                'final_polarization_mean': base_data['final_polarization'].mean(),
+                'final_polarization_median': base_data['final_polarization'].median(),
+                'time_to_majority_mean': base_data['time_to_majority'].mean(),
+                'time_to_majority_median': base_data['time_to_majority'].median(),
+                'better_than_static_rate_mean': base_data['better_than_static_rate'].mean(),
+                'better_than_static_coop_mean': base_data['better_than_static_coop'].mean(),
+                'better_than_random_rate_mean': base_data['better_than_random_rate'].mean(),
+                'better_than_random_coop_mean': base_data['better_than_random_coop'].mean()
+            }
+            base_algorithm_stats.append(metrics)
+    
+    # 6. Similar vs opposite comparison (aggregated across all algorithms) - ENHANCED with median values
     similar = non_baseline[non_baseline['rewiring_type'] == 'similar']
     opposite = non_baseline[non_baseline['rewiring_type'] == 'opposite']
     
@@ -325,20 +398,28 @@ def calculate_summaries(comparative_metrics):
             'metric_type': 'similar_vs_opposite_overall',
             'similar_count': len(similar),
             'opposite_count': len(opposite),
-            'similar_rate': similar['convergence_rate'].mean(),
-            'opposite_rate': opposite['convergence_rate'].mean(),
-            'similar_coop': similar['final_cooperativity'].mean(),
-            'opposite_coop': opposite['final_cooperativity'].mean(),
-            'similar_polar': similar['final_polarization'].mean(),
-            'opposite_polar': opposite['final_polarization'].mean(),
-            'similar_time': similar['time_to_majority'].mean(),
-            'opposite_time': opposite['time_to_majority'].mean()
+            'similar_rate_mean': similar['convergence_rate'].mean(),
+            'similar_rate_median': similar['convergence_rate'].median(),
+            'opposite_rate_mean': opposite['convergence_rate'].mean(),
+            'opposite_rate_median': opposite['convergence_rate'].median(),
+            'similar_coop_mean': similar['final_cooperativity'].mean(),
+            'similar_coop_median': similar['final_cooperativity'].median(),
+            'opposite_coop_mean': opposite['final_cooperativity'].mean(),
+            'opposite_coop_median': opposite['final_cooperativity'].median(),
+            'similar_polar_mean': similar['final_polarization'].mean(),
+            'similar_polar_median': similar['final_polarization'].median(),
+            'opposite_polar_mean': opposite['final_polarization'].mean(),
+            'opposite_polar_median': opposite['final_polarization'].median(),
+            'similar_time_mean': similar['time_to_majority'].mean(),
+            'similar_time_median': similar['time_to_majority'].median(),
+            'opposite_time_mean': opposite['time_to_majority'].mean(),
+            'opposite_time_median': opposite['time_to_majority'].median()
         }
         
-        # Calculate ratios
+        # Calculate ratios for means
         for metric in ['rate', 'coop', 'polar', 'time']:
-            sim_val = similar_vs_opposite[f'similar_{metric}']
-            opp_val = similar_vs_opposite[f'opposite_{metric}']
+            sim_val = similar_vs_opposite[f'similar_{metric}_mean']
+            opp_val = similar_vs_opposite[f'opposite_{metric}_mean']
             
             if not np.isnan(sim_val) and not np.isnan(opp_val) and opp_val != 0:
                 ratio = sim_val / opp_val
@@ -353,6 +434,48 @@ def calculate_summaries(comparative_metrics):
     else:
         similar_vs_opposite = {'metric_type': 'similar_vs_opposite_overall'}
     
+    # 8. Base Algorithm Comparison (topological constraint comparison) - NEW SECTION
+    base_comparison = {}
+    if len(base_algorithm_stats) >= 2:
+        # Get local and bridge stats
+        local_stats = next((stats for stats in base_algorithm_stats if stats['base_algorithm'] == 'local'), None)
+        bridge_stats = next((stats for stats in base_algorithm_stats if stats['base_algorithm'] == 'bridge'), None)
+        
+        if local_stats and bridge_stats:
+            # Calculate deltas and percentage differences for key metrics
+            base_comparison = {
+                'metric_type': 'topological_constraint_comparison',
+                # Convergence rate comparison
+                'rate_delta': local_stats['convergence_rate_mean'] - bridge_stats['convergence_rate_mean'],
+                'rate_percent_diff': ((local_stats['convergence_rate_mean'] / bridge_stats['convergence_rate_mean']) - 1) * 100 if bridge_stats['convergence_rate_mean'] != 0 else float('nan'),
+                'rate_better': 'local' if local_stats['convergence_rate_mean'] > bridge_stats['convergence_rate_mean'] else 'bridge',
+                
+                # Cooperativity comparison
+                'coop_delta': local_stats['final_cooperativity_mean'] - bridge_stats['final_cooperativity_mean'],
+                'coop_percent_diff': ((local_stats['final_cooperativity_mean'] / bridge_stats['final_cooperativity_mean']) - 1) * 100 if bridge_stats['final_cooperativity_mean'] != 0 else float('nan'),
+                'coop_better': 'local' if local_stats['final_cooperativity_mean'] > bridge_stats['final_cooperativity_mean'] else 'bridge',
+                
+                # Polarization comparison
+                'polar_delta': local_stats['final_polarization_mean'] - bridge_stats['final_polarization_mean'],
+                'polar_percent_diff': ((local_stats['final_polarization_mean'] / bridge_stats['final_polarization_mean']) - 1) * 100 if bridge_stats['final_polarization_mean'] != 0 else float('nan'),
+                'polar_better': 'bridge' if local_stats['final_polarization_mean'] > bridge_stats['final_polarization_mean'] else 'local',
+                
+                # Time to majority comparison
+                'time_delta': local_stats['time_to_majority_mean'] - bridge_stats['time_to_majority_mean'],
+                'time_percent_diff': ((local_stats['time_to_majority_mean'] / bridge_stats['time_to_majority_mean']) - 1) * 100 if bridge_stats['time_to_majority_mean'] != 0 else float('nan'),
+                'time_better': 'bridge' if local_stats['time_to_majority_mean'] > bridge_stats['time_to_majority_mean'] else 'local',
+                
+                # Raw values for reference
+                'local_rate': local_stats['convergence_rate_mean'],
+                'bridge_rate': bridge_stats['convergence_rate_mean'],
+                'local_coop': local_stats['final_cooperativity_mean'],
+                'bridge_coop': bridge_stats['final_cooperativity_mean'],
+                'local_polar': local_stats['final_polarization_mean'],
+                'bridge_polar': bridge_stats['final_polarization_mean'],
+                'local_time': local_stats['time_to_majority_mean'],
+                'bridge_time': bridge_stats['time_to_majority_mean']
+            }
+    
     # Return all summaries
     return {
         'run_stats': pd.DataFrame([run_stats]),
@@ -360,7 +483,9 @@ def calculate_summaries(comparative_metrics):
         'algorithm_counts': pd.DataFrame([algo_counts]),
         'network_stats': network_stats,
         'similar_vs_opposite_base': pd.DataFrame(similar_vs_opposite_base) if similar_vs_opposite_base else pd.DataFrame([{'metric_type': 'similar_vs_opposite_base'}]),
-        'similar_vs_opposite': pd.DataFrame([similar_vs_opposite])
+        'similar_vs_opposite': pd.DataFrame([similar_vs_opposite]),
+        'base_algorithm_stats': pd.DataFrame(base_algorithm_stats) if base_algorithm_stats else pd.DataFrame([{'metric_type': 'base_algorithm_statistics'}]),
+        'topological_comparison': pd.DataFrame([base_comparison]) if base_comparison else pd.DataFrame([{'metric_type': 'topological_constraint_comparison'}])
     }
 
 
@@ -401,6 +526,16 @@ def export_combined_results(summaries, output_dir="../../Output/Stats"):
         # 6. Similar vs Opposite Overall Comparison
         f.write("### SECTION: Similar vs Opposite Overall Comparison\n")
         summaries['similar_vs_opposite'].to_csv(f, index=False)
+        f.write('\n\n\n')
+        
+        # 7. Base Algorithm Statistics (NEW)
+        f.write("### SECTION: Base Algorithm Statistics\n")
+        summaries['base_algorithm_stats'].to_csv(f, index=False)
+        f.write('\n\n\n')
+        
+        # 8. Topological Constraint Comparison (NEW)
+        f.write("### SECTION: Topological Constraint Comparison\n")
+        summaries['topological_comparison'].to_csv(f, index=False)
     
     return output_path
 
@@ -452,13 +587,30 @@ def main():
     print(f"  Better than random (rate): {algorithm_counts['algo_better_random_rate']} ({algorithm_counts['algo_better_random_rate_pct']:.1f}%)")
     
     # Print similar vs opposite comparison if available
-    if 'similar_time' in summaries['similar_vs_opposite'].columns:
+    if 'similar_time_mean' in summaries['similar_vs_opposite'].columns:
         similar_vs_opposite = summaries['similar_vs_opposite'].iloc[0]
         time_ratio = similar_vs_opposite.get('time_ratio', np.nan)
         if not np.isnan(time_ratio):
             faster = "opposite" if time_ratio > 1 else "similar"
             pct_diff = abs(similar_vs_opposite.get('time_pct_diff', 0))
             print(f"\n- Strategy comparison: {faster} strategy is {pct_diff:.1f}% faster to reach cooperative majority")
+    
+    # Print base algorithm comparison if available
+    if len(summaries['base_algorithm_stats']) > 1:
+        print("\n- Base Algorithm Comparison:")
+        for _, row in summaries['base_algorithm_stats'].iterrows():
+            if row['base_algorithm'] in ['local', 'bridge']:
+                print(f"  {row['base_algorithm'].capitalize()}: " +
+                     f"Coop {row['final_cooperativity_mean']:.3f}, " +
+                     f"Conv. Rate {row['convergence_rate_mean']:.3f}")
+                     
+    # Print topological constraint comparison if available
+    if 'topological_comparison' in summaries and not summaries['topological_comparison'].empty:
+        topo_comp = summaries['topological_comparison'].iloc[0]
+        if 'rate_delta' in topo_comp:
+            print("\n- Topological Constraint Comparison:")
+            print(f"  Convergence Rate Delta: {topo_comp['rate_delta']:.3f} ({abs(topo_comp['rate_percent_diff']):.1f}% {'higher' if topo_comp['rate_percent_diff'] > 0 else 'lower'} for local)")
+            print(f"  Final Cooperativity Delta: {topo_comp['coop_delta']:.3f} ({abs(topo_comp['coop_percent_diff']):.1f}% {'higher' if topo_comp['coop_percent_diff'] > 0 else 'lower'} for local)")
     
     print(f"\nResults saved to: {output_path}")
 
