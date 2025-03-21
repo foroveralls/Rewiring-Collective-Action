@@ -26,14 +26,14 @@ INPUT_DIR = "../../Output/ProcessedRates"
 OUTPUT_DIR = "../../Figs/ConvergenceRates"
 
 # Plot settings - ADJUSTED FOR JOURNAL SPECIFICATIONS
-BASE_FONT_SIZE = 6  # Reduced from 14 to fit journal specifications
+BASE_FONT_SIZE = 8  # Reduced from 14 to fit journal specifications
 RANDOM_SEED = 42
 
 cm = 1/2.54
 
 # Define font sizes for different elements
 TITLE_FONT_SIZE = BASE_FONT_SIZE - 1  # Reduced scenario label size
-AXIS_LABEL_FONT_SIZE = BASE_FONT_SIZE - 1
+AXIS_LABEL_FONT_SIZE = BASE_FONT_SIZE - 2
 TICK_FONT_SIZE = BASE_FONT_SIZE - 4
 LEGEND_FONT_SIZE = BASE_FONT_SIZE - 3  # Reduced colorbar label size
 ANNOTATION_FONT_SIZE = BASE_FONT_SIZE - 2
@@ -80,23 +80,29 @@ def setup_plotting():
         'xtick.labelsize': TICK_FONT_SIZE,
         'ytick.labelsize': TICK_FONT_SIZE,
         'legend.fontsize': LEGEND_FONT_SIZE,
-        'legend.title_fontsize': LEGEND_FONT_SIZE
+        'legend.title_fontsize': LEGEND_FONT_SIZE,
+        'xtick.major.width': 0.8,    # Thinner x ticks
+        'ytick.major.width': 0.8,   # Thinner y ticks
+        'axes.linewidth': 0.8,       # Thinner plot borders
     })
     sns.set_theme(font_scale=BASE_FONT_SIZE/12)
     sns.set(style="ticks")
     sns.set(rc={
         'axes.facecolor': 'white',
         'figure.facecolor': 'white',
+        'xtick.major.size': 2,  # Shorter x ticks (default is 3.5)
+        'ytick.major.size': 2,  # Shorter y ticks
         "axes.grid": True,
         "grid.color": 'white',
         'grid.linestyle': 'solid', 
-        "lines.linewidth": 0.8,
+        "lines.linewidth": 0.7,      # Thinner lines in general
         "axes.edgecolor": "black",
         "patch.edgecolor": "black",
         "patch.linewidth": 0.2,
         "axes.spines.bottom": True,
         "grid.alpha": 0.8,
-        "grid.linewidth": 0.3,
+        "axes.linewidth": 0.8,       # Thinner plot borders
+        "grid.linewidth": 0.2,       # Thinner grid lines
         "xtick.bottom": True,
         "ytick.left": True
     })
@@ -260,6 +266,8 @@ def create_master_heatmap_grid(all_data):
                 cbar = plt.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
                 cbar.set_label('√(Count)', fontsize=LEGEND_FONT_SIZE)
                 cbar.ax.tick_params(labelsize=TICK_FONT_SIZE)
+                # Make colorbar outline thinner
+                cbar.outline.set_linewidth(0.4)
             
             # Labels
             # Add topology label on left side for first column
@@ -300,7 +308,7 @@ def create_master_heatmap_grid(all_data):
             
             if medians:
                 x_med, y_med = zip(*medians)
-                ax.plot(x_med, y_med, 'r-', linewidth=1.5)
+                ax.plot(x_med, y_med, 'r-', linewidth=0.8)  # Reduced from 1.5 to 0.8
     
     # Title removed as requested
     
