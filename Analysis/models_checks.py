@@ -264,7 +264,7 @@ class Model:
         self.retrain = 0
         self.lock = lock
         self.process_id = os.getpid()
- 
+        self.network_snapshots = {}
          
     
         #setting rewiring algorithm to be used
@@ -1037,11 +1037,16 @@ class Model:
                 self.defectorDefectingNeighsSTDList.append(defectorDefectingNeighsSTD)
                 self.cooperatorDefectingNeighsSTDList.append(cooperatorDefectingNeighsSTD)
             
-            snapshots = [0, int(args["timesteps"]/2), args["timesteps"]-1]
+            # snapshots = [0, int(args["timesteps"]/2), args["timesteps"]-1]
            
-            if i in snapshots and drawModel:
-                self.plot_network(self.graph, title = f"T = {i}, N = {args['nwsize']}")
+            # if i in snapshots and drawModel:
+            #     self.plot_network(self.graph, title = f"T = {i}, N = {args['nwsize']}")
             
+            if hasattr(self, 'snapshot_timesteps') and i in self.snapshot_timesteps:
+                snapshot = {}
+                for node in self.graph.nodes():
+                    snapshot[node] = self.graph.nodes[node]['agent'].state
+                self.network_snapshots[i] = snapshot
                 
             # if(gifname != None and (i in snapshots)):
             #     draw_model(self, True, i, extraTitle = f'  avg state: {self.states[-1]:1.2f} agreement: {self.avgNbAgreeingList[-1]:1.2f}')
