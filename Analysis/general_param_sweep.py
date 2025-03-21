@@ -13,6 +13,7 @@ import multiprocessing
 import models_checks
 import numpy as np 
 import glob
+from sweep_utils import get_sweep_id, save_sweep_config
 from datetime import date
 
 
@@ -56,22 +57,37 @@ if __name__ == '__main__':
     combined_list2 = [("node2vec", "None", topology) for topology in directed_topology_list + undirected_topology_list]
     combined_list3 = [("None", "None", topology) for topology in directed_topology_list + undirected_topology_list]
     combined_list4 = [("wtf", "None", topology) for topology in directed_topology_list]
-    combined_list = combined_list1 + combined_list2 + combined_list3 + combined_list4
+    # Add combinations for "rand" scenario on all topologies
+    combined_list_rand = [("random", "None", topology) for topology in directed_topology_list + undirected_topology_list]
+
+    combined_list = combined_list1 + combined_list_rand + combined_list2 + combined_list3 + combined_list4 
 
     #combined_list = [("biased", "diff", "cl"), ("bridge", "diff", "cl") ]
+    
     # Parameter sweep configuration
-    parameter_names = ["polarisingNode_f", "stubbornness"]
+    parameter_names = ["politicalClimate"]
     parameters = {
-        "polarisingNode_f": np.linspace(0, 1, 10),
-        "stubbornness": np.linspace(0, 1, 10)
+        "politicalClimate": np.linspace(0, 1, 10)
     }
     param_product = [dict(zip(parameters.keys(), x)) for x in product(*parameters.values())]
 
     # Initialize list to store results
     results = []
+
+    sweep_id = get_sweep_id(parameter_names)
+
+    save_sweep_config(
+    sweep_id=sweep_id,
+    parameter_names=parameter_names,
+    parameters=parameters,
+    combined_list=combined_list,
+    num_simulations=numberOfSimulations,
+    models_checks_module=models_checks
+)
+
     
     # Main sweep loop
-    for params in param_product:
+    for params in param_product:    
         print(f"Started parameter combination: {params}")
         
         for algo, mode, topology in combined_list:
@@ -108,8 +124,7 @@ if __name__ == '__main__':
                 results.append({
                     'state': sim.states[-1],  # Store individual final state
                     'state_std': sim.statesds[-1],
-                    'polarisingNode_f': params['polarisingNode_f'],
-                    'stubbornness': params['stubbornness'],
+                    'political_climate': params['politicalClimate'],
                     'rewiring': mode,
                     'mode': algo,
                     'topology': topology,
@@ -125,7 +140,7 @@ if __name__ == '__main__':
     # Save results
     today = date.today()
     date_str = today.strftime("%b_%d_%Y")
-    fname = f'../Output/heatmap_sweep_{date_str}_{"_".join(parameters.keys())}.csv'
+    fname = f'../Output/heatmap_sweep_{sweep_id}.csv'
     results_df.to_csv(fname, index=False)
 
     # Clean up any temporary files
