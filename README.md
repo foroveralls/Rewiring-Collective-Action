@@ -26,26 +26,31 @@ sensitivity analyses are run by scripts ending in "..parameter_sweep". Results g
 ## Structure
 
 ```
-├── README.md
-├── requirements_no_win.txt
+.
 ├── Analysis
-│   ├── convergence_plots_paper_v3.py
-│   ├── general_parameter_sweep.py
-│   ├── heatmap_parameter_sweep.py
-│   ├── heatmap_plots.py
-│   ├── heatmap_plots_lilli.py
-│   ├── models_checks.py
-│   ├── network_analysis.py
-│   ├── plots.py
-│   ├── plots_paper.py
-│   ├── rewiring_parameter_sweep.py
-│   └── run.py
+│   ├── Old_other
+│   ├── Plotting
+│   ├── __pycache__
+│   └── Stats
+├── Auxillary
+│   ├── fast_wtf
+│   │   └── src
+│   └── __pycache__
 ├── Figs
-│   └── Various figures in PDF and PNG formats
+│   ├── Convergence
+│   │   └── Tests
+│   ├── ConvergenceRates
+│   ├── Diagnostics
+│   ├── Heatmaps
+│   ├── Networks
+│   ├── ParameterSweep
+│   └── Trajectories
 ├── Output
-│   └── Various output files in CSV and PNG formats
-└── Output_backup
-    └── Backup of output files
+│   ├── ProcessedRates
+│   └── Stats
+└── Pre_processing
+    └── networks_processed
+ files
 ```
 
 ## Getting the code
