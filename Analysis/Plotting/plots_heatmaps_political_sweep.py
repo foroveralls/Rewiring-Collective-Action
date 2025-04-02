@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Visualization script for cooperativity data from parameter sweeps.
-Creates a grid of heatmaps showing cooperativity across topologies and scenarios.
+Creates a grid of heatmaps showing individual run distribution across topologies and scenarios.
 """
 
 import os
@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import sys
 from matplotlib.gridspec import GridSpec
+from matplotlib.colors import LogNorm
 from datetime import date
 
 # ====================== CONFIGURATION ======================
@@ -106,7 +107,7 @@ def get_data_file():
     file_index = int(input("Enter the index of the file you want to plot: "))
     return os.path.join("../../Output", file_list[file_index])
 
-def preprocess_data(df, param_name, max_param_value=0.15):
+def preprocess_data(df, param_name, max_param_value=0.06):
     """Preprocess the data for visualization."""
     # Filter to parameter values <= max_param_value
     if param_name in df.columns:
@@ -122,15 +123,19 @@ def preprocess_data(df, param_name, max_param_value=0.15):
     # Add friendly name column
     df['friendly_name'] = df.apply(lambda row: get_friendly_name(row['mode'], row['rewiring']), axis=1)
     
-    return df
+    # Round parameter values to 2 decimal places
+    df[f'{param_name}_rounded'] = df[param_name].round(2)
+    
+    return df, max_param_value
 
-def create_cooperativity_grid(df, param_name):
+def create_state_distribution_grid(df, param_name, max_param_value):
     """
-    Create a grid of heatmaps showing cooperativity across topologies and scenarios.
+    Create a grid of 2D heatmaps showing distribution of individual final states.
     
     Parameters:
-    df - Preprocessed DataFrame with cooperativity data
+    df - Preprocessed DataFrame with state data
     param_name - Name of the parameter being swept
+    max_param_value - Maximum parameter value to display
     """
     # Get unique topologies and scenarios
     all_topologies = sorted(df['topology'].unique())
@@ -159,12 +164,47 @@ def create_cooperativity_grid(df, param_name):
     n_cols = len(all_scenarios)
     
     fig = plt.figure(figsize=(17.8*cm, 8.9*cm))
-    gs = GridSpec(n_rows, n_cols, figure=fig, wspace=0.2, hspace=0.3)
+    gs = GridSpec(n_rows, n_cols, figure=fig, wspace=0.15, hspace=0.3)
     
-    # Define diverging colormap for cooperation (-1 to 1)
-    cmap = sns.diverging_palette(20, 220, as_cmap=True, center="light")
+    # Common x-axis settings for all plots
+    x_ticks = np.round(np.arange(0, max_param_value+0.001, 0.02), 2)
+    x_ticklabels = [f"{x:.2f}" for x in x_ticks]
+    
+    # Common y-axis settings
+    y_bins = np.linspace(-1, 1, 21)  # 20 bins between -1 and 1
+    
+    # Define custom colormap for density
+    cmap = plt.cm.viridis
+    
+    # Create a storage for all histogram data to normalize globally
+    all_hist_data = []
+    
+    # First pass: calculate histograms and find global max for normalization
+    for topology in all_topologies:
+        for mode, rewiring, _ in all_scenarios:
+            # Filter data for this combination
+            cell_data = df[(df['topology'] == topology) & 
+                          (df['mode'] == mode) & 
+                          (df['rewiring'] == rewiring)]
+            
+            if not cell_data.empty:
+                # Create 2D histogram of states
+                param_vals = cell_data[f'{param_name}_rounded'].values
+                state_vals = cell_data['state'].values
+                
+                # Calculate counts for each x,y bin
+                H, xedges, yedges = np.histogram2d(
+                    param_vals, state_vals, 
+                    bins=[np.unique(np.round(param_vals, 2)), y_bins]
+                )
+                
+                all_hist_data.append((H, xedges, yedges))
+    
+    # Find the global maximum count for normalization
+    global_max = max([h.max() for h, _, _ in all_hist_data if len(h) > 0]) if all_hist_data else 1
     
     # Process each cell in grid
+    hist_idx = 0
     for row_idx, topology in enumerate(all_topologies):
         for col_idx, (mode, rewiring, friendly_name) in enumerate(all_scenarios):
             # Create subplot
@@ -172,8 +212,8 @@ def create_cooperativity_grid(df, param_name):
             
             # Filter data for this combination
             cell_data = df[(df['topology'] == topology) & 
-                           (df['mode'] == mode) & 
-                           (df['rewiring'] == rewiring)]
+                          (df['mode'] == mode) & 
+                          (df['rewiring'] == rewiring)]
             
             if cell_data.empty:
                 ax.text(0.5, 0.5, "No data", ha='center', va='center', 
@@ -181,41 +221,43 @@ def create_cooperativity_grid(df, param_name):
                 ax.set_xticks([])
                 ax.set_yticks([])
             else:
-                # Get unique parameter values and sort them
-                param_values = sorted(cell_data[param_name].unique())
+                # Get histogram data from first pass
+                H, xedges, yedges = all_hist_data[hist_idx]
+                hist_idx += 1
                 
-                # Create a 2D heatmap matrix
-                data_matrix = np.zeros((1, len(param_values)))
+                # Normalize counts (relative to global max)
+                H_norm = H / global_max
                 
-                # Fill with values for state/cooperation
-                for i, val in enumerate(param_values):
-                    val_data = cell_data[cell_data[param_name] == val]['state']
-                    if not val_data.empty:
-                        data_matrix[0, i] = val_data.mean()
-                
-                # Plot heatmap
-                sns.heatmap(
-                    data_matrix,
-                    ax=ax,
-                    cmap=cmap,
-                    vmin=-1, vmax=1,
-                    cbar=col_idx == n_cols - 1,
-                    cbar_kws={'label': 'Cooperation', 'shrink': 0.8}
+                # Plot the heatmap with log normalization for better visibility of low counts
+                im = ax.pcolormesh(
+                    xedges, yedges, H.T,  # Transpose to put states on y-axis
+                    cmap=cmap, 
+                    norm=LogNorm(vmin=0.1, vmax=global_max),  # Log scale helps show low counts
+                    shading='auto'
                 )
                 
-                # Format x-ticks
-                ax.set_xticks(np.arange(len(param_values)) + 0.5)
-                ax.set_xticklabels([f"{val:.2f}" for val in param_values], 
-                                  fontsize=TICK_FONT_SIZE, rotation=45, ha='right')
+                # Set axis limits
+                ax.set_xlim(0, max_param_value)
+                ax.set_ylim(-1, 1)
                 
-                # Hide y-axis ticks since it's just one row
-                ax.set_yticks([])
+                # Format axes
+                ax.set_xticks(x_ticks)
+                ax.set_xticklabels(x_ticklabels, rotation=45, ha='right', fontsize=TICK_FONT_SIZE)
+                
+                # Add a grid for visual clarity
+                ax.grid(False)
             
             # Add labels
             if col_idx == 0:  # First column gets topology label
-                ax.text(-0.6, 0.5, topology.upper(), transform=ax.transAxes, 
+                ax.text(-0.5, 0.5, topology.upper(), transform=ax.transAxes, 
                        rotation=90, fontsize=AXIS_LABEL_FONT_SIZE+1, 
                        fontweight='bold', va='center', ha='center')
+                # Add y-axis ticks and label for first column
+                ax.set_yticks([-1, -0.5, 0, 0.5, 1])
+                ax.set_ylabel('State', fontsize=AXIS_LABEL_FONT_SIZE)
+            else:
+                # Hide y-ticks for other columns
+                ax.set_yticks([])
             
             if row_idx == 0:  # First row gets scenario title
                 title_color = FRIENDLY_COLORS.get(friendly_name, 'black')
@@ -223,19 +265,27 @@ def create_cooperativity_grid(df, param_name):
                            color=title_color, fontweight='bold')
             
             if row_idx == n_rows - 1:  # Last row gets x-axis label
-                ax.set_xlabel(param_name, fontsize=AXIS_LABEL_FONT_SIZE)
+                ax.set_xlabel(param_name.replace('_', ' ').title(), fontsize=AXIS_LABEL_FONT_SIZE)
+    
+    # Add a colorbar to the right of the figure
+    cbar_ax = fig.add_axes([0.92, 0.15, 0.02, 0.7])
+    cbar = fig.colorbar(im, cax=cbar_ax)
+    cbar.set_label('Count', fontsize=AXIS_LABEL_FONT_SIZE)
+    
+    # Adjust layout
+    plt.tight_layout(rect=[0, 0, 0.9, 1])
     
     # Save figure
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     today = date.today().strftime("%Y%m%d")
     sweep_id = os.path.basename(df.name).split('_')[-1].split('.')[0] if hasattr(df, 'name') else today
-    save_path = f'{OUTPUT_DIR}/cooperativity_grid_{param_name}_{sweep_id}'
+    save_path = f'{OUTPUT_DIR}/state_heatmap_{param_name}_{sweep_id}'
     
     for ext in ['pdf', 'png']:
         plt.savefig(f"{save_path}.{ext}", bbox_inches='tight', dpi=300)
     
     plt.show()
-    print(f"Saved cooperativity grid to {save_path}")
+    print(f"Saved state distribution heatmap to {save_path}")
 
 def main():
     """Main execution function."""
@@ -261,11 +311,11 @@ def main():
     
     print(f"Parameter being swept: {param_name}")
     
-    # Preprocess data - limiting to parameter values <= 0.15
-    df = preprocess_data(df, param_name, max_param_value=0.15)
+    # Preprocess data - limiting to parameter values <= 0.06
+    df, max_param_value = preprocess_data(df, param_name, max_param_value=0.06)
     
     # Create visualization
-    create_cooperativity_grid(df, param_name)
+    create_state_distribution_grid(df, param_name, max_param_value)
 
 if __name__ == "__main__":
     main()

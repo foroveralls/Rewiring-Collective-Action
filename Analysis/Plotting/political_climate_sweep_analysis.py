@@ -167,7 +167,7 @@ def plot_transition_heatmap(df, param_name='political_climate', max_param=0.15):
 
 if __name__ == "__main__":
     # Load data
-    filename = "../../Output/heatmap_sweep_sweep_20250321_1907_politicalClimate_mmo.csv"
+    filename = "../../Output/heatmap_sweep_sweep_20250328_1808_politicalClimate_gbh.csv"
     df = load_data(filename)
     
     # Analyze transitions

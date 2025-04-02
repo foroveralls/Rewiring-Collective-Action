@@ -1,15 +1,7 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
-Created on Wed Mar 19 16:22:40 2025
-
-@author: jpoveralls
-"""
-
-#!/usr/bin/env python3
-"""
-Enhanced heatmap visualization script based on plots_jordan_heatmaps_alternate.py.
-Creates a comprehensive grid of all scenarios across all topologies in one figure.
+Modified heatmap visualization script with horizontal layout.
+Creates a comprehensive grid with topologies on rows and scenarios on columns.
 """
 
 import os
@@ -46,8 +38,9 @@ FRIENDLY_NAMES = {
     'node2vec_none': 'node2vec'
 }
 
-# Exclude static scenario as requested
+# Excluded scenarios and topologies
 EXCLUDED_SCENARIOS = ['static']
+EXCLUDED_TOPOLOGIES = ['cl', 'DPAH']  # Add topologies to exclude here, e.g., ['Twitter']
 
 # ====================== FUNCTIONS ======================
 
@@ -66,13 +59,13 @@ def setup_plotting_style():
         'axes.facecolor': 'white',
         'figure.facecolor': 'white',
         "axes.grid": True,
-        "grid.color": 'white',  # Changed to white for heatmap
+        "grid.color": 'white',
         'grid.linestyle': 'solid', 
         "axes.edgecolor": "black",
         "patch.edgecolor": "black",
-        "patch.linewidth": 0.5,  # Reduced from original
+        "patch.linewidth": 0.5,
         "axes.spines.bottom": True,
-        "grid.alpha": 0.8,  # Increased for better visibility
+        "grid.alpha": 0.8,
         "xtick.bottom": True,
         "ytick.left": True
     })
@@ -116,7 +109,7 @@ def get_friendly_name(scenario):
 def create_comprehensive_heatmap_grid(df, value_columns, column_labels):
     """
     Create a comprehensive grid of heatmaps showing all scenarios across all topologies.
-    Scenarios are on rows, topologies are on columns.
+    Topologies are on rows, scenarios are on columns (horizontal layout).
     
     Parameters:
     df - DataFrame with heatmap data
@@ -126,6 +119,9 @@ def create_comprehensive_heatmap_grid(df, value_columns, column_labels):
     # Get unique scenarios and topologies
     scenarios = df['scenario'].unique()
     topologies = df['topology'].unique()
+    
+    # Filter out excluded topologies
+    topologies = [t for t in topologies if t not in EXCLUDED_TOPOLOGIES]
     
     # Convert to friendly names and filter out excluded scenarios
     friendly_scenarios = {}
@@ -140,53 +136,56 @@ def create_comprehensive_heatmap_grid(df, value_columns, column_labels):
     # Number of value columns (metrics) to display
     n_metrics = len(value_columns)
     
-    # Set up the grid: scenarios as rows, topologies as columns
-    n_rows = len(sorted_scenarios)
-    n_cols = len(topologies) * n_metrics
+    # Swap rows and columns: topologies as rows, scenarios as columns
+    n_rows = len(topologies)
+    n_cols = len(sorted_scenarios) * n_metrics
     
-    # Create figure with precise control over spacing
-    fig = plt.figure(figsize=(n_cols * 3, n_rows * 3))
+    # Create figure with more compact aspect ratio
+    fig_width = min(18, n_cols * 1.4)  # Reduced width factor and maximum
+    fig_height = max(6, n_rows * 2)  # Ensure minimum height
+    fig = plt.figure(figsize=(fig_width, fig_height))
     
     # Use GridSpec for more control over subplot placement
     gs = fig.add_gridspec(n_rows, n_cols, 
-                         hspace=0.4,  # Increased for more space between rows
-                         wspace=0.05,  # Reduced for tighter spacing between metrics
-                         left=0.1,
-                         right=0.95,
-                         top=0.92,
-                         bottom=0.08)
+                         hspace=0.3,  # Reduced vertical spacing
+                         wspace=0.03,  # Tighter horizontal spacing
+                         left=0.07,
+                         right=0.97,
+                         top=0.9,
+                         bottom=0.12)
     
     # Define colormaps
     coop_cmap = sns.diverging_palette(20, 220, as_cmap=True, center="light")
     polar_cmap = sns.color_palette("Reds", as_cmap=True)
     
-    # Loop through scenarios (rows) and topologies (columns)
-    for row, scenario in enumerate(sorted_scenarios):
-        friendly_scenario = friendly_scenarios[scenario]
-        scenario_color = FRIENDLY_COLORS.get(friendly_scenario, 'black')
-        
-        # Add scenario name on the left
+    # Loop through topologies (rows) and scenarios (columns)
+    for row, topology in enumerate(topologies):
+        # Add topology name on the left
         if row == 0:
-            # Add column labels for the topologies at the top
-            for t, topology in enumerate(topologies):
-                col_idx = t * n_metrics
-                fig.text(0.1 + (col_idx + n_metrics/2) * 0.85/n_cols, 0.96, 
-                         topology.upper(), 
+            # Add column labels for the scenarios at the top - grouped by pair of metrics
+            for s, scenario in enumerate(sorted_scenarios):
+                friendly_scenario = friendly_scenarios[scenario]
+                scenario_color = FRIENDLY_COLORS.get(friendly_scenario, 'black')
+                col_idx = s * n_metrics
+                fig.text(0.07 + (col_idx + n_metrics/2) * 0.9/n_cols, 0.94, 
+                         friendly_scenario, 
                          ha='center', va='bottom', 
-                         fontsize=FONT_SIZE + 2,
-                         fontweight='bold')
+                         fontsize=FONT_SIZE-1,  # Smaller font
+                         fontweight='bold',
+                         color=scenario_color)
         
-        # Add scenario label on the left
-        fig.text(0.01, 0.08 + (n_rows - row - 0.5) * 0.84/n_rows, 
-                 friendly_scenario,
+        # Add topology label on the left - more compact
+        fig.text(0.02, 0.12 + (n_rows - row - 0.5) * 0.78/n_rows, 
+                 topology.upper(),
                  ha='left', va='center',
-                 fontsize=FONT_SIZE,
+                 fontsize=FONT_SIZE-1,  # Smaller font
                  fontweight='bold',
-                 rotation=90,
-                 color=scenario_color)
+                 rotation=90)
         
-        for t, topology in enumerate(topologies):
-            # Get scenario data for this topology
+        for s, scenario in enumerate(sorted_scenarios):
+            friendly_scenario = friendly_scenarios[scenario]
+            
+            # Get topology data for this scenario
             scenario_topo_data = df[(df['scenario'] == scenario) & (df['topology'] == topology)]
             
             if scenario_topo_data.empty:
@@ -194,7 +193,7 @@ def create_comprehensive_heatmap_grid(df, value_columns, column_labels):
                 
             for m, metric in enumerate(value_columns):
                 # Calculate column index
-                col = t * n_metrics + m
+                col = s * n_metrics + m
                 
                 # Create axis
                 ax = fig.add_subplot(gs[row, col])
@@ -233,26 +232,34 @@ def create_comprehensive_heatmap_grid(df, value_columns, column_labels):
                                    cbar=col % n_metrics == n_metrics - 1,  # Only show colorbar for last metric
                                    cbar_kws={'label': cbar_label} if col % n_metrics == n_metrics - 1 else {})
                     
-                    # Format tick labels
-                    ax.set_yticklabels([f'{y:.1f}' for y in heatmap_data.index], rotation=0)
-                    ax.set_xticklabels([f'{x:.1f}' for x in heatmap_data.columns], rotation=0)
+                    # Format tick labels - more compact
+                    if row == n_rows - 1:  # Only show x labels on bottom row
+                        ax.set_xticklabels([f'{x:.1f}' for x in heatmap_data.columns], rotation=45, fontsize=FONT_SIZE-4)
+                    else:
+                        ax.set_xticklabels([])
+                    
+                    if col % n_metrics == 0:  # Only show y labels on leftmost column of each scenario
+                        ax.set_yticklabels([f'{y:.1f}' for y in heatmap_data.index], rotation=0, fontsize=FONT_SIZE-4)
+                    else:
+                        ax.set_yticklabels([])
                     
                     # Add metric label
                     if row == 0:
                         if metric == 'state':
-                            ax.set_title(r'$\langle x \rangle$', fontsize=FONT_SIZE)
+                            ax.set_title(r'$\langle x \rangle$', fontsize=FONT_SIZE-2)
                         else:
-                            ax.set_title(r'$\sigma(x)$', fontsize=FONT_SIZE)
+                            ax.set_title(r'$\sigma(x)$', fontsize=FONT_SIZE-2)
                     
-                    # Add axis labels only for the leftmost column
-                    if col % n_metrics == 0:
-                        ax.set_ylabel('Polarizing Node Fraction', fontsize=FONT_SIZE-2)
+                    # Add axis labels more efficiently
+                    # Only add y-label to the first column
+                    if col == 0:
+                        ax.set_ylabel('Polarizing Node\nFraction', fontsize=FONT_SIZE-3)
                     else:
                         ax.set_ylabel('')
                     
-                    # Add x-axis label only for the bottom row
-                    if row == n_rows - 1:
-                        ax.set_xlabel('Stubbornness', fontsize=FONT_SIZE-2)
+                    # Add x-axis label only for the bottom row and central columns
+                    if row == n_rows - 1 and col % (2 * n_metrics) == n_metrics - 1:
+                        ax.set_xlabel('Stubbornness', fontsize=FONT_SIZE-3)
                     else:
                         ax.set_xlabel('')
                 
@@ -262,17 +269,17 @@ def create_comprehensive_heatmap_grid(df, value_columns, column_labels):
                     ax.set_xticks([])
                     ax.set_yticks([])
     
-    # Add super title
-    fig.suptitle('Network Dynamics Across Topologies and Rewiring Algorithms',
-                fontsize=FONT_SIZE+6,
+    # Add more compact super title
+    fig.suptitle('Network Dynamics: Topologies × Rewiring Algorithms',
+                fontsize=FONT_SIZE+2,
                 fontweight='bold',
-                y=0.99)
+                y=0.98)
     
     return fig
 
-def save_figure(fig, output_name='comprehensive_heatmap'):
+def save_figure(fig, output_name='comprehensive_heatmap_horizontal'):
     """Save the figure to file with LaTeX-friendly settings."""
-    save_path = f'../Figs/Heatmaps/{output_name}_{date.today()}.pdf'
+    save_path = f'../../Figs/Heatmaps/{output_name}_{date.today()}.pdf'
     os.makedirs(os.path.dirname(save_path), exist_ok=True)
     
     # Save with specific PDF settings for better text rendering
@@ -303,15 +310,15 @@ def main():
     # Define plotting parameters with friendly column names
     value_columns = ['state', 'state_std']
     column_labels = {
-        'state': 'avg(x)',     # Unicode angle brackets with s
-        'state_std': 'std(x)'    # Unicode sigma with s
+        'state': 'avg(x)',
+        'state_std': 'std(x)'
     }
     
     # Create comprehensive grid
     fig = create_comprehensive_heatmap_grid(df, value_columns, column_labels)
     
     # Save figure
-    save_figure(fig, 'comprehensive_heatmap')
+    save_figure(fig, 'comprehensive_heatmap_horizontal')
 
 if __name__ == "__main__":
     main()
