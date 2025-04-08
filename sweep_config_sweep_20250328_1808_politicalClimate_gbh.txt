@@ -1,0 +1,59 @@
+Parameter Sweep ID: sweep_20250328_1808_politicalClimate_gbh
+Date: 2025-03-28
+Number of simulations per parameter combination: 30
+
+Parameters being swept:
+  politicalClimate: [0.         0.01111111 0.02222222 0.03333333 0.04444444 0.05555556
+ 0.06666667 0.07777778 0.08888889 0.1       ]
+
+Scenarios being tested:
+  biased_diff_DPAH
+  biased_diff_Twitter
+  biased_diff_cl
+  biased_diff_FB
+  biased_same_DPAH
+  biased_same_Twitter
+  biased_same_cl
+  biased_same_FB
+  bridge_diff_DPAH
+  bridge_diff_Twitter
+  bridge_diff_cl
+  bridge_diff_FB
+  bridge_same_DPAH
+  bridge_same_Twitter
+  bridge_same_cl
+  bridge_same_FB
+  random_None_DPAH
+  random_None_Twitter
+  random_None_cl
+  random_None_FB
+  node2vec_None_DPAH
+  node2vec_None_Twitter
+  node2vec_None_cl
+  node2vec_None_FB
+  None_None_DPAH
+  None_None_Twitter
+  None_None_cl
+  None_None_FB
+  wtf_None_DPAH
+  wtf_None_Twitter
+
+Fixed parameters:
+  breaklinkprob: 0.5
+  clustering: 0.5
+  continuous: True
+  defectorUtility: 0.0
+  degree: 8
+  establishlinkprob: 0.5
+  f_all: 0.5
+  friendship: 0.5
+  friendshipSD: 0.19
+  initSD: 0.15
+  newPoliticalClimate: 0.05
+  nwsize: 100
+  plot: False
+  polarisingNode_f: 0
+  randomness: 0.1
+  skew: -0.2
+  stubbornness: 0.6
+  timesteps: 100
