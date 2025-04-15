@@ -28,7 +28,7 @@ SELECTED_TOPOLOGIES = []  # Empty list means all topologies will be processed
 SELECTED_SCENARIOS = []   # Empty list means all scenarios will be processed
 
 # Input file - change this to your CSV file path
-INPUT_FILE = "../Output/param_sweep_individual_N_789_polarisingNode_f_0.0_1.0_10_2025-03-07.csv"
+INPUT_FILE = "../Output/param_sweep_individual_N_789_polarisingNode_f_0.0_1.0_10_2025-03-13.csv"
 
 # Output directory for saved results
 OUTPUT_DIR = "../Output/ProcessedRates"
@@ -36,7 +36,7 @@ OUTPUT_DIR = "../Output/ProcessedRates"
 # Sampling parameters - optimized for large files
 SAMPLE_FRACTION = 1.0  # Sample 100% of runs for analysis
 CHUNK_SIZE = 500000    # Process in larger chunks with Polars for better performance
-MAX_SAMPLES_PER_COMBINATION = 50  # Maximum number of runs to analyze per parameter combination
+MAX_SAMPLES_PER_COMBINATION = 30  # Maximum number of runs to analyze per parameter combination
 
 # Time range for analysis (in timesteps)
 TIME_RANGE = (5000, 45000)  # (start_time, end_time)
@@ -251,51 +251,36 @@ def get_rewiring_modes(filepath, scenarios):
         scenario_lower = str(scenario).lower()
         if scenario_lower in ['none', 'random', 'wtf', 'node2vec']:
             rewiring_modes[scenario] = 'none'
-        else:
-            # For biased and bridge, we need to check both 'same' and 'diff' modes
-            rewiring_modes[scenario] = 'diff'  # Default
     
     # Try to determine actual rewiring modes from data
     try:
-        # Sample data to check for distinct scenario-rewiring combinations
+        # Get all unique scenario-rewiring combinations
         query = (
             pl.scan_csv(filepath)
-            .filter(pl.col("scenario").is_in(scenarios))
             .select(["scenario", "rewiring"])
             .unique()
             .collect()
         )
         
-        # Create a mapping of all scenario-rewiring combinations found
-        scenario_rewiring_map = {}
+        # Add debugging to show what's in the data
+        print("DEBUG: Found scenario-rewiring combinations:")
+        for row in query.iter_rows(named=True):
+            if str(row["scenario"]).lower() in ["biased", "bridge"]:
+                print(f"  {row['scenario']}: '{row['rewiring']}'")
+        
+        # Process each combination
         for row in query.iter_rows(named=True):
             scenario = row["scenario"]
             rewiring = row["rewiring"]
             
-            if scenario not in scenario_rewiring_map:
-                scenario_rewiring_map[scenario] = []
-            
-            if rewiring and rewiring not in scenario_rewiring_map[scenario]:
-                scenario_rewiring_map[scenario].append(rewiring)
-        
-        # Process scenario-rewiring map to create multiple entries when needed
-        expanded_scenarios = []
-        for scenario, rewirings in scenario_rewiring_map.items():
-            # For 'none', 'random', 'wtf', 'node2vec', we only need one entry
-            if str(scenario).lower() in ['none', 'random', 'wtf', 'node2vec']:
-                rewiring_modes[scenario] = 'none'
-                expanded_scenarios.append(scenario)
-            else:
-                # For 'biased' and 'bridge', create entries for each rewiring mode
-                for rewiring in rewirings:
-                    if rewiring:
-                        # Create a "combined ID" to distinguish different modes of the same algorithm
-                        combined_id = f"{scenario}_{rewiring}"
-                        rewiring_modes[combined_id] = rewiring
-                        expanded_scenarios.append(combined_id)
-        
-        # Update the scenarios list with expanded entries when appropriate
-        print(f"Expanded scenarios with rewiring modes: {expanded_scenarios}")
+            if str(scenario).lower() in ["biased", "bridge"] and rewiring:
+                # For biased and bridge, use combined key that includes rewiring mode
+                combined_id = f"{scenario}_{rewiring}"
+                rewiring_modes[combined_id] = rewiring
+            elif scenario in scenarios:
+                # For other scenarios, use default mode
+                if scenario not in rewiring_modes:
+                    rewiring_modes[scenario] = 'none'
         
     except Exception as e:
         print(f"Error determining rewiring modes: {e}")
@@ -729,9 +714,7 @@ def main():
         # Get rewiring modes - this needs to identify biased_same, biased_diff, etc.
         rewiring_modes = get_rewiring_modes(input_file, available_scenarios)
         
-        # Find all unique scenario-rewiring combinations
         unique_combinations = set()
-        # First fetch all unique scenario-rewiring pairs from data
         try:
             query = (
                 pl.scan_csv(input_file)
@@ -740,21 +723,24 @@ def main():
                 .collect()
             )
             
-            # Process to create combined scenario_rewiring for biased and bridge
+            # Process each scenario-rewiring combination
             for row in query.iter_rows(named=True):
                 scenario = row["scenario"]
                 rewiring = row["rewiring"]
                 
                 if str(scenario).lower() in ["biased", "bridge"] and rewiring:
+                    # For biased and bridge, create combined IDs with rewiring mode
                     combined_id = f"{scenario}_{rewiring}"
                     unique_combinations.add(combined_id)
+                    print(f"Added combined variant: {combined_id}")
                 else:
+                    # For other algorithms, keep original scenario name
                     unique_combinations.add(scenario)
         except Exception as e:
             print(f"Error getting unique combinations: {e}")
             # Fall back to available scenarios
             unique_combinations = set(available_scenarios)
-        
+
         # Convert to list and filter based on user selection
         all_scenario_combinations = list(unique_combinations)
         if SELECTED_SCENARIOS:
