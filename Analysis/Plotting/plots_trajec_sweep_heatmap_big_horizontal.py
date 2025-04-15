@@ -1,6 +1,6 @@
-#!/usr/bin/env python3
+
 """
-Enhanced visualization script for previously processed convergence rate data.
+Enhanced visualization script for convergence rate data from a single unified file.
 Creates a comprehensive grid display of all scenarios across all topologies.
 """
 
@@ -17,6 +17,22 @@ from matplotlib.colors import LogNorm, Normalize
 import matplotlib.ticker as ticker
 from matplotlib.gridspec import GridSpec
 from datetime import date
+
+# debug helper
+
+def print_debug_info(all_results, rewiring_modes):
+    """Print debug information about the data structure."""
+    print("\nDEBUG INFO:")
+    print("===========")
+    for topology, scenarios in all_results.items():
+        print(f"Topology: {topology}")
+        for scenario in scenarios:
+            friendly = get_friendly_name(scenario, rewiring_modes.get(scenario, 'none'))
+            print(f"  Scenario: {scenario} -> Friendly: {friendly}")
+            print(f"    Color key: {friendly.lower()}")
+            print(f"    Color: {FRIENDLY_COLORS.get(friendly.lower(), 'black')}")
+    print("===========\n")#!/usr/bin/env python3
+
 
 # ====================== CONFIGURATION ======================
 # Input directory with processed data
@@ -38,7 +54,7 @@ TICK_FONT_SIZE = BASE_FONT_SIZE - 4
 LEGEND_FONT_SIZE = BASE_FONT_SIZE - 3  # Reduced colorbar label size
 ANNOTATION_FONT_SIZE = BASE_FONT_SIZE - 2
 
-# Scenario names and colors mapping (from heatmap_alternate)
+# Scenario names and colors mapping
 FRIENDLY_COLORS = {
     'static': '#EE7733',      # Orange
     'random': '#0077BB',      # Blue
@@ -62,7 +78,7 @@ FRIENDLY_NAMES = {
 }
 
 # Excluded scenarios (static in this case)
-EXCLUDED_SCENARIOS = ['none_none']
+EXCLUDED_SCENARIOS = ['none_none', 'static', 'none']
 
 # ====================== FUNCTIONS ======================
 
@@ -112,71 +128,118 @@ def get_friendly_name(scenario, rewiring):
     if scenario is None:
         return "Unknown"
     
-    if rewiring is None:
+    if rewiring is None or pd.isna(rewiring) or rewiring == 'None':
         rewiring = "none"
     
     scenario = str(scenario).lower()
     rewiring = str(rewiring).lower()
     
+    # Handle combined ID format (e.g., "biased_diff")
+    if "_" in scenario:
+        parts = scenario.split("_")
+        scenario = parts[0]
+        rewiring = parts[1]
+    
     key = f"{scenario}_{rewiring}"
     if scenario in ["none", "random", "wtf", "node2vec"]:
         key = f"{scenario}_none"
     
-    return FRIENDLY_NAMES.get(key, f"{scenario} ({rewiring})")
+    friendly_name = FRIENDLY_NAMES.get(key, f"{scenario} ({rewiring})")
+    return friendly_name
 
-def list_available_files():
-    """List all available pickle files with processed data."""
+def find_all_files():
+    """Find all the unified .pkl files with ALL in the name."""
     if not os.path.exists(INPUT_DIR):
         print(f"Error: Input directory '{INPUT_DIR}' does not exist.")
         return []
     
-    files = [f for f in os.listdir(INPUT_DIR) if f.endswith('.pkl') and f.startswith('convergence_rates_')]
+    files = [f for f in os.listdir(INPUT_DIR) if f.endswith('.pkl') and 'ALL' in f]
+    files.sort(key=lambda x: os.path.getmtime(os.path.join(INPUT_DIR, x)), reverse=True)
     return files
 
-def extract_topology_from_filename(filename):
-    """Extract topology from filename."""
-    parts = filename.split('_')
-    if len(parts) > 2:
-        return parts[2].upper()  # Based on naming convention: convergence_rates_TOPOLOGY_...
-    return None
-
-def load_results(filename):
-    """Load processed results from pickle file."""
+def load_unified_results(filename):
+    """Load the unified results from the ALL .pkl file."""
     filepath = os.path.join(INPUT_DIR, filename)
     try:
         with open(filepath, 'rb') as f:
             data = pickle.load(f)
+        
+        if 'all_results' not in data:
+            print(f"Error: Invalid data format in {filepath} - missing 'all_results' key")
+            return None
+        
+        print(f"Loaded data with param_name: {data.get('param_name', 'unknown')}")
         return data
     except Exception as e:
         print(f"Error loading {filepath}: {e}")
         return None
 
-def create_master_heatmap_grid(all_data):
+def extract_rewiring_modes(all_results):
+    """Extract rewiring modes for all scenarios across all topologies."""
+    rewiring_modes = {}
+    
+    for topology, results in all_results.items():
+        for scenario in results:
+            # Infer rewiring mode from scenario name if it's a combined format
+            if '_' in scenario:
+                parts = scenario.split('_')
+                base_scenario = parts[0]
+                mode = parts[1]
+                rewiring_modes[scenario] = mode
+            elif scenario.lower() in ['none', 'random', 'wtf', 'node2vec', 'static']:
+                rewiring_modes[scenario] = 'none'
+            # If we can't determine the mode, default to 'none'
+            else:
+                rewiring_modes[scenario] = 'none'
+    
+    print(f"Extracted rewiring modes: {rewiring_modes}")
+    return rewiring_modes
+
+def create_master_heatmap_grid(data):
     """
     Create a comprehensive grid of heatmaps showing all scenarios across all topologies.
     
     Parameters:
-    all_data - Dictionary with topology as key and data as value
+    data - Complete data dictionary from the unified file
     """
+    all_results = data['all_results']
+    param_name = data.get('param_name', 'Unknown Parameter')
+    
     # Get all unique topologies and scenarios
-    all_topologies = list(all_data.keys())
+    all_topologies = list(all_results.keys())
+    
+    # Create a set of all scenarios across all topologies
     all_scenarios = set()
-    all_rewiring_modes = {}
+    for topology, results in all_results.items():
+        all_scenarios.update(results.keys())
     
-    for topology, data in all_data.items():
-        for scenario in data['results'].keys():
-            # Skip excluded scenarios
-            scenario_key = f"{scenario}_{data['rewiring_modes'].get(scenario, 'none')}"
-            if scenario_key not in EXCLUDED_SCENARIOS and len(data['results'][scenario]['distributions']) > 0:
-                all_scenarios.add(scenario)
-                all_rewiring_modes[scenario] = data['rewiring_modes'].get(scenario, 'none')
+    # Extract rewiring modes for friendly names
+    rewiring_modes = extract_rewiring_modes(all_results)
     
-    all_scenarios = sorted(list(all_scenarios))
+    # Debug info to help diagnose issues
+    #print_debug_info(all_results, rewiring_modes)
+    
+    # Handle excluded scenarios - make sure to check both the scenario name and any standard name mappings
+    filtered_scenarios = []
+    for s in sorted(all_scenarios):
+        should_exclude = False
+        if s in EXCLUDED_SCENARIOS:
+            should_exclude = True
+        # Also check if the friendly name maps to an excluded scenario
+        friendly_name = get_friendly_name(s, rewiring_modes.get(s, 'none'))
+        if friendly_name in EXCLUDED_SCENARIOS or friendly_name.lower() == 'static':
+            should_exclude = True
+            
+        if not should_exclude:
+            filtered_scenarios.append(s)
+            
+    all_scenarios = filtered_scenarios
+    print(f"After filtering excluded scenarios: {all_scenarios}")
     
     # Display what we found
     print(f"Found {len(all_topologies)} topologies and {len(all_scenarios)} scenarios")
     print(f"Topologies: {all_topologies}")
-    print(f"Scenarios: {[get_friendly_name(s, all_rewiring_modes.get(s, 'none')) for s in all_scenarios]}")
+    print(f"Scenarios: {[get_friendly_name(s, rewiring_modes.get(s, 'none')) for s in all_scenarios]}")
     
     # Determine grid layout: topologies as rows, scenarios as columns
     n_rows = len(all_topologies)
@@ -184,15 +247,15 @@ def create_master_heatmap_grid(all_data):
 
     # Create figure with constrained layout
     plt.figure()
-    gs = GridSpec(n_rows, n_cols, figure=plt.gcf(), wspace=0.35, hspace=0.3)  # Increased wspace for better horizontal spacing
+    gs = GridSpec(n_rows, n_cols, figure=plt.gcf(), wspace=0.35, hspace=0.3)
     
     # Find global min/max rates for consistent scale across all plots
     all_rates = []
-    for topology, data in all_data.items():
+    for topology, results in all_results.items():
         for scenario in all_scenarios:
-            if scenario in data['results']:
-                for rates in data['results'][scenario]['distributions'].values():
-                    if len(rates) > 0:
+            if scenario in results:
+                for rates in results[scenario]['distributions'].values():
+                    if rates and len(rates) > 0:
                         all_rates.extend(rates[:min(len(rates), 100)])  # Take samples from each
     
     if all_rates:
@@ -207,32 +270,40 @@ def create_master_heatmap_grid(all_data):
     rate_bins = 20
     
     # Create custom colormap with better low-count visibility
-    colors = sns.color_palette("viridis", n_colors=256)
     custom_cmap = sns.color_palette("viridis", as_cmap=True)
     
     # Process each topology and scenario
     for row_idx, topology in enumerate(all_topologies):
-        data = all_data[topology]
-        param_name = data['param_name']
+        topology_results = all_results.get(topology, {})
         topology_friendly = topology.upper()
         
         for col_idx, scenario in enumerate(all_scenarios):
-            if scenario not in data['results'] or len(data['results'][scenario]['distributions']) == 0:
-                # Skip if no data for this scenario
+            if scenario not in topology_results:
+                # Skip if no data for this scenario in this topology
                 ax = plt.subplot(gs[row_idx, col_idx])
                 ax.text(0.5, 0.5, "No data", ha='center', va='center', fontsize=ANNOTATION_FONT_SIZE)
                 ax.set_xticks([])
                 ax.set_yticks([])
                 continue
             
-            # Get friendly name and color
-            rewiring = data['rewiring_modes'].get(scenario, 'none')
-            friendly_name = get_friendly_name(scenario, rewiring)
-            title_color = FRIENDLY_COLORS.get(friendly_name, 'black')
+            scenario_data = topology_results[scenario]
             
-            # Get data for this scenario
-            scenario_data = data['results'][scenario]
-            param_vals = scenario_data['param_values']
+            # Skip if no distributions in scenario data
+            if not scenario_data.get('distributions') or len(scenario_data['distributions']) == 0:
+                ax = plt.subplot(gs[row_idx, col_idx])
+                ax.text(0.5, 0.5, "No distributions", ha='center', va='center', fontsize=ANNOTATION_FONT_SIZE)
+                ax.set_xticks([])
+                ax.set_yticks([])
+                continue
+            
+            # Get friendly name and color
+            rewiring = rewiring_modes.get(scenario, 'none')
+            friendly_name = get_friendly_name(scenario, rewiring)
+            color_key = friendly_name.lower()
+            title_color = FRIENDLY_COLORS.get(color_key, 'black')
+            
+            # Get parameter values
+            param_vals = scenario_data.get('param_values', [])
             
             # Create subplot
             ax = plt.subplot(gs[row_idx, col_idx])
@@ -245,7 +316,7 @@ def create_master_heatmap_grid(all_data):
             for j, val in enumerate(param_vals):
                 if val in scenario_data['distributions']:
                     rates = scenario_data['distributions'][val]
-                    if rates:
+                    if rates and len(rates) > 0:
                         hist, _ = np.histogram(rates, bins=rate_bin_edges)
                         if np.sum(hist) > 0:
                             # Use sqrt normalization to enhance low count visibility
@@ -286,11 +357,15 @@ def create_master_heatmap_grid(all_data):
             
             # Add scenario label on top for first row
             if row_idx == 0:
-                ax.set_title(friendly_name, color=title_color, fontsize=TITLE_FONT_SIZE, fontweight='bold', pad=2)  # Reduced padding
+                friendly_name = get_friendly_name(scenario, rewiring_modes.get(scenario, 'none'))
+                color_key = friendly_name.lower()
+                title_color = FRIENDLY_COLORS.get(color_key, 'black')
+                ax.set_title(friendly_name, color=title_color, 
+                           fontsize=TITLE_FONT_SIZE, fontweight='bold', pad=2)
             
             # Set x-ticks to parameter values with standardized format
             x_ticks = np.arange(len(param_vals))
-            x_tick_labels = [f'{val:.1f}' for val in param_vals]  # Changed to 1 decimal place
+            x_tick_labels = [f'{val:.1f}' for val in param_vals]
             tick_spacing = max(1, len(param_vals) // 5)
             ax.set_xticks(x_ticks[::tick_spacing])
             ax.set_xticklabels(x_tick_labels[::tick_spacing], fontsize=TICK_FONT_SIZE)
@@ -308,9 +383,7 @@ def create_master_heatmap_grid(all_data):
             
             if medians:
                 x_med, y_med = zip(*medians)
-                ax.plot(x_med, y_med, 'r-', linewidth=0.8)  # Reduced from 1.5 to 0.8
-    
-    # Title removed as requested
+                ax.plot(x_med, y_med, 'r-', linewidth=0.8)
     
     # Create directory and save
     os.makedirs(OUTPUT_DIR, exist_ok=True)
@@ -324,51 +397,37 @@ def create_master_heatmap_grid(all_data):
     plt.close()
     print(f"Saved master grid heatmap to {save_path}")
 
-def process_all_files():
-    """Process all available files to build master grid view."""
-    available_files = list_available_files()
+def process_unified_file():
+    """Process a single unified ALL file to build master grid view."""
+    available_files = find_all_files()
     
     if not available_files:
-        print("No processed data files found.")
+        print("No unified data files found.")
         return
     
-    # Load data from all files
-    all_data = {}
+    # Print available files
+    print("Available unified files:")
+    for i, file in enumerate(available_files):
+        print(f"{i}: {file}")
     
-    for file in available_files:
-        print(f"Loading file: {file}")
-        topology = extract_topology_from_filename(file)
-        if not topology:
-            print(f"  Warning: Could not extract topology from {file}")
-            continue
-        
-        data = load_results(file)
-        if not data or 'results' not in data:
-            print(f"  Error: Invalid data format in {file}")
-            continue
-        
-        # Extract rewiring modes
-        rewiring_modes = {}
-        for scenario in data['results']:
-            if scenario.lower() in ['none', 'random', 'wtf', 'node2vec']:
-                rewiring_modes[scenario] = 'none'
-            elif 'biased' in scenario.lower():
-                if 'diff' in file.lower():
-                    rewiring_modes[scenario] = 'diff'
-                else:
-                    rewiring_modes[scenario] = 'same'
-            elif 'bridge' in scenario.lower():
-                if 'diff' in file.lower():
-                    rewiring_modes[scenario] = 'diff'
-                else:
-                    rewiring_modes[scenario] = 'same'
-        
-        data['rewiring_modes'] = rewiring_modes
-        all_data[topology] = data
+    # Ask user to select a file
+    try:
+        file_idx = int(input("Enter the index of the file to use: "))
+        if file_idx < 0 or file_idx >= len(available_files):
+            print(f"Invalid index. Using the most recent file (0).")
+            file_idx = 0
+    except ValueError:
+        print("Invalid input. Using the most recent file (0).")
+        file_idx = 0
     
-    # Create master grid
-    if all_data:
-        create_master_heatmap_grid(all_data)
+    selected_file = available_files[file_idx]
+    print(f"Selected file: {selected_file}")
+    
+    # Load unified file data
+    data = load_unified_results(selected_file)
+    
+    if data:
+        create_master_heatmap_grid(data)
     else:
         print("No valid data found to plot.")
 
@@ -377,9 +436,8 @@ def main():
     # Setup plotting style
     setup_plotting()
     
-    # Process all files to create master grid
-    process_all_files()
+    # Process unified file to create master grid
+    process_unified_file()
 
 if __name__ == "__main__":
-# %%
     main()
