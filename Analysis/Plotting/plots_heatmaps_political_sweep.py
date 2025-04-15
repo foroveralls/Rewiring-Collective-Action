@@ -12,6 +12,7 @@ import seaborn as sns
 import sys
 from matplotlib.gridspec import GridSpec
 from matplotlib.colors import LinearSegmentedColormap
+import matplotlib.colors as colors
 from datetime import date
 
 # ====================== CONFIGURATION ======================
@@ -180,19 +181,17 @@ def create_state_heatmap_grid(df, param_name, max_param_value=0.06):
     fig = plt.figure(figsize=(17.8*cm, 12*cm))
     
     # Create GridSpec with minimal space horizontally between plots
-    gs = GridSpec(n_rows, n_cols, figure=fig, wspace=0.1, hspace=0.6)
+    gs = GridSpec(n_rows, n_cols, figure=fig, wspace=0.35, hspace=0.3)
     
-    # Define diverging colormap for cooperation (-1 to 1)
-    cmap = sns.diverging_palette(20, 220, as_cmap=True, center="light")
+    # Use viridis colormap for consistency with trajectory plots
+    cmap = plt.cm.viridis
     
     # Define the 2D histogram bins
     param_bins = np.linspace(0, max_param_value, PARAM_BINS+1)
     state_bins = np.linspace(-1, 1, STATE_BINS+1)
     
-    # Dynamically set x-axis ticks based on max_param_value
-    x_max = max_param_value
-    x_ticks = np.linspace(0, x_max, 4)  # 4 ticks from 0 to max_param_value
-    x_ticklabels = [f"{x:.2f}" for x in x_ticks]
+    # Create parameter values array for consistent tick spacing
+    param_vals = np.linspace(0, max_param_value, PARAM_BINS)
     
     # Process each cell in grid
     for row_idx, topology in enumerate(all_topologies):
@@ -211,44 +210,67 @@ def create_state_heatmap_grid(df, param_name, max_param_value=0.06):
                 ax.set_xticks([])
                 ax.set_yticks([])
             else:
-                # Create 2D histogram (heatmap)
-                counts, xedges, yedges, im = ax.hist2d(
+                # Compute 2D histogram manually for better control
+                H, xedges, yedges = np.histogram2d(
                     cell_data[param_name], 
                     cell_data['state'],
-                    bins=[param_bins, state_bins],
-                    cmap=cmap,
-                    norm=None,  # Let matplotlib handle normalization
-                    cmin=1  # Minimum count to show (avoid empty bins showing up)
+                    bins=[param_bins, state_bins]
                 )
                 
+                # Simple log transformation for enhancing visibility of low counts
+                H_log = np.log1p(H)  # log(1+x) to handle zeros
+                
+                # Normalize to get full color range
+                if H_log.max() > 0:
+                    H_norm = H_log / H_log.max()
+                else:
+                    H_norm = H_log
+                
+                # Plot the normalized 2D histogram
+                im = ax.pcolormesh(xedges, yedges, H_norm.T, cmap=cmap, vmin=0, vmax=1)
+                
                 # Set dynamic axis limits
-                ax.set_xlim(0, x_max)
+                ax.set_xlim(0, max_param_value)
                 ax.set_ylim(-1, 1)
                 
-                # Set ticks - differentiate between first column and others
-                ax.set_xticks(x_ticks)
-                ax.set_xticklabels(x_ticklabels, rotation=45, ha='right', fontsize=TICK_FONT_SIZE)
+                # Set x-ticks with consistent spacing like in trajectory plot
+                x_ticks = np.arange(len(param_vals))
+                x_tick_labels = [f'{val:.1f}' for val in param_vals]  # 1 decimal place
+                tick_spacing = max(1, len(param_vals) // 5)  # 5 ticks max
+                ax.set_xticks(param_vals[::tick_spacing])
+                ax.set_xticklabels([f'{val:.1f}' for val in param_vals[::tick_spacing]], 
+                                  fontsize=TICK_FONT_SIZE)
+                
+                # Set y-ticks consistently
+                y_ticks = [-1, -0.5, 0, 0.5, 1]
+                ax.set_yticks(y_ticks)
                 
                 # Only remove y-axis tick labels for non-first columns, keep the ticks
                 if col_idx > 0:
-                    ax.yaxis.set_ticklabels([])
+                    ax.set_yticklabels([])
+                else:
+                    ax.set_yticklabels([f'{y:.1f}' for y in y_ticks], fontsize=TICK_FONT_SIZE)
+                
+                # Apply tick parameters for consistent appearance
+                ax.tick_params(axis='both', which='major', labelsize=TICK_FONT_SIZE,
+                              width=0.8, length=2, pad=2)
                 
                 # Add grid for better readability
-                ax.grid(True, linestyle='--', alpha=0.2)
+                ax.grid(True, linestyle='--', alpha=0.2, linewidth=0.2)
             
             # Add labels with improved positioning for journal width
             if col_idx == 0:  # First column gets ⟨x⟩ label
                 ax.set_ylabel('⟨x⟩', fontsize=AXIS_LABEL_FONT_SIZE, labelpad=5)
                 
                 # Add topology label further from plot (beyond ⟨x⟩)
-                ax.text(-0.8, 0.5, topology.upper(), transform=ax.transAxes, 
-                       rotation=90, fontsize=AXIS_LABEL_FONT_SIZE-1, 
+                ax.text(-0.85, 0.5, topology.upper(), transform=ax.transAxes, 
+                       rotation=90, fontsize=AXIS_LABEL_FONT_SIZE+1, 
                        fontweight='bold', va='center', ha='center')
             
             if row_idx == 0:  # First row gets scenario title
                 title_color = FRIENDLY_COLORS.get(friendly_name, 'black')
                 ax.set_title(friendly_name, fontsize=TITLE_FONT_SIZE-1, 
-                           color=title_color, pad=5)
+                           color=title_color, pad=2, fontweight='bold')
             
             if row_idx == n_rows - 1:  # Last row gets x-axis label
                 ax.set_xlabel(param_name, fontsize=AXIS_LABEL_FONT_SIZE, labelpad=5)
@@ -256,13 +278,12 @@ def create_state_heatmap_grid(df, param_name, max_param_value=0.06):
     # Add a colorbar with diagonal tick labels
     cbar_ax = fig.add_axes([0.91, 0.15, 0.01, 0.7])  # [left, bottom, width, height]
     cbar = fig.colorbar(im, cax=cbar_ax)
-    cbar.set_label('Count', fontsize=AXIS_LABEL_FONT_SIZE-1)
+    cbar.set_label('log(Count+1)', fontsize=AXIS_LABEL_FONT_SIZE-1)
+    cbar.ax.tick_params(labelsize=TICK_FONT_SIZE)
+    cbar.outline.set_linewidth(0.4)  # Make colorbar outline thinner
     
     # Rotate colorbar ticks diagonally to save space
-    cbar_ax.tick_params(labelsize=TICK_FONT_SIZE)
     plt.setp(cbar_ax.get_yticklabels(), rotation=45, ha='left')
-    
-    # Remove overall title
     
     # Save figure
     os.makedirs(OUTPUT_DIR, exist_ok=True)
