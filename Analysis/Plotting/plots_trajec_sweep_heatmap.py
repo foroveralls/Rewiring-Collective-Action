@@ -1,619 +1,444 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
+
 """
-Improved heatmap generator for parameter sweeps.
-Creates one heatmap per topology with all rewiring algorithms.
-Based on the original script with incremental improvements.
+Enhanced visualization script for convergence rate data from a single unified file.
+Creates a comprehensive grid display of all scenarios across all topologies.
 """
 
 import os
-import sys
-import numpy as np
 import pandas as pd
+import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
-import matplotlib.gridspec as gridspec
-from scipy.ndimage import gaussian_filter1d
+import pickle
+import sys
 import gc
-import time
-import traceback
+from pathlib import Path
+from matplotlib.colors import LogNorm, Normalize
+import matplotlib.ticker as ticker
+from matplotlib.gridspec import GridSpec
+from datetime import date
 
-# Constants for paper style
-FONT_SIZE = 14
+# debug helper
+
+def print_debug_info(all_results, rewiring_modes):
+    """Print debug information about the data structure."""
+    print("\nDEBUG INFO:")
+    print("===========")
+    for topology, scenarios in all_results.items():
+        print(f"Topology: {topology}")
+        for scenario in scenarios:
+            friendly = get_friendly_name(scenario, rewiring_modes.get(scenario, 'none'))
+            print(f"  Scenario: {scenario} -> Friendly: {friendly}")
+            print(f"    Color key: {friendly.lower()}")
+            print(f"    Color: {FRIENDLY_COLORS.get(friendly.lower(), 'black')}")
+    print("===========\n")#!/usr/bin/env python3
+
+
+# ====================== CONFIGURATION ======================
+# Input directory with processed data
+INPUT_DIR = "../../Output/ProcessedRates"
+
+# Output directory for plots
+OUTPUT_DIR = "../../Figs/ConvergenceRates"
+
+# Plot settings - ADJUSTED FOR JOURNAL SPECIFICATIONS
+BASE_FONT_SIZE = 8  # Reduced from 14 to fit journal specifications
+RANDOM_SEED = 42
+
+cm = 1/2.54
+
+# Define font sizes for different elements
+TITLE_FONT_SIZE = BASE_FONT_SIZE - 1  # Reduced scenario label size
+AXIS_LABEL_FONT_SIZE = BASE_FONT_SIZE - 2
+TICK_FONT_SIZE = BASE_FONT_SIZE - 4
+LEGEND_FONT_SIZE = BASE_FONT_SIZE - 3  # Reduced colorbar label size
+ANNOTATION_FONT_SIZE = BASE_FONT_SIZE - 2
+
+# Scenario names and colors mapping
 FRIENDLY_COLORS = {
-    'static': '#EE7733',      # Orange
-    'random': '#0077BB',      # Blue
-    'local (similar)': '#33BBEE',    # Cyan
-    'local (opposite)': '#009988',   # Teal
-    'bridge (similar)': '#CC3311',   # Red
-    'bridge (opposite)': '#EE3377',  # Magenta
-    'wtf': '#BBBBBB',         # Grey
-    'node2vec': '#44BB99'     # Blue-green
+    'static': '#EE7733',
+    'random': '#0077BB',
+    'l-sim': '#33BBEE',     # Updated from 'local (similar)'
+    'l-opp': '#009988',     # Updated from 'local (opposite)'
+    'b-sim': '#CC3311',     # Updated from 'bridge (similar)'
+    'b-opp': '#EE3377',     # Updated from 'bridge (opposite)'
+    'wtf': '#BBBBBB',
+    'node2vec': '#44BB99'
 }
 
 FRIENDLY_NAMES = {
     'none_none': 'static',
     'random_none': 'random',
-    'biased_same': 'local (similar)',
-    'biased_diff': 'local (opposite)',
-    'bridge_same': 'bridge (similar)',
-    'bridge_diff': 'bridge (opposite)',
+    'biased_same': 'L-sim',  # "Local-similar" shortened to "L-sim"
+    'biased_diff': 'L-opp',  # "Local-opposite" shortened to "L-opp"
+    'bridge_same': 'B-sim',  # "Bridge-similar" shortened to "B-sim"
+    'bridge_diff': 'B-opp',  # "Bridge-opposite" shortened to "B-opp"
     'wtf_none': 'wtf',
     'node2vec_none': 'node2vec'
 }
 
-def setup_plotting_style():
-    """Configure plotting style to match paper."""
+# Excluded scenarios (static in this case)
+EXCLUDED_SCENARIOS = ['none_none', 'static', 'none']
+
+# ====================== FUNCTIONS ======================
+
+def setup_plotting():
+    """Configure plotting style for publication quality."""
     plt.rcParams.update({
-        'font.size': FONT_SIZE,
+        'font.size': BASE_FONT_SIZE,
         'pdf.fonttype': 42,
         'ps.fonttype': 42,
         'svg.fonttype': 'none',
-        'figure.figsize': (20, 12),
-        'figure.dpi': 300
+        'figure.dpi': 300,
+        'figure.figsize': (17.8*cm, 10*cm),  # Increased height slightly
+        'axes.labelsize': AXIS_LABEL_FONT_SIZE,
+        'axes.titlesize': TITLE_FONT_SIZE,
+        'xtick.labelsize': TICK_FONT_SIZE,
+        'ytick.labelsize': TICK_FONT_SIZE,
+        'legend.fontsize': LEGEND_FONT_SIZE,
+        'legend.title_fontsize': LEGEND_FONT_SIZE,
+        'xtick.major.width': 0.8,
+        'ytick.major.width': 0.8,
+        'axes.linewidth': 0.8,
     })
-    sns.set_theme(font_scale=FONT_SIZE/12)
+    sns.set_theme(font_scale=BASE_FONT_SIZE/12)
     sns.set(style="ticks")
     sns.set(rc={
         'axes.facecolor': 'white',
         'figure.facecolor': 'white',
+        'xtick.major.size': 2,
+        'ytick.major.size': 2,
         "axes.grid": True,
         "grid.color": 'white',
         'grid.linestyle': 'solid', 
+        "lines.linewidth": 0.7,
         "axes.edgecolor": "black",
         "patch.edgecolor": "black",
-        "patch.linewidth": 0.5,
+        "patch.linewidth": 0.2,
         "axes.spines.bottom": True,
         "grid.alpha": 0.8,
+        "axes.linewidth": 0.8,
+        "grid.linewidth": 0.2,
         "xtick.bottom": True,
         "ytick.left": True
     })
-
-def get_data_file():
-    """Get the data file path from user input."""
-    file_list = [f for f in os.listdir("../Output") 
-                 if f.endswith(".csv") and "param_sweep" in f]
-    
-    if not file_list:
-        print("No parameter sweep files found in the Output directory.")
-        sys.exit(1)
-    
-    for i, file in enumerate(file_list):
-        print(f"{i}: {file}")
-    
-    try:
-        file_index = int(input("Enter the index of the file you want to plot: "))
-        if 0 <= file_index < len(file_list):
-            return os.path.join("../Output", file_list[file_index])
-        else:
-            print("Invalid index. Using the first file.")
-            return os.path.join("../Output", file_list[0])
-    except ValueError:
-        print("Invalid input. Using the first file.")
-        return os.path.join("../Output", file_list[0])
-
-def find_inflection(seq):
-    """Calculate inflection point in opinion trajectory."""
-    # Apply gaussian filter to smooth the trajectory
-    smooth = gaussian_filter1d(seq, 600)  # Original value
-    
-    # Calculate second derivative
-    d2 = np.gradient(np.gradient(smooth))
-    
-    # Find where second derivative changes sign
-    infls = np.where(np.diff(np.sign(d2)))[0]
-    
-    # Set minimum threshold for inflection point
-    inf_min = 5000
-    
-    # Find the first inflection point after the minimum threshold
-    for i in infls:
-        if i >= inf_min and i < 20000:
-            return i
-    
-    return False
-
-def estimate_convergence_rate(trajec, loc=None, regwin=10):
-    """Estimate convergence rate around specified location using linear regression."""
-    if loc is None or loc < regwin or loc + regwin >= len(trajec):
-        return 0
-    
-    # Setup x and y arrays for regression window
-    x = np.arange(loc-regwin, loc+regwin+1)
-    y = trajec[loc-regwin: loc+regwin+1]
-    
-    # Ensure x and y are valid
-    if len(x) < 3:  # Need at least 3 points for regression
-        return 0
-    
-    # Linear regression
-    n = len(x)
-    mx, my = np.mean(x), np.mean(y)
-    ssxy = np.sum(y*x) - n*my*mx
-    ssxx = np.sum(x*x) - n*mx*mx
-    
-    # Calculate slope
-    if ssxx == 0:
-        return 0
-    b1 = ssxy / ssxx
-    
-    # Calculate convergence rate
-    denominator = abs(trajec[loc] - 1)
-    if denominator < 0.001:
-        rate = -b1 / 0.001
-    else:
-        rate = -b1 / denominator
-    
-    return rate
-
-def get_friendly_scenario_name(scenario, rewiring):
-    """Convert scenario name to friendly name based on its rewiring mode."""
-    # Handle NaN values
-    if pd.isna(scenario):
+def get_friendly_name(scenario, rewiring):
+    """Get user-friendly algorithm name."""
+    if scenario is None:
         return "Unknown"
-    if pd.isna(rewiring):
+    
+    if rewiring is None or pd.isna(rewiring) or rewiring == 'None':
         rewiring = "none"
     
-    # Convert to string and lowercase for consistency
     scenario = str(scenario).lower()
     rewiring = str(rewiring).lower()
     
-    if scenario == "none":
-        key = "none_none"
-    elif scenario == "random":
-        key = "random_none"
-    elif scenario == "wtf":
-        key = "wtf_none"
-    elif scenario == "node2vec":
-        key = "node2vec_none"
-    elif scenario in ["biased", "bridge"]:
-        key = f"{scenario}_{rewiring}"
-    else:
+    # Handle combined ID format (e.g., "biased_diff")
+    if "_" in scenario:
+        parts = scenario.split("_")
+        scenario = parts[0]
+        rewiring = parts[1]
+    
+    key = f"{scenario}_{rewiring}"
+    if scenario in ["none", "random", "wtf", "node2vec"]:
         key = f"{scenario}_none"
     
-    return FRIENDLY_NAMES.get(key, f"{scenario} ({rewiring})")
+    friendly_name = FRIENDLY_NAMES.get(key, f"{scenario} ({rewiring})")
+    return friendly_name
 
-def analyze_data_structure(filepath):
-    """Analyze the structure of the data file to determine scenarios, topologies, etc."""
-    print(f"Analyzing data structure of {filepath}...")
+def find_all_files():
+    """Find all the unified .pkl files with ALL in the name."""
+    if not os.path.exists(INPUT_DIR):
+        print(f"Error: Input directory '{INPUT_DIR}' does not exist.")
+        return []
     
-    # Check if file exists
-    if not os.path.exists(filepath):
-        print(f"Error: File not found: {filepath}")
-        sys.exit(1)
-    
-    # First pass: determine column names
-    sample = pd.read_csv(filepath, nrows=5)
-    column_names = sample.columns.tolist()
-    
-    # Look for specific columns we need
-    required_columns = ['scenario', 'type', 'rewiring', 'polarisingNode_f', 't', 'avg_state', 'model_run']
-    missing_columns = [col for col in required_columns if col not in column_names]
-    
-    if missing_columns:
-        print(f"Warning: Missing columns: {', '.join(missing_columns)}")
-    
-    # Extract unique values efficiently by reading in small chunks
-    chunk_size = 50000
-    unique_values = {
-        'scenario': set(),
-        'type': set(),
-        'rewiring': set(),
-        'polarisingNode_f': set()
-    }
-    
-    # Read in chunks to conserve memory
-    for chunk in pd.read_csv(filepath, usecols=[col for col in unique_values.keys() if col in column_names], 
-                           chunksize=chunk_size):
-        for col in unique_values.keys():
-            if col in chunk.columns:
-                unique_values[col].update(chunk[col].dropna().unique())
-    
-    # Convert sets to sorted lists
-    scenarios = sorted([str(s) for s in unique_values['scenario']])
-    topologies = sorted([str(t) for t in unique_values['type']])
-    
-    # Extract rewiring modes for each scenario
-    rewiring_modes = {}
-    rewiring_values = list(unique_values['rewiring'])
-    
-    # Process small chunks to find scenario-rewiring pairs
-    for chunk in pd.read_csv(filepath, usecols=['scenario', 'rewiring'] if 'rewiring' in column_names else ['scenario'], 
-                           chunksize=chunk_size):
-        pairs = chunk.dropna().drop_duplicates()
-        for _, row in pairs.iterrows():
-            scenario = row['scenario']
-            rewiring = row.get('rewiring', 'none')  # Default to 'none' if column doesn't exist
-            rewiring_modes[scenario] = rewiring
-    
-    # Extract parameter values
-    param_values = {}
-    for param in ['polarisingNode_f']:
-        if param in column_names:
-            param_values[param] = sorted(unique_values[param])
-    
-    print(f"Found {len(scenarios)} scenarios, {len(topologies)} topologies")
-    print(f"Parameters: {list(param_values.keys())}")
-    print(f"Topologies: {topologies}")
-    print(f"Scenarios: {scenarios}")
-    
-    return scenarios, topologies, rewiring_modes, param_values
+    files = [f for f in os.listdir(INPUT_DIR) if f.endswith('.pkl') and 'ALL' in f]
+    files.sort(key=lambda x: os.path.getmtime(os.path.join(INPUT_DIR, x)), reverse=True)
+    return files
 
-def extract_trajectories(filepath, topology, scenario, param_name, param_value, time_range=None, max_runs=100):
-    """Extract trajectories for a specific topology, scenario, and parameter value."""
-    print(f"Extracting trajectories for {topology}, {scenario}, {param_name}={param_value}")
-    
-    # Read data in chunks to reduce memory usage
-    chunk_size = 500000
-    
-    # Prepare query conditions
-    query_str = f"type == '{topology}' and scenario == '{scenario}' and {param_name} == {param_value}"
-    
-    # Add time conditions if provided
-    if time_range:
-        start_time, end_time = time_range
-        if start_time is not None:
-            query_str += f" and t >= {start_time}"
-        if end_time is not None:
-            query_str += f" and t <= {end_time}"
-    
-    # Read only needed columns
-    columns = ['t', 'avg_state', 'model_run', param_name, 'type', 'scenario']
-    
-    # Dictionary to store trajectories
-    trajectories = {}
-    run_count = 0
-    
+def load_unified_results(filename):
+    """Load the unified results from the ALL .pkl file."""
+    filepath = os.path.join(INPUT_DIR, filename)
     try:
-        # Process the file in chunks to reduce memory usage
-        for chunk in pd.read_csv(filepath, usecols=columns, chunksize=chunk_size):
-            # Filter chunk
-            filtered_chunk = chunk.query(query_str)
-            
-            if filtered_chunk.empty:
-                continue
-                
-            # Get unique run IDs in this chunk
-            chunk_run_ids = filtered_chunk['model_run'].unique()
-            
-            # Process each run
-            for run_id in chunk_run_ids:
-                # Skip if we already have enough runs
-                if run_count >= max_runs and run_id not in trajectories:
-                    continue
-                    
-                # Get data for this run
-                run_data = filtered_chunk[filtered_chunk['model_run'] == run_id]
-                
-                # Initialize trajectory if this is a new run
-                if run_id not in trajectories:
-                    trajectories[run_id] = ([], [])  # (times, states)
-                    run_count += 1
-                
-                # Extract times and states
-                times, states = trajectories[run_id]
-                times.extend(run_data['t'].values)
-                states.extend(run_data['avg_state'].values)
-            
-            # Force garbage collection after each chunk
-            del filtered_chunk
-            gc.collect()
-    
+        with open(filepath, 'rb') as f:
+            data = pickle.load(f)
+        
+        if 'all_results' not in data:
+            print(f"Error: Invalid data format in {filepath} - missing 'all_results' key")
+            return None
+        
+        print(f"Loaded data with param_name: {data.get('param_name', 'unknown')}")
+        return data
     except Exception as e:
-        print(f"Error reading data: {e}")
-        return {}
-    
-    # Sort trajectories by time
-    for run_id in list(trajectories.keys()):
-        times, states = trajectories[run_id]
-        
-        # Skip if not enough data points
-        if len(times) < 5000:  # Need enough points for inflection analysis
-            del trajectories[run_id]
-            continue
-            
-        # Sort by time
-        sorted_indices = np.argsort(times)
-        sorted_times = np.array(times)[sorted_indices]
-        sorted_states = np.array(states)[sorted_indices]
-        
-        # Store sorted arrays
-        trajectories[run_id] = (sorted_times, sorted_states)
-    
-    print(f"Extracted {len(trajectories)} trajectories")
-    return trajectories
+        print(f"Error loading {filepath}: {e}")
+        return None
 
-def calculate_convergence_rates(trajectories):
-    """Calculate convergence rates for a set of trajectories."""
-    rates = []
-    count = 0
+def extract_rewiring_modes(all_results):
+    """Extract rewiring modes for all scenarios across all topologies."""
+    rewiring_modes = {}
     
-    for run_id, (times, states) in trajectories.items():
-        try:
-            # Find inflection point
-            inflection_idx = find_inflection(states)
-            
-            # Calculate rate if inflection point found
-            if inflection_idx:
-                rate = estimate_convergence_rate(states, loc=inflection_idx)
-                if rate != 0:
-                    rates.append(rate * 1000)  # Scale for visualization
-        except Exception as e:
-            print(f"Error calculating rate for run {run_id}: {e}")
-        
-        # Periodically force garbage collection 
-        count += 1
-        if count % 10 == 0:
-            gc.collect()
+    for topology, results in all_results.items():
+        for scenario in results:
+            # Infer rewiring mode from scenario name if it's a combined format
+            if '_' in scenario:
+                parts = scenario.split('_')
+                base_scenario = parts[0]
+                mode = parts[1]
+                rewiring_modes[scenario] = mode
+            elif scenario.lower() in ['none', 'random', 'wtf', 'node2vec', 'static']:
+                rewiring_modes[scenario] = 'none'
+            # If we can't determine the mode, default to 'none'
+            else:
+                rewiring_modes[scenario] = 'none'
     
-    return rates
+    print(f"Extracted rewiring modes: {rewiring_modes}")
+    return rewiring_modes
 
-def create_heatmap_for_topology(topology, valid_scenarios, results, rewiring_modes):
-    """Create heatmap visualization for a single topology with all valid scenarios."""
-    print(f"Creating heatmap for topology: {topology}")
+def create_master_heatmap_grid(data):
+    """
+    Create a comprehensive grid of heatmaps showing all scenarios across all topologies.
     
-    # Determine grid layout
-    n_scenarios = len(valid_scenarios)
-    n_cols = min(3, n_scenarios)
-    n_rows = (n_scenarios + n_cols - 1) // n_cols
+    Parameters:
+    data - Complete data dictionary from the unified file
+    """
+    all_results = data['all_results']
+    param_name = data.get('param_name', 'Unknown Parameter')
     
-    # Create figure
-    fig, axs = plt.subplots(n_rows, n_cols, figsize=(6*n_cols, 5*n_rows), 
-                           squeeze=False)
+    # Get all unique topologies and scenarios
+    all_topologies = list(all_results.keys())
     
-    # Find global min/max rates for consistent scale
+    # Define the preferred topology order (to keep directed and undirected together)
+    preferred_order = ["DPAH", "Twitter", "cl", "FB"]
+    all_topologies = sorted(all_topologies, key=lambda t: preferred_order.index(t) if t in preferred_order else 999)
+    
+    # Create a set of all scenarios across all topologies
+    all_scenarios = set()
+    for topology, results in all_results.items():
+        all_scenarios.update(results.keys())
+    
+    # Extract rewiring modes for friendly names
+    rewiring_modes = extract_rewiring_modes(all_results)
+    
+    # Handle excluded scenarios
+    filtered_scenarios = []
+    for s in sorted(all_scenarios):
+        should_exclude = False
+        if s in EXCLUDED_SCENARIOS:
+            should_exclude = True
+        # Also check if the friendly name maps to an excluded scenario
+        friendly_name = get_friendly_name(s, rewiring_modes.get(s, 'none'))
+        if friendly_name in EXCLUDED_SCENARIOS or friendly_name.lower() == 'static':
+            should_exclude = True
+            
+        if not should_exclude:
+            filtered_scenarios.append(s)
+            
+    all_scenarios = filtered_scenarios
+    print(f"After filtering excluded scenarios: {all_scenarios}")
+    
+    # Display what we found
+    print(f"Found {len(all_topologies)} topologies and {len(all_scenarios)} scenarios")
+    print(f"Topologies: {all_topologies}")
+    print(f"Scenarios: {[get_friendly_name(s, rewiring_modes.get(s, 'none')) for s in all_scenarios]}")
+    
+    # Determine grid layout: topologies as rows, scenarios as columns
+    n_rows = len(all_topologies)
+    n_cols = len(all_scenarios)
+
+    # Create figure with tighter layout
+    plt.figure(figsize=(17.8*cm, 10*cm))
+    gs = GridSpec(n_rows, n_cols, figure=plt.gcf(), wspace=0.15, hspace=0.15)  # Reduced spacing
+    
+    # Find global min/max rates for consistent scale across all plots
     all_rates = []
-    for scenario in valid_scenarios:
-        for rates in results[scenario]['distributions'].values():
-            all_rates.extend(rates)
+    for topology, results in all_results.items():
+        for scenario in all_scenarios:
+            if scenario in results:
+                for rates in results[scenario]['distributions'].values():
+                    if rates and len(rates) > 0:
+                        all_rates.extend(rates[:min(len(rates), 100)])  # Take samples from each
     
     if all_rates:
-        rate_min = np.percentile(all_rates, 1)  # 1st percentile to exclude outliers
+        rate_min = np.percentile(all_rates, 1)  # 1st percentile
         rate_max = np.percentile(all_rates, 99)  # 99th percentile
     else:
         rate_min, rate_max = 0, 1
     
-    print(f"Rate range: {rate_min:.2f} to {rate_max:.2f}")
+    print(f"Global rate range: {rate_min:.2e} to {rate_max:.2e}")
     
     # Number of bins for the heatmap
     rate_bins = 20
     
-    # Process each scenario
-    for i, scenario in enumerate(valid_scenarios):
-        row = i // n_cols
-        col = i % n_cols
-        ax = axs[row, col]
-        
-        # Get friendly name
-        friendly_name = get_friendly_scenario_name(scenario, rewiring_modes.get(scenario, 'none'))
-        
-        # Get data for this scenario
-        scenario_data = results[scenario]
-        param_vals = scenario_data['param_values']
-        
-        # Create 2D histogram data
-        hist_data = np.zeros((len(param_vals), rate_bins))
-        rate_bin_edges = np.linspace(rate_min, rate_max, rate_bins + 1)
-        
-        # Fill histogram
-        for j, val in enumerate(param_vals):
-            if val in scenario_data['distributions']:
-                rates = scenario_data['distributions'][val]
-                if rates:
-                    hist, _ = np.histogram(rates, bins=rate_bin_edges)
-                    if np.sum(hist) > 0:
-                        hist = hist / np.sum(hist)  # Normalize
-                    hist_data[j, :] = hist
-        
-        # Plot heatmap
-        im = ax.imshow(
-            hist_data.T,
-            aspect='auto',
-            origin='lower',
-            extent=[0, len(param_vals)-1, rate_min, rate_max],
-            cmap='viridis'
-        )
-        
-        # Add colorbar
-        cbar = plt.colorbar(im, ax=ax)
-        cbar.set_label('Normalized Count')
-        
-        # Set title and labels with algorithm-specific color
-        title_color = FRIENDLY_COLORS.get(friendly_name, 'black')
-        ax.set_title(friendly_name, color=title_color, fontsize=FONT_SIZE+2, fontweight='bold')
-        ax.set_xlabel('Polarizing Node Fraction', fontsize=FONT_SIZE)
-        ax.set_ylabel('Convergence Rate (×10³)', fontsize=FONT_SIZE)
-        
-        # Set x-ticks to parameter values
-        x_ticks = np.arange(len(param_vals))
-        x_tick_labels = [f'{val:.2f}' for val in param_vals]
-        tick_spacing = max(1, len(param_vals) // 5)
-        ax.set_xticks(x_ticks[::tick_spacing])
-        ax.set_xticklabels(x_tick_labels[::tick_spacing])
-        
-        # Add median line
-        medians = []
-        for j, val in enumerate(param_vals):
-            if val in scenario_data['rates']:
-                medians.append((j, scenario_data['rates'][val]))
-        
-        if medians:
-            x_med, y_med = zip(*medians)
-            ax.plot(x_med, y_med, 'r-', linewidth=2, label='Median')
-            ax.legend(loc='best')
+    # Create custom colormap with better low-count visibility
+    custom_cmap = sns.color_palette("viridis", as_cmap=True)
     
-    # Hide unused subplots
-    for i in range(len(valid_scenarios), n_rows * n_cols):
-        row = i // n_cols
-        col = i % n_cols
-        axs[row, col].set_visible(False)
+    # Create a single colorbar on the right side spanning all rows
+    # First, get the last plotted image to use for the colorbar
+    last_im = None
     
-    # Add overall title
-    plt.suptitle(f'Convergence Rate Distributions - {topology.upper()}', 
-                fontsize=FONT_SIZE+4, y=0.98, fontweight='bold')
+    # Process each topology and scenario
+    for row_idx, topology in enumerate(all_topologies):
+        topology_results = all_results.get(topology, {})
+        topology_friendly = topology.upper()
+        
+        for col_idx, scenario in enumerate(all_scenarios):
+            # Create subplot
+            ax = plt.subplot(gs[row_idx, col_idx])
+            
+            # Handle empty data case - just leave empty white space
+            if scenario not in topology_results or not topology_results[scenario].get('distributions'):
+                ax.set_xticks([])
+                ax.set_yticks([])
+                ax.set_frame_on(False)  # Remove the box around the empty subplot
+                continue
+            
+            scenario_data = topology_results[scenario]
+            
+            # Get friendly name and color
+            rewiring = rewiring_modes.get(scenario, 'none')
+            friendly_name = get_friendly_name(scenario, rewiring)
+            color_key = friendly_name.lower()
+            title_color = FRIENDLY_COLORS.get(color_key, 'black')
+            
+            # Get parameter values
+            param_vals = scenario_data.get('param_values', [])
+            
+            # Create 2D histogram data
+            hist_data = np.zeros((len(param_vals), rate_bins))
+            rate_bin_edges = np.linspace(rate_min, rate_max, rate_bins + 1)
+            
+            # Fill histogram
+            for j, val in enumerate(param_vals):
+                if val in scenario_data['distributions']:
+                    rates = scenario_data['distributions'][val]
+                    if rates and len(rates) > 0:
+                        hist, _ = np.histogram(rates, bins=rate_bin_edges)
+                        if np.sum(hist) > 0:
+                            # Use sqrt normalization to enhance low count visibility
+                            hist = np.sqrt(hist / np.max(hist))
+                        hist_data[j, :] = hist
+            
+            # Plot heatmap
+            im = ax.imshow(
+                hist_data.T,
+                aspect='auto',
+                origin='lower',
+                extent=[0, len(param_vals)-1, rate_min, rate_max],
+                cmap=custom_cmap
+            )
+            last_im = im  # Keep track of the last image for colorbar
+            
+            # Handle ticks and labels based on position
+            # Set up x-ticks (show labels only on bottom row)
+            x_ticks = np.arange(len(param_vals))
+            ax.set_xticks(x_ticks[::max(1, len(param_vals) // 5)])
+            
+            if row_idx == n_rows - 1:  # Bottom row - show x-tick labels
+                ax.set_xticklabels([f'{param_vals[i]:.1f}' for i in x_ticks[::max(1, len(param_vals) // 5)]], 
+                                  fontsize=TICK_FONT_SIZE)
+            else:
+                ax.set_xticklabels([])  # Hide x-tick labels for non-bottom rows
+            
+            # Set up y-ticks (show labels only on leftmost column)
+            y_ticks = np.linspace(rate_min, rate_max, 5)
+            ax.set_yticks(y_ticks)
+            
+            if col_idx == 0:  # Leftmost column - show y-tick labels
+                ax.set_yticklabels([f'{y:.1f}' for y in y_ticks], fontsize=TICK_FONT_SIZE)
+                
+                # Add vertical topology label with adjusted position for tighter spacing
+                ax.text(-0.35, 0.5, topology_friendly, 
+                        transform=ax.transAxes,
+                        rotation=90, 
+                        fontsize=AXIS_LABEL_FONT_SIZE + 1, 
+                        fontweight='bold',
+                        va='center',
+                        ha='center')
+            else:
+                ax.set_yticklabels([])  # Hide y-tick labels for non-leftmost columns
+            
+            # Add scenario label on top for first row
+            if row_idx == 0:
+                ax.set_title(friendly_name, color=title_color, 
+                           fontsize=TITLE_FONT_SIZE, fontweight='bold', pad=2)
+            
+            # Add median line
+            medians = []
+            for j, val in enumerate(param_vals):
+                if val in scenario_data['rates']:
+                    medians.append((j, scenario_data['rates'][val]))
+            
+            if medians:
+                x_med, y_med = zip(*medians)
+                ax.plot(x_med, y_med, 'r-', linewidth=0.8)
     
-    # Save figure
-    plt.tight_layout(rect=[0, 0, 1, 0.95])
+    # Add a single colorbar on the right side of the entire figure
+    if last_im:
+        fig = plt.gcf()
+        cbar_ax = fig.add_axes([0.92, 0.15, 0.02, 0.7])  # [left, bottom, width, height]
+        cbar = fig.colorbar(last_im, cax=cbar_ax)
+        cbar.set_label('√(Count)', fontsize=LEGEND_FONT_SIZE)
+        cbar.ax.tick_params(labelsize=TICK_FONT_SIZE)
+        cbar.outline.set_linewidth(0.4)
+    
+    # Add centered axis labels - adjusted for tighter layout
+    fig.text(0.5, 0.04, param_name, ha='center', fontsize=AXIS_LABEL_FONT_SIZE+1, fontweight='bold')
+    fig.text(0.06, 0.5, 'Rate (×10³)', va='center', rotation='vertical', 
+            fontsize=AXIS_LABEL_FONT_SIZE+1, fontweight='bold')
+    
+    # Create directory and save
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    today = date.today().strftime("%Y%m%d")
+    save_path = f'{OUTPUT_DIR}/convergence_rate_master_grid_{today}'
     
     for ext in ['pdf', 'png']:
-        save_path = f'../Figs/ConvergenceRates/convergence_rate_{topology}.{ext}'
-        plt.savefig(save_path, bbox_inches='tight', dpi=300)
+        plt.savefig(f"{save_path}.{ext}", bbox_inches='tight', dpi=300)
     
+    plt.show()
     plt.close()
-    print(f"Saved heatmap for topology {topology}")
-    gc.collect()  # Force garbage collection after saving
+    print(f"Saved master grid heatmap to {save_path}")
 
-def create_convergence_heatmaps(filepath, scenarios, topologies, rewiring_modes, param_values, 
-                              param_name='polarisingNode_f', time_range=None):
-    """Create heatmaps showing convergence rate distributions for each topology and scenario."""
-    print("Creating convergence rate heatmaps...")
+def process_unified_file():
+    """Process a single unified ALL file to build master grid view."""
+    available_files = find_all_files()
     
-    # Create output directory
-    os.makedirs('../Figs/ConvergenceRates', exist_ok=True)
+    if not available_files:
+        print("No unified data files found.")
+        return
     
-    # Process each topology sequentially to minimize memory usage
-    for topology in topologies:
-        print(f"\nProcessing topology: {topology}")
-        
-        # Store results for this topology
-        all_results = {}
-        
-        # Quick check to find valid scenarios with data
-        valid_scenarios = []
-        
-        # Only test one parameter value to see if there's any data
-        test_param_value = param_values[param_name][0]
-        
-        for scenario in scenarios:
-            try:
-                print(f"Checking if data exists for {topology}/{scenario}")
-                trajectories = extract_trajectories(
-                    filepath, topology, scenario, param_name, test_param_value, time_range, max_runs=1
-                )
-                
-                if trajectories:
-                    valid_scenarios.append(scenario)
-                    print(f"Found data for {topology}/{scenario}")
-                
-                # Clear trajectories to free memory
-                trajectories.clear()
-                gc.collect()
-            except Exception as e:
-                print(f"Error checking data for {scenario}: {e}")
-        
-        if not valid_scenarios:
-            print(f"No data for topology {topology}, skipping")
-            continue
-        
-        print(f"Found data for {len(valid_scenarios)} scenarios: {valid_scenarios}")
-        
-        # Process each scenario sequentially
-        for scenario in valid_scenarios:
-            print(f"Processing scenario: {scenario}")
-            
-            try:
-                # Process scenario
-                scenario_results = {
-                    'rates': {},
-                    'distributions': {},
-                    'param_values': param_values[param_name]
-                }
-                
-                for val_idx, val in enumerate(param_values[param_name]):
-                    print(f"  Parameter {param_name}={val} ({val_idx+1}/{len(param_values[param_name])})")
-                    
-                    # Extract trajectories
-                    trajectories = extract_trajectories(
-                        filepath, topology, scenario, param_name, val, time_range, max_runs=50
-                    )
-                    
-                    # Calculate rates
-                    rates = calculate_convergence_rates(trajectories)
-                    
-                    if rates:
-                        scenario_results['rates'][val] = np.median(rates)
-                        scenario_results['distributions'][val] = rates
-                    
-                    # Clear trajectories to free memory
-                    trajectories.clear()
-                    gc.collect()
-                
-                # Store results for this scenario
-                all_results[scenario] = scenario_results
-                
-                # Force garbage collection after each scenario
-                gc.collect()
-            
-            except Exception as e:
-                print(f"Error processing scenario {scenario}: {e}")
-                traceback.print_exc()
-        
-        # Create heatmap
-        create_heatmap_for_topology(topology, valid_scenarios, all_results, rewiring_modes)
-        
-        # Clear results to free memory
-        all_results.clear()
-        valid_scenarios.clear()
-        gc.collect()
-        print(f"Finished processing topology: {topology}")
+    # Print available files
+    print("Available unified files:")
+    for i, file in enumerate(available_files):
+        print(f"{i}: {file}")
+    
+    # Ask user to select a file
+    try:
+        file_idx = int(input("Enter the index of the file to use: "))
+        if file_idx < 0 or file_idx >= len(available_files):
+            print(f"Invalid index. Using the most recent file (0).")
+            file_idx = 0
+    except ValueError:
+        print("Invalid input. Using the most recent file (0).")
+        file_idx = 0
+    
+    selected_file = available_files[file_idx]
+    print(f"Selected file: {selected_file}")
+    
+    # Load unified file data
+    data = load_unified_results(selected_file)
+    
+    if data:
+        create_master_heatmap_grid(data)
+    else:
+        print("No valid data found to plot.")
 
 def main():
-    """Main execution function to create heatmaps for all topologies."""
+    """Main execution function."""
     # Setup plotting style
-    setup_plotting_style()
+    setup_plotting()
     
-    # Get data file path - Modify this path to point to your file
-    data_path = get_data_file()  # Interactive file selection
-   
-    
-    print(f"Processing file: {data_path}")
-    print(f"File size: {os.path.getsize(data_path) / (1024 * 1024):.2f} MB")
-    
-    # Force garbage collection before starting
-    gc.collect()
-    
-    # Analyze data structure
-    scenarios, topologies, rewiring_modes, param_values = analyze_data_structure(data_path)
-    
-    print(scenarios, topologies, rewiring_modes)
-    # CUSTOMIZE HERE: Filter to specific topologies and scenarios
-    # Comment out these lines to process all detected topologies/scenarios
-    topologies = ["cl"]  # Only process these topologies
-    scenarios = ["random"]  # Only process these scenarios
-    
-    # CUSTOMIZE HERE: Set time range for analysis (in timesteps)
-    # Set to None to use all available timesteps
-    time_range = (5000, 30000)  # Only analyze between timesteps 5000 and 30000
-    
-    print(f"Processing topologies: {topologies}")
-    print(f"Processing scenarios: {scenarios}")
-    print(f"Time range: {time_range}")
-    
-    # Create convergence rate heatmaps for selected topologies and scenarios
-    create_convergence_heatmaps(
-        data_path, scenarios, topologies, rewiring_modes, param_values,
-        time_range=time_range
-    )
-    
-    # Final garbage collection
-    gc.collect()
+    # Process unified file to create master grid
+    process_unified_file()
 
 if __name__ == "__main__":
-    # Track and print total execution time
-    import traceback
-    
-    try:
-        start_time = time.time()
-        main()
-        end_time = time.time()
-        print(f"Total execution time: {end_time - start_time:.2f} seconds")
-    except Exception as e:
-        # Save the crash report to a file
-        crash_file = "heatmap_crash_report.txt"
-        with open(crash_file, "w") as f:
-            f.write(f"Error: {str(e)}\n\n")
-            f.write(traceback.format_exc())
-        
-        print(f"\nERROR: {str(e)}")
-        print(f"Crash report saved to {crash_file}")
-        print("Please check the crash report for details.")
+    main()
