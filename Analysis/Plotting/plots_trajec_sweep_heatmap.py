@@ -38,6 +38,8 @@ def print_debug_info(all_results, rewiring_modes):
 # Input directory with processed data
 INPUT_DIR = "../../Output/ProcessedRates"
 
+USE_MEAN = False
+
 # Output directory for plots
 OUTPUT_DIR = "../../Figs/ConvergenceRates"
 
@@ -77,6 +79,22 @@ FRIENDLY_NAMES = {
     'node2vec_none': 'node2vec'
 }
 
+
+# Line styling (following common publication standards)
+ZERO_LINE_STYLE = {
+    'linestyle': 'solid',      # Solid line for reference/baseline
+    'color': 'black',
+    'linewidth': 0.7,
+    'alpha': 0.8,
+    'zorder': 5            # Above heatmap
+}
+
+TRAJECTORY_LINE_STYLE = {
+    'linestyle': '--',      # Dotted line for data trajectory
+    'color': 'r',          # Red
+    'linewidth': 0.8,
+    'zorder': 10           # Above zero line
+}
 # Excluded scenarios (static in this case)
 EXCLUDED_SCENARIOS = ['none_none', 'static', 'none']
 
@@ -122,6 +140,20 @@ def setup_plotting():
         "xtick.bottom": True,
         "ytick.left": True
     })
+    
+def get_clean_yticks(rate_min, rate_max, num_ticks=5):
+    """Generate clean y-ticks that include zero when in range."""
+    # Create evenly spaced ticks
+    # ticks = np.linspace(rate_min, rate_max, num_ticks)
+    
+    # # If zero is in range but not in ticks, replace closest tick with zero
+    # if rate_min <= 0 <= rate_max and 0 not in ticks:
+    #     idx = np.abs(ticks).argmin()  # Find closest tick to zero
+    #     ticks[idx] = 0.0              # Replace with exactly zero
+    
+    ticks = [-0.3, 0.0, 0.6]
+    return ticks
+
 def get_friendly_name(scenario, rewiring):
     """Get user-friendly algorithm name."""
     if scenario is None:
@@ -328,6 +360,9 @@ def create_master_heatmap_grid(data):
             )
             last_im = im  # Keep track of the last image for colorbar
             
+            # Add horizontal line at y=0
+            #ax.axhline(y=0, color='black', linestyle=':', linewidth=0.5, alpha=0.7)
+            
             # Handle ticks and labels based on position
             # Set up x-ticks (show labels only on bottom row)
             x_ticks = np.arange(len(param_vals))
@@ -340,8 +375,10 @@ def create_master_heatmap_grid(data):
                 ax.set_xticklabels([])  # Hide x-tick labels for non-bottom rows
             
             # Set up y-ticks (show labels only on leftmost column)
-            y_ticks = np.linspace(rate_min, rate_max, 5)
+            
+            y_ticks = get_clean_yticks(rate_min, rate_max)
             ax.set_yticks(y_ticks)
+            ax.set_ylim(rate_min, rate_max)
             
             if col_idx == 0:  # Leftmost column - show y-tick labels
                 ax.set_yticklabels([f'{y:.1f}' for y in y_ticks], fontsize=TICK_FONT_SIZE)
@@ -362,15 +399,33 @@ def create_master_heatmap_grid(data):
                 ax.set_title(friendly_name, color=title_color, 
                            fontsize=TITLE_FONT_SIZE, fontweight='bold', pad=2)
             
-            # Add median line
+             # Add horizontal reference line at y=0
+            if rate_min <= 0 <= rate_max:
+                ax.axhline(y=0, **ZERO_LINE_STYLE)
+            
+             # Add median line and absolute median line
             medians = []
+            abs_medians = []
+            
             for j, val in enumerate(param_vals):
-                if val in scenario_data['rates']:
-                    medians.append((j, scenario_data['rates'][val]))
+                if val in scenario_data['distributions']:
+                    rates = scenario_data['distributions'][val]
+                    if rates and len(rates) > 0:
+                        # Original median calculation (already in scenario_data['rates'])
+                        medians.append((j, scenario_data['rates'][val]))
+                        
+                        # Calculate median of absolute values
+                        abs_rates = [abs(r) for r in rates]
+                        abs_median = np.median(abs_rates)
+                        abs_medians.append((j, abs_median))
             
             if medians:
                 x_med, y_med = zip(*medians)
                 ax.plot(x_med, y_med, 'r-', linewidth=0.8)
+                
+                # Add absolute median line in blue
+                x_abs, y_abs = zip(*abs_medians)
+                ax.plot(x_abs, y_abs, '--', color = '#cb02f7',  linewidth=0.8)
     
     # Add a single colorbar on the right side of the entire figure
     if last_im:
