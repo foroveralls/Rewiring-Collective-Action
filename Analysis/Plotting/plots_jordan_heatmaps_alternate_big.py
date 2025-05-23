@@ -105,7 +105,11 @@ def create_comprehensive_heatmap_grid(df, value_columns, column_labels):
         if friendly_name not in EXCLUDED_SCENARIOS:
             friendly_scenarios[scenario] = friendly_name
     
-    sorted_scenarios = sorted(friendly_scenarios.keys(), key=lambda s: friendly_scenarios[s])
+    # UPDATED: Custom ordering instead of alphabetical
+    desired_order = ['B-opp', 'B-sim', 'L-opp', 'L-sim', 'random', 'N2V', 'WTF']
+    sorted_scenarios = sorted(friendly_scenarios.keys(), 
+                             key=lambda s: desired_order.index(friendly_scenarios[s]) 
+                             if friendly_scenarios[s] in desired_order else 999)
     
     # Layout: 2 rows per topology, scenarios as columns
     n_topology_blocks = len(topologies)
@@ -121,6 +125,34 @@ def create_comprehensive_heatmap_grid(df, value_columns, column_labels):
     # Colormaps
     coop_cmap = sns.diverging_palette(20, 220, as_cmap=True, center="light")
     polar_cmap = sns.color_palette("Reds", as_cmap=True)
+    
+    # NEW: Calculate consistent tick positions from first valid dataset
+    sample_data = None
+    for t in topologies:
+        for s in sorted_scenarios:
+            test_data = df[(df['scenario'] == s) & (df['topology'] == t)]
+            if not test_data.empty:
+                try:
+                    sample_data = test_data.pivot_table(
+                        index='polarisingNode_f', columns='stubbornness', 
+                        values='state', aggfunc='mean').iloc[::-1]
+                    break
+                except:
+                    continue
+        if sample_data is not None:
+            break
+
+    # NEW: Calculate tick positions once for consistency (using x-axis scheme for both)
+    if sample_data is not None:
+        n_x, n_y = len(sample_data.columns), len(sample_data.index)
+        x_step_size = max(1, n_x//5)
+        x_tick_indices = list(range(0, n_x, x_step_size))
+        y_tick_indices = list(range(0, n_y, x_step_size))  # Use same step size as x
+        x_tick_labels = [f'{sample_data.columns[i]:.1f}' for i in x_tick_indices]
+        y_tick_labels = [f'{sample_data.index[i]:.1f}' for i in y_tick_indices if i < n_y]
+    else:
+        x_tick_indices = y_tick_indices = [0, 1, 2, 3, 4]
+        x_tick_labels = y_tick_labels = ['0.0', '0.2', '0.4', '0.6', '0.8']
     
     # Add scenario labels at top
     for s, scenario in enumerate(sorted_scenarios):
@@ -167,7 +199,7 @@ def create_comprehensive_heatmap_grid(df, value_columns, column_labels):
                         cbar_label = '$\sigma(x)$'
                     
                     # Only show colorbar on rightmost column for bottom rows of each topology block
-                    show_cbar = (s == n_cols - 1) #and (row % 2 == 1)
+                    show_cbar = (s == n_cols - 1)
                     
                     sns.heatmap(heatmap_data, ax=ax, cmap=cmap, center=center,
                     vmin=vmin, vmax=vmax, cbar=show_cbar,
@@ -177,27 +209,24 @@ def create_comprehensive_heatmap_grid(df, value_columns, column_labels):
                     # Force tick visibility with explicit styling
                     ax.tick_params(axis='both', which='major', 
                                    labelsize=TICK_FONT_SIZE, 
-                                   colors='black',  # Force black color
-                                   width=1,      # Thicker ticks
-                                   length=1)       # Longer ticks
+                                   colors='black',
+                                   width=1,
+                                   length=1)
                     
-                    # X-axis handling
+                    # UPDATED: Apply consistent tick positions to all subplots
+                    ax.set_xticks(x_tick_indices)
+                    ax.set_yticks(y_tick_indices)
+                    
+                    # Show labels only on outer axes
                     if row == n_rows - 1:
-                        n_x = len(heatmap_data.columns)
-                        x_indices = range(0, n_x, max(1, n_x//5))
-                        ax.set_xticks([i for i in x_indices])
-                        ax.set_xticklabels([f'{heatmap_data.columns[i]:.1f}' for i in x_indices], 
-                                           rotation=45, fontsize=TICK_FONT_SIZE, color='black')
+                        ax.set_xticklabels(x_tick_labels, rotation=45, 
+                                         fontsize=TICK_FONT_SIZE, color='black')
                     else:
                         ax.set_xticklabels([])
                     
-                    # Y-axis handling  
                     if s == 0:
-                        n_y = len(heatmap_data.index)
-                        y_indices = range(0, n_y, max(1, n_y//5))
-                        ax.set_yticks([i for i in y_indices])
-                        ax.set_yticklabels([f'{heatmap_data.index[i]:.1f}' for i in y_indices], 
-                                           rotation=0, fontsize=TICK_FONT_SIZE, color='black')
+                        ax.set_yticklabels(y_tick_labels, rotation=0, 
+                                         fontsize=TICK_FONT_SIZE, color='black')
                     else:
                         ax.set_yticklabels([])
                     
@@ -206,7 +235,6 @@ def create_comprehensive_heatmap_grid(df, value_columns, column_labels):
                     ax.tick_params(axis='y', left=True, right=False, labelleft=(s == 0))
                   
                     # Remove individual axis labels
-                    
                     ax.set_xlabel('')
                     ax.set_ylabel('')
 
