@@ -66,8 +66,10 @@ def setup_plotting_style():
         'ytick.major.width': 0.8,
         'axes.linewidth': 0.8,
     })
-    sns.set_style("white")
-
+    sns.set_style("white",  {
+    'grid.linewidth': 0.2,  # Control gridline width here
+    'axes.linewidth': 0.8
+      })
 def get_data_file():
     file_list = [f for f in os.listdir("../../Output") 
                  if f.endswith(".csv") and "heatmap" in f]
@@ -123,7 +125,7 @@ def create_heatmap_grid(df, value_columns, column_labels):
     n_rows = n_topology_blocks * 2
     n_cols = len(sorted_scenarios)
     
-    fig = plt.figure(figsize=(17.8*cm, max(10*cm, n_rows * 2*cm)))
+    fig = plt.figure(figsize=(17.8*cm, max(10*cm,    n_rows * 2*cm)))
     
     gs = fig.add_gridspec(n_rows, n_cols, 
                          hspace=0.15, wspace=0.05,
@@ -169,6 +171,8 @@ def create_heatmap_grid(df, value_columns, column_labels):
                         aggfunc='mean'
                     ).iloc[::-1]
                     
+                    heatmap_data = heatmap_data.iloc[::-1]
+                    
                     # Set colormap and limits
                     if metric == 'state':
                         cmap, vmin, vmax, center = coop_cmap, -1, 1, 0
@@ -182,9 +186,18 @@ def create_heatmap_grid(df, value_columns, column_labels):
                     
                     sns.heatmap(heatmap_data, ax=ax, cmap=cmap, center=center,
                                 vmin=vmin, vmax=vmax, cbar=show_cbar,
-                                linewidths=0.2, linecolor='white',
+                                linewidths=0.1, linecolor='white',
                                 cbar_kws={'label': cbar_label} if show_cbar else {})
+                    
+                    # Add black border around subplot
+                    for spine in ax.spines.values():
+                        spine.set_edgecolor('black')
+                        spine.set_linewidth(0.4)
+                        spine.set_visible(True)
+                                        
 
+                    ax.invert_yaxis()
+                    
                     # Force tick visibility with explicit styling
                     ax.tick_params(axis='both', which='major', 
                                    labelsize=TICK_FONT_SIZE, 
@@ -196,22 +209,27 @@ def create_heatmap_grid(df, value_columns, column_labels):
                     x_positions, x_labels = get_clean_ticks(len(heatmap_data.columns))
                     y_positions, y_labels = get_clean_ticks(len(heatmap_data.index))
                     
-                    # X-axis handling
-                    ax.set_xticks(x_positions)
-                    if row == n_rows - 1:
-                        ax.set_xticklabels([f'{label:.1f}' for label in x_labels], 
-                                           rotation=45, fontsize=TICK_FONT_SIZE, color='black')
+                    #X-axis handling
+                    n_x = len(heatmap_data.columns)
+                    x_indices = range(0, n_x, max(1, n_x//5))
+                    ax.set_xticks([i + 0.5 for i in x_indices])  # All axes get same tick positions
+                    
+                    if row == n_rows - 1:  # Only bottom row gets labels
+                        clean_labels = [f'{i/(n_x-1):.1f}' for i in x_indices]
+                        ax.set_xticklabels(clean_labels, rotation=45, fontsize=TICK_FONT_SIZE, color='black')
                     else:
                         ax.set_xticklabels([])
                     
                     # Y-axis handling  
-                    ax.set_yticks(y_positions)
-                    if s == 0:
-                        ax.set_yticklabels([f'{label:.1f}' for label in y_labels], 
-                                           rotation=0, fontsize=TICK_FONT_SIZE, color='black')
+                    n_y = len(heatmap_data.index)
+                    y_indices = range(0, n_y, max(1, n_y//5))
+                    ax.set_yticks([i + 0.5 for i in y_indices])  # All axes get same tick positions
+                    
+                    if s == 0:  # Only leftmost column gets labels
+                        clean_labels = [f'{i/(n_y-1):.1f}' for i in reversed(y_indices)]
+                        ax.set_yticklabels(clean_labels, rotation=0, fontsize=TICK_FONT_SIZE, color='black')
                     else:
                         ax.set_yticklabels([])
-                    
                     # Ensure ticks are visible
                     ax.tick_params(axis='x', bottom=True, top=False, labelbottom=(row == n_rows - 1))
                     ax.tick_params(axis='y', left=True, right=False, labelleft=(s == 0))
