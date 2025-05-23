@@ -30,8 +30,8 @@ FRIENDLY_COLORS = {
     'L-opp': '#009988',       # Teal
     'B-sim': '#CC3311',       # Red
     'B-opp': '#EE3377',       # Magenta
-    'wtf': '#BBBBBB',         # Grey
-    'node2vec': '#44BB99'     # Blue-green
+    'WTF': '#BBBBBB',         # Grey
+    'N2V': '#44BB99'     # Blue-green
 }
 
 FRIENDLY_NAMES = {
@@ -41,8 +41,8 @@ FRIENDLY_NAMES = {
     'biased_diff': 'L-opp',
     'bridge_same': 'B-sim',
     'bridge_diff': 'B-opp',
-    'wtf_none': 'wtf',
-    'node2vec_none': 'node2vec'
+    'wtf_none': 'WTF',
+    'node2vec_none': 'N2V'
 }
 
 EXCLUDED_SCENARIOS = ['static']
@@ -126,7 +126,7 @@ def create_comprehensive_heatmap_grid(df, value_columns, column_labels):
     for s, scenario in enumerate(sorted_scenarios):
         friendly_scenario = friendly_scenarios[scenario]
         scenario_color = FRIENDLY_COLORS.get(friendly_scenario, 'black')
-        fig.text(0.08 + (s + 0.5) * 0.84/n_cols, 0.92, 
+        fig.text(0.08 + (s + 0.5) * 0.84/n_cols, 0.91, 
                  friendly_scenario, 
                  ha='center', va='bottom', 
                  fontsize=TITLE_FONT_SIZE, fontweight='bold',
@@ -161,48 +161,55 @@ def create_comprehensive_heatmap_grid(df, value_columns, column_labels):
                     # Set colormap and limits
                     if metric == 'state':
                         cmap, vmin, vmax, center = coop_cmap, -1, 1, 0
-                        cbar_label = 'Cooperation'
+                        cbar_label = '⟨x⟩'
                     else:
                         cmap, vmin, vmax, center = polar_cmap, 0, 1, None
-                        cbar_label = 'Polarization'
+                        cbar_label = '$\sigma(x)$'
                     
                     # Only show colorbar on rightmost column for bottom rows of each topology block
                     show_cbar = (s == n_cols - 1) #and (row % 2 == 1)
                     
                     sns.heatmap(heatmap_data, ax=ax, cmap=cmap, center=center,
-                               vmin=vmin, vmax=vmax, cbar=show_cbar,
-                               linewidths=0.2, linecolor='white',
-                               cbar_kws={'label': cbar_label} if show_cbar else {})
+                    vmin=vmin, vmax=vmax, cbar=show_cbar,
+                    linewidths=0.2, linecolor='white',
+                    cbar_kws={'label': cbar_label} if show_cbar else {})
+
+                    # Force tick visibility with explicit styling
+                    ax.tick_params(axis='both', which='major', 
+                                   labelsize=TICK_FONT_SIZE, 
+                                   colors='black',  # Force black color
+                                   width=1,      # Thicker ticks
+                                   length=1)       # Longer ticks
                     
-                    # X-axis: only on bottom row, shorter ticks
+                    # X-axis handling
                     if row == n_rows - 1:
-                        # Keep original ticks but make them shorter
-                        ax.tick_params(axis='x', length=2, color = "black")
-                        # Get every other tick to reduce crowding
-                        x_ticks = ax.get_xticks()[::2] if len(ax.get_xticks()) > 5 else ax.get_xticks()
-                        x_labels = [f'{heatmap_data.columns[int(i)]:.1f}' for i in x_ticks if int(i) < len(heatmap_data.columns)]
-                        ax.set_xticks(x_ticks[:len(x_labels)])
-                        ax.set_xticklabels(x_labels, rotation=45, fontsize=TICK_FONT_SIZE)
+                        n_x = len(heatmap_data.columns)
+                        x_indices = range(0, n_x, max(1, n_x//5))
+                        ax.set_xticks([i for i in x_indices])
+                        ax.set_xticklabels([f'{heatmap_data.columns[i]:.1f}' for i in x_indices], 
+                                           rotation=45, fontsize=TICK_FONT_SIZE, color='black')
                     else:
-                        ax.set_xticks([])
                         ax.set_xticklabels([])
                     
-                    # Y-axis: only on leftmost column, shorter ticks
+                    # Y-axis handling  
                     if s == 0:
-                        ax.tick_params(axis='y', length=2)
-                        # Get every other tick to reduce crowding
-                        y_ticks = ax.get_yticks()[::2] if len(ax.get_yticks()) > 5 else ax.get_yticks()
-                        y_labels = [f'{heatmap_data.index[int(i)]:.1f}' for i in y_ticks if int(i) < len(heatmap_data.index)]
-                        ax.set_yticks(y_ticks[:len(y_labels)])
-                        ax.set_yticklabels(y_labels, rotation=0, fontsize=TICK_FONT_SIZE)
+                        n_y = len(heatmap_data.index)
+                        y_indices = range(0, n_y, max(1, n_y//5))
+                        ax.set_yticks([i for i in y_indices])
+                        ax.set_yticklabels([f'{heatmap_data.index[i]:.1f}' for i in y_indices], 
+                                           rotation=0, fontsize=TICK_FONT_SIZE, color='black')
                     else:
-                        ax.set_yticks([])
                         ax.set_yticklabels([])
                     
+                    # Ensure ticks are visible
+                    ax.tick_params(axis='x', bottom=True, top=False, labelbottom=(row == n_rows - 1))
+                    ax.tick_params(axis='y', left=True, right=False, labelleft=(s == 0))
+                  
                     # Remove individual axis labels
+                    
                     ax.set_xlabel('')
                     ax.set_ylabel('')
-                
+
                 except Exception as e:
                     print(f"Error plotting {scenario} for {topology}, {metric}: {e}")
                     ax.text(0.5, 0.5, "No data", ha='center', va='center')
@@ -210,10 +217,9 @@ def create_comprehensive_heatmap_grid(df, value_columns, column_labels):
                     ax.set_yticks([])
     
     # Add axis labels (only once at bottom and left)
-    fig.text(0.5, 0.04, 'Stubbornness, $w_i$', ha='center', fontsize=AXIS_LABEL_FONT_SIZE, fontweight='bold')
-    fig.text(0.02, 0.52, 'Polarizing Node Fraction, $\omega$', va='center', rotation=90, 
-             fontsize=AXIS_LABEL_FONT_SIZE, fontweight='bold')
-    
+    fig.text(0.5, 0.04, 'Stubbornness, $\\mathbf{w_i}$', ha='center', fontsize=AXIS_LABEL_FONT_SIZE, fontweight='bold')
+    fig.text(0.02, 0.52, 'Polarizing Node Fraction, $\\mathbf{\\omega}$', va='center', rotation=90, 
+         fontsize=AXIS_LABEL_FONT_SIZE, fontweight='bold')
     return fig
 
 def save_figure(fig, output_name='compact_empirical_heatmap'):
