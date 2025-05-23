@@ -14,7 +14,15 @@ from matplotlib import transforms
 from datetime import date
 
 # ====================== CONFIGURATION ======================
-FONT_SIZE = 14
+BASE_FONT_SIZE = 10
+cm = 1/2.54
+
+# Define font sizes for different elements
+TITLE_FONT_SIZE = BASE_FONT_SIZE
+AXIS_LABEL_FONT_SIZE = BASE_FONT_SIZE - 1
+TICK_FONT_SIZE = BASE_FONT_SIZE - 3
+LEGEND_FONT_SIZE = BASE_FONT_SIZE - 2
+ANNOTATION_FONT_SIZE = BASE_FONT_SIZE - 1
 FRIENDLY_COLORS = {
     'static': '#EE7733',      # Orange
     'random': '#0077BB',      # Blue
@@ -44,14 +52,21 @@ EXCLUDED_TOPOLOGIES = ['cl', 'DPAH']
 
 def setup_plotting_style():
     plt.rcParams.update({
-        'font.size': FONT_SIZE,
+        'font.size': BASE_FONT_SIZE,
         'pdf.fonttype': 42,
         'ps.fonttype': 42,
         'svg.fonttype': 'none',
-        'figure.dpi': 300
+        'figure.dpi': 300,
+        'axes.labelsize': AXIS_LABEL_FONT_SIZE,
+        'axes.titlesize': TITLE_FONT_SIZE,
+        'xtick.labelsize': TICK_FONT_SIZE,
+        'ytick.labelsize': TICK_FONT_SIZE,
+        'legend.fontsize': LEGEND_FONT_SIZE,
+        'xtick.major.width': 0.8,
+        'ytick.major.width': 0.8,
+        'axes.linewidth': 0.8,
     })
-    sns.set_theme(font_scale=FONT_SIZE/12)
-    sns.set(style="ticks")
+    sns.set_style("white")
 
 def get_data_file():
     file_list = [f for f in os.listdir("../../Output") 
@@ -97,7 +112,7 @@ def create_comprehensive_heatmap_grid(df, value_columns, column_labels):
     n_rows = n_topology_blocks * 2
     n_cols = len(sorted_scenarios)
     
-    fig = plt.figure(figsize=(7.0, max(4.0, n_rows * 0.8)))  # 17.8cm = 7.0 inches
+    fig = plt.figure(figsize=(17.8*cm, max(10*cm, n_rows * 2*cm)))
     
     gs = fig.add_gridspec(n_rows, n_cols, 
                          hspace=0.15, wspace=0.05,
@@ -114,16 +129,16 @@ def create_comprehensive_heatmap_grid(df, value_columns, column_labels):
         fig.text(0.08 + (s + 0.5) * 0.84/n_cols, 0.92, 
                  friendly_scenario, 
                  ha='center', va='bottom', 
-                 fontsize=FONT_SIZE-1, fontweight='bold',
+                 fontsize=TITLE_FONT_SIZE, fontweight='bold',
                  color=scenario_color)
     
     # Create heatmaps
     for t_idx, topology in enumerate(topologies):
         # Add topology label on left (moved closer)
-        fig.text(0.02, 0.15 + (n_topology_blocks - t_idx - 0.5) * 0.75/n_topology_blocks, 
+        fig.text(0.003, 0.15 + (n_topology_blocks - t_idx - 0.5) * 0.75/n_topology_blocks, 
                  topology.upper(),
                  ha='center', va='center',
-                 fontsize=FONT_SIZE, fontweight='bold', rotation=90)
+                 fontsize=AXIS_LABEL_FONT_SIZE, fontweight='bold', rotation=90)
         
         for s, scenario in enumerate(sorted_scenarios):
             scenario_topo_data = df[(df['scenario'] == scenario) & (df['topology'] == topology)]
@@ -152,24 +167,22 @@ def create_comprehensive_heatmap_grid(df, value_columns, column_labels):
                         cbar_label = 'Polarization'
                     
                     # Only show colorbar on rightmost column for bottom rows of each topology block
-                    show_cbar = (s == n_cols - 1)
+                    show_cbar = (s == n_cols - 1) #and (row % 2 == 1)
                     
                     sns.heatmap(heatmap_data, ax=ax, cmap=cmap, center=center,
                                vmin=vmin, vmax=vmax, cbar=show_cbar,
                                linewidths=0.2, linecolor='white',
-
                                cbar_kws={'label': cbar_label} if show_cbar else {})
-
                     
                     # X-axis: only on bottom row, shorter ticks
                     if row == n_rows - 1:
                         # Keep original ticks but make them shorter
-                        ax.tick_params(axis='x', length=2)
+                        ax.tick_params(axis='x', length=2, color = "black")
                         # Get every other tick to reduce crowding
                         x_ticks = ax.get_xticks()[::2] if len(ax.get_xticks()) > 5 else ax.get_xticks()
                         x_labels = [f'{heatmap_data.columns[int(i)]:.1f}' for i in x_ticks if int(i) < len(heatmap_data.columns)]
                         ax.set_xticks(x_ticks[:len(x_labels)])
-                        ax.set_xticklabels(x_labels, rotation=45, fontsize=FONT_SIZE-4)
+                        ax.set_xticklabels(x_labels, rotation=45, fontsize=TICK_FONT_SIZE)
                     else:
                         ax.set_xticks([])
                         ax.set_xticklabels([])
@@ -181,7 +194,7 @@ def create_comprehensive_heatmap_grid(df, value_columns, column_labels):
                         y_ticks = ax.get_yticks()[::2] if len(ax.get_yticks()) > 5 else ax.get_yticks()
                         y_labels = [f'{heatmap_data.index[int(i)]:.1f}' for i in y_ticks if int(i) < len(heatmap_data.index)]
                         ax.set_yticks(y_ticks[:len(y_labels)])
-                        ax.set_yticklabels(y_labels, rotation=0, fontsize=FONT_SIZE-4)
+                        ax.set_yticklabels(y_labels, rotation=0, fontsize=TICK_FONT_SIZE)
                     else:
                         ax.set_yticks([])
                         ax.set_yticklabels([])
@@ -195,12 +208,12 @@ def create_comprehensive_heatmap_grid(df, value_columns, column_labels):
                     ax.text(0.5, 0.5, "No data", ha='center', va='center')
                     ax.set_xticks([])
                     ax.set_yticks([])
-
+    
     # Add axis labels (only once at bottom and left)
-    fig.text(0.5, 0.06, 'Stubbornness, $w_i$', ha='center', fontsize=FONT_SIZE-1, fontweight='bold')
-    fig.text(0.04, 0.52, 'Polarizing Node Fraction, $\phi$', va='center', rotation=90, 
-     fontsize=FONT_SIZE-1, fontweight='bold')
-
+    fig.text(0.5, 0.04, 'Stubbornness, $w_i$', ha='center', fontsize=AXIS_LABEL_FONT_SIZE, fontweight='bold')
+    fig.text(0.02, 0.52, 'Polarizing Node Fraction, $\omega$', va='center', rotation=90, 
+             fontsize=AXIS_LABEL_FONT_SIZE, fontweight='bold')
+    
     return fig
 
 def save_figure(fig, output_name='compact_empirical_heatmap'):
