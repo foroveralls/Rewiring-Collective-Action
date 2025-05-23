@@ -66,10 +66,8 @@ def setup_plotting_style():
         'ytick.major.width': 0.8,
         'axes.linewidth': 0.8,
     })
-    sns.set_style("white",  {
-    'grid.linewidth': 0.2,  # Control gridline width here
-    'axes.linewidth': 0.8
-      })
+    sns.set_style("white")
+    
 def get_data_file():
     file_list = [f for f in os.listdir("../../Output") 
                  if f.endswith(".csv") and "heatmap" in f]
@@ -186,8 +184,12 @@ def create_heatmap_grid(df, value_columns, column_labels):
                     
                     sns.heatmap(heatmap_data, ax=ax, cmap=cmap, center=center,
                                 vmin=vmin, vmax=vmax, cbar=show_cbar,
-                                linewidths=0.1, linecolor='white',
+                                linewidths=0, linecolor='white',
                                 cbar_kws={'label': cbar_label} if show_cbar else {})
+                    
+                    # Add grid for better readability
+                    ax.grid(True, linestyle='--', alpha=0.2, linewidth=0.2)
+                    
                     
                     # Add black border around subplot
                     for spine in ax.spines.values():
@@ -250,7 +252,7 @@ def create_heatmap_grid(df, value_columns, column_labels):
          fontsize=AXIS_LABEL_FONT_SIZE, fontweight='bold')
     return fig
 
-def save_figure(fig, output_name='compact_empirical_heatmap'):
+def save_figure(fig, output_name='stubborness_backfirer_heatmap'):
     save_path = f'../../Figs/Heatmaps/{output_name}_{date.today()}.pdf'
     os.makedirs(os.path.dirname(save_path), exist_ok=True)
     
@@ -270,7 +272,7 @@ def main():
     column_labels = {'state': 'avg(x)', 'state_std': 'std(x)'}
     
     fig = create_heatmap_grid(df, value_columns, column_labels)
-    save_figure(fig, 'compact_empirical_heatmap')
+    save_figure(fig)
 
 if __name__ == "__main__":
     main()
