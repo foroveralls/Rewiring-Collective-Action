@@ -14,7 +14,7 @@ from matplotlib import transforms
 from datetime import date
 
 # ====================== CONFIGURATION ======================
-BASE_FONT_SIZE = 10
+BASE_FONT_SIZE = 9
 cm = 1/2.54
 
 # Define font sizes for different elements
@@ -166,10 +166,10 @@ def create_heatmap_grid(df, value_columns, column_labels):
                         index='polarisingNode_f',
                         columns='stubbornness',
                         values=metric,
-                        aggfunc='mean'
-                    ).iloc[::-1]
+                        aggfunc='mean')
+                    #).iloc[::-1]
                     
-                    heatmap_data = heatmap_data.iloc[::-1]
+                    #heatmap_data = heatmap_data.iloc[::-1]
                     
                     # Set colormap and limits
                     if metric == 'state':
@@ -207,28 +207,34 @@ def create_heatmap_grid(df, value_columns, column_labels):
                                    width=1,
                                    length=1)
                     
-                    # Clean tick handling for both axes
-                    x_positions, x_labels = get_clean_ticks(len(heatmap_data.columns))
-                    y_positions, y_labels = get_clean_ticks(len(heatmap_data.index))
-                    
-                    #X-axis handling
-                    n_x = len(heatmap_data.columns)
+                    # Unified tick handling
+                    n_x, n_y = len(heatmap_data.columns), len(heatmap_data.index)
                     x_indices = range(0, n_x, max(1, n_x//5))
-                    ax.set_xticks([i + 0.5 for i in x_indices])  # All axes get same tick positions
+                    y_indices = range(0, n_y, max(1, n_y//5))
                     
-                    if row == n_rows - 1:  # Only bottom row gets labels
-                        clean_labels = [f'{i/(n_x-1):.1f}' for i in x_indices]
-                        ax.set_xticklabels(clean_labels, rotation=45, fontsize=TICK_FONT_SIZE, color='black')
+                    ax.set_xticks([i + 0.5 for i in x_indices])
+                    ax.set_yticks([i + 0.5 for i in y_indices])
+                    
+                    # X-axis labels (bottom row only)
+                    if row == n_rows - 1:
+                        ax.set_xticklabels([f'{i/(n_x-1):.1f}' for i in x_indices], 
+                                          rotation=45, fontsize=TICK_FONT_SIZE, color='black')
                     else:
                         ax.set_xticklabels([])
                     
-                    # Y-axis handling  
-                    n_y = len(heatmap_data.index)
-                    y_indices = range(0, n_y, max(1, n_y//5))
-                    ax.set_yticks([i + 0.5 for i in y_indices])  # All axes get same tick positions
+                    # Y-axis labels (leftmost column only) - same range as x-axis
+                    if s == 0:
+                        # Use same formula as x-axis but reverse for correct visual positioning
+                        ax.set_yticklabels([f'{i/(n_y-1):.1f}' for i in y_indices], 
+                                          rotation=0, fontsize=TICK_FONT_SIZE, color='black')
+                    else:
+                        ax.set_yticklabels([])
+                    
+                    ax.tick_params(axis='x', bottom=True, top=False, labelbottom=(row == n_rows - 1))
+                    ax.tick_params(axis='y', left=True, right=False, labelleft=(s == 0))
                     
                     if s == 0:  # Only leftmost column gets labels
-                        clean_labels = [f'{i/(n_y-1):.1f}' for i in reversed(y_indices)]
+                        clean_labels = [f'{i/(n_y-1):.1f}' for i in y_indices]
                         ax.set_yticklabels(clean_labels, rotation=0, fontsize=TICK_FONT_SIZE, color='black')
                     else:
                         ax.set_yticklabels([])
