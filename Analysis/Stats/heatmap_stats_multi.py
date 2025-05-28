@@ -15,7 +15,7 @@ FRIENDLY_NAMES = {
 }
 
 # Focus on empirical networks
-TARGET_TOPOLOGIES = ['FB', 'Twitter']
+TARGET_TOPOLOGIES = ['FB', 'Twitter', 'cl', 'DPAH']
 
 def get_friendly_name(scenario):
     parts = scenario.split()
@@ -174,8 +174,8 @@ def calculate_variant_comparison(metrics_df):
 
 def calculate_topology_summary(metrics_df):
     """Calculate topology-specific summary statistics"""
-    # Filter for meaningful data (cooperative states exist)
-    valid_metrics = metrics_df[metrics_df['max_backfirer_fraction'] > 0].copy()
+    # Filter for meaningful data (cooperative states exist) and exclude WTF for fair comparison
+    valid_metrics = metrics_df[(metrics_df['max_backfirer_fraction'] > 0) & (~metrics_df['scenario'].str.contains('wtf'))].copy()
     
     summary = valid_metrics.groupby('topology').agg({
         'mean_cooperation': 'mean',
@@ -292,7 +292,7 @@ def main():
     df['mode'] = df['mode'].fillna('none')
     df['scenario'] = df['rewiring'] + ' ' + df['mode']
     
-    print(f"\nAnalyzing {TARGET_TOPOLOGIES} networks...")
+    print(f"\nAnalyzing {TARGET_TOPOLOGIES} networks (WTF excluded from topology summary only)...")
     print("Calculating comprehensive metrics...")
     
     # Calculate all metrics

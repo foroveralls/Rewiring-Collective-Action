@@ -111,7 +111,7 @@ def calculate_summary_metrics(metrics_df):
 def save_metrics(metrics_df, topology_summary, strategy_summary, output_dir='../../Output'):
     """Save all metrics to a single file with clear sections."""
     today = date.today().strftime("%Y%m%d")
-    output_path = os.path.join(output_dir, f'heatmap_metrics_{today}.csv')
+    output_path = os.path.join(output_dir, f'heatmap_metrics_{today}_old.csv')
     
     # Round numerical columns
     numeric_cols = metrics_df.select_dtypes(include=[np.number]).columns
