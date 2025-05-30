@@ -14,7 +14,7 @@ FRIENDLY_NAMES = {
     'node2vec_none': 'node2vec'
 }
 
-# Focus on empirical networks
+# Include all topologies
 TARGET_TOPOLOGIES = ['FB', 'Twitter', 'cl', 'DPAH']
 
 def get_friendly_name(scenario):
@@ -172,10 +172,12 @@ def calculate_variant_comparison(metrics_df):
     
     return pd.DataFrame(comparison_data)
 
-def calculate_topology_summary(metrics_df):
-    """Calculate topology-specific summary statistics"""
-    # Filter for meaningful data (cooperative states exist) and exclude WTF for fair comparison
-    valid_metrics = metrics_df[(metrics_df['max_backfirer_fraction'] > 0) & (~metrics_df['scenario'].str.contains('wtf'))].copy()
+def calculate_topology_summary(metrics_df, exclude_wtf=True):
+    """Calculate topology-specific summary statistics with option to include/exclude WTF"""
+    if exclude_wtf:
+        valid_metrics = metrics_df[(metrics_df['max_backfirer_fraction'] > 0) & (~metrics_df['scenario'].str.contains('wtf'))].copy()
+    else:
+        valid_metrics = metrics_df[metrics_df['max_backfirer_fraction'] > 0].copy()
     
     summary = valid_metrics.groupby('topology').agg({
         'mean_cooperation': 'mean',
@@ -194,7 +196,7 @@ def calculate_topology_summary(metrics_df):
     
     return summary
 
-def save_comprehensive_analysis(metrics_df, variant_comparison, topology_summary, output_dir='../../Output/Stats/stubborness_backfirer'):
+def save_comprehensive_analysis(metrics_df, variant_comparison, topology_summary, topology_summary_with_wtf, output_dir='../../Output/Stats/stubborness_backfirer'):
     """Save all analyses to separate files"""
     today = date.today().strftime("%Y%m%d")
     
@@ -210,9 +212,12 @@ def save_comprehensive_analysis(metrics_df, variant_comparison, topology_summary
     comparison_path = os.path.join(output_dir, f'variant_comparison_{today}.csv')
     variant_comparison.round(3).to_csv(comparison_path, index=False)
     
-    # Save topology summary
+    # Save topology summaries
     summary_path = os.path.join(output_dir, f'topology_summary_{today}.csv')
     topology_summary.to_csv(summary_path)
+    
+    summary_wtf_path = os.path.join(output_dir, f'topology_summary_with_wtf_{today}.csv')
+    topology_summary_with_wtf.to_csv(summary_wtf_path)
     
     # Create comprehensive summary file
     comprehensive_path = os.path.join(output_dir, f'comprehensive_analysis_{today}.csv')
@@ -221,8 +226,10 @@ def save_comprehensive_analysis(metrics_df, variant_comparison, topology_summary
         metrics_df.to_csv(f, index=False)
         f.write('\n\n=== VARIANT COMPARISON (OPPOSITE vs SIMILAR) ===\n')
         variant_comparison.round(3).to_csv(f, index=False)
-        f.write('\n\n=== TOPOLOGY SUMMARY ===\n')
+        f.write('\n\n=== TOPOLOGY SUMMARY (WTF EXCLUDED) ===\n')
         topology_summary.to_csv(f)
+        f.write('\n\n=== TOPOLOGY SUMMARY (WTF INCLUDED) ===\n')
+        topology_summary_with_wtf.to_csv(f)
         
         # Add key statistics for paper
         f.write('\n\n=== KEY STATISTICS FOR PAPER ===\n')
@@ -269,7 +276,7 @@ def save_comprehensive_analysis(metrics_df, variant_comparison, topology_summary
         mean_pol_similar = metrics_df[metrics_df['variant_type'] == 'similar']['mean_polarization'].mean()
         f.write(f"Mean polarization levels - Opposite: {mean_pol_opposite:.3f}, Similar: {mean_pol_similar:.3f}\n")
     
-    return comprehensive_path, main_path, comparison_path, summary_path
+    return comprehensive_path, main_path, comparison_path, summary_path, summary_wtf_path
 
 def main():
     """Main execution function"""
@@ -292,16 +299,17 @@ def main():
     df['mode'] = df['mode'].fillna('none')
     df['scenario'] = df['rewiring'] + ' ' + df['mode']
     
-    print(f"\nAnalyzing {TARGET_TOPOLOGIES} networks (WTF excluded from topology summary only)...")
+    print(f"\nAnalyzing {TARGET_TOPOLOGIES} networks...")
     print("Calculating comprehensive metrics...")
     
     # Calculate all metrics
     metrics_df = calculate_metrics(df)
     variant_comparison = calculate_variant_comparison(metrics_df)
-    topology_summary = calculate_topology_summary(metrics_df)
+    topology_summary = calculate_topology_summary(metrics_df, exclude_wtf=True)
+    topology_summary_with_wtf = calculate_topology_summary(metrics_df, exclude_wtf=False)
     
     # Save results
-    paths = save_comprehensive_analysis(metrics_df, variant_comparison, topology_summary)
+    paths = save_comprehensive_analysis(metrics_df, variant_comparison, topology_summary, topology_summary_with_wtf)
     
     print(f"\nAnalysis complete! Files saved:")
     for i, path in enumerate(paths):
@@ -318,7 +326,7 @@ def main():
     for topo, max_val in max_by_topo.items():
         print(f"  {topo}: {max_val:.3f}")
     
-    return metrics_df, variant_comparison, topology_summary
+    return metrics_df, variant_comparison, topology_summary, topology_summary_with_wtf
 
 if __name__ == "__main__":
     main()
