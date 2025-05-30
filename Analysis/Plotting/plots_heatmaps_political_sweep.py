@@ -200,9 +200,6 @@ def create_state_heatmap_grid(df, param_name, max_param_value=0.05):
     param_bins = np.linspace(0, 0.05, PARAM_BINS+1) 
     state_bins = np.linspace(-1, 1, STATE_BINS+1)
     
-    # Create parameter values array for consistent tick spacing
-    param_vals = np.linspace(0, max_param_value, PARAM_BINS)
-    
     # Track the last image for colorbar
     last_im = None
     
@@ -250,10 +247,10 @@ def create_state_heatmap_grid(df, param_name, max_param_value=0.05):
                 
           
         
-                tick_indices = [2, 6, 10]
-                tick_values = param_vals[tick_indices]
+         
+                tick_values = [0.01, 0.03, 0.05]
                 
-                ax.set_xticks(tick_indices)
+                ax.set_xticks(tick_values)
                 
                 # Only show x-tick labels on bottom row
                 if row_idx == n_rows - 1:
@@ -301,10 +298,10 @@ def create_state_heatmap_grid(df, param_name, max_param_value=0.05):
 
     # Add a colorbar
     if last_im:
-        cbar_ax = fig.add_axes([0.93, 0.15, 0.02, 0.7])  # Moved slightly right
+        cbar_ax = fig.add_axes([0.92, 0.15, 0.02, 0.7])  # Moved slightly right
         cbar = fig.colorbar(last_im, cax=cbar_ax)
         cbar.set_label('log(Count+1)', fontsize=LEGEND_FONT_SIZE)
-        cbar.ax.tick_params(labelsize=TICK_FONT_SIZE)
+        cbar.ax.tick_params(labelsize=TICK_FONT_SIZE, length =1.5, width= 1)
         cbar.outline.set_linewidth(0.4)
     
     # Save figure
