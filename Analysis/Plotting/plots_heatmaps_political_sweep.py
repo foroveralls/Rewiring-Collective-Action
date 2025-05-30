@@ -24,10 +24,10 @@ BASE_FONT_SIZE = 8
 cm = 1/2.54
 
 # Define font sizes for different elements - reduced overall
-TITLE_FONT_SIZE = BASE_FONT_SIZE
-AXIS_LABEL_FONT_SIZE = BASE_FONT_SIZE - 1
-TICK_FONT_SIZE = BASE_FONT_SIZE - 2
-LEGEND_FONT_SIZE = BASE_FONT_SIZE - 2
+TITLE_FONT_SIZE = BASE_FONT_SIZE - 1
+AXIS_LABEL_FONT_SIZE = BASE_FONT_SIZE - 2
+TICK_FONT_SIZE = BASE_FONT_SIZE - 4
+LEGEND_FONT_SIZE = BASE_FONT_SIZE - 3
 ANNOTATION_FONT_SIZE = BASE_FONT_SIZE - 1
 
 # Algorithms to exclude from visualization (leave empty to include all)
@@ -37,25 +37,25 @@ EXCLUDED_ALGORITHMS = ["none_none"]
 PARAM_BINS = 12  # Number of bins for parameter values
 STATE_BINS = 20  # Number of bins for state values
 
-# Scenario names and colors mapping
+# Scenario names and colors mapping - matching plots_trajec_sweep_heatmap.py
 FRIENDLY_COLORS = {
-    'static': '#EE7733',      # Orange
-    'random': '#0077BB',      # Blue
-    'local (similar)': '#33BBEE',    # Cyan
-    'local (opposite)': '#009988',   # Teal
-    'bridge (similar)': '#CC3311',   # Red
-    'bridge (opposite)': '#EE3377',  # Magenta
-    'wtf': '#BBBBBB',         # Grey
-    'node2vec': '#44BB99'     # Blue-green
+    'static': '#EE7733',
+    'random': '#0077BB',
+    'L-sim': '#33BBEE',     
+    'L-opp': '#009988',     
+    'B-sim': '#CC3311',     
+    'B-opp': '#EE3377',     
+    'wtf': '#BBBBBB',
+    'node2vec': '#44BB99'
 }
 
 FRIENDLY_NAMES = {
     'none_none': 'static',
     'random_none': 'random',
-    'biased_same': 'local (similar)',
-    'biased_diff': 'local (opposite)',
-    'bridge_same': 'bridge (similar)',
-    'bridge_diff': 'bridge (opposite)',
+    'biased_same': 'L-sim',
+    'biased_diff': 'L-opp',
+    'bridge_same': 'B-sim',
+    'bridge_diff': 'B-opp',
     'wtf_none': 'wtf',
     'node2vec_none': 'node2vec'
 }
@@ -70,7 +70,7 @@ def setup_plotting():
         'ps.fonttype': 42,
         'svg.fonttype': 'none',
         'figure.dpi': 300,
-        'figure.figsize': (17.8*cm, 12*cm),  # Increased height only, width constrained by journal
+        'figure.figsize': (17.8*cm, 10*cm),
         'axes.labelsize': AXIS_LABEL_FONT_SIZE,
         'axes.titlesize': TITLE_FONT_SIZE,
         'xtick.labelsize': TICK_FONT_SIZE,
@@ -80,7 +80,8 @@ def setup_plotting():
         'ytick.major.width': 0.8,
         'axes.linewidth': 0.8,
     })
-    sns.set_style("white")
+    sns.set_theme(font_scale=BASE_FONT_SIZE/12)
+    sns.set(style="ticks")
 
 def get_friendly_name(mode, rewiring):
     """Get user-friendly algorithm name."""
@@ -115,11 +116,11 @@ def get_data_file():
     file_index = int(input("Enter the index of the file you want to plot: "))
     return os.path.join("../../Output", file_list[file_index])
 
-def preprocess_data(df, param_name, max_param_value=0.10):
+def preprocess_data(df, param_name, max_param_value=0.05):
     """Preprocess the data for visualization."""
     # Filter to parameter values <= max_param_value
     if param_name in df.columns:
-        df = df[df[param_name] <= max_param_value]
+        df = df[df[param_name] <= max_param_value + 1e-10]
     
     # Handle NaN values and standardize column names
     df['rewiring'] = df['rewiring'].fillna('none')
@@ -136,17 +137,16 @@ def preprocess_data(df, param_name, max_param_value=0.10):
     
     return df
 
-def create_state_heatmap_grid(df, param_name, max_param_value=0.06):
+def create_state_heatmap_grid(df, param_name, max_param_value=0.05):
     """
     Create a grid of heatmaps showing state distribution by parameter value across topologies and scenarios.
-    
-    Parameters:
-    df - Preprocessed DataFrame with state data
-    param_name - Name of the parameter being swept
-    max_param_value - Maximum value of the parameter to display
     """
     # Get unique topologies and scenarios
     all_topologies = sorted(df['topology'].unique())
+    
+    # Define preferred topology order
+    preferred_order = ["DPAH", "Twitter", "cl", "FB"]
+    all_topologies = sorted(all_topologies, key=lambda t: preferred_order.index(t) if t in preferred_order else 999)
     
     # Group by mode and rewiring to get unique scenarios
     scenarios = df.groupby(['mode', 'rewiring']).size().reset_index()
@@ -163,35 +163,48 @@ def create_state_heatmap_grid(df, param_name, max_param_value=0.06):
         friendly_name = get_friendly_name(mode, rewiring)
         all_scenarios.append((mode, rewiring, friendly_name))
     
-    # Sort scenarios based on FRIENDLY_NAMES order
+    # Sort scenarios with WTF at the end
     def get_scenario_index(scenario):
         key = f"{scenario[0]}_{scenario[1]}"
-        for i, name in enumerate(FRIENDLY_NAMES.keys()):
-            if name == key:
-                return i
-        return 999  # Place unknown scenarios at the end
+        friendly = get_friendly_name(scenario[0], scenario[1])
+        
+        # WTF goes to the end
+        if friendly == 'wtf':
+            return 999
+        
+        # Order for others
+        order = ['random', 'L-sim', 'L-opp', 'B-sim', 'B-opp', 'node2vec']
+        try:
+            return order.index(friendly)
+        except ValueError:
+            return 998
     
     all_scenarios.sort(key=get_scenario_index)
     
-    # Grid layout with minimal space horizontally between plots
+    # Grid layout with reduced vertical spacing
     n_rows = len(all_topologies)
     n_cols = len(all_scenarios)
     
-    # Create figure with increased height but maintaining journal-required width
-    fig = plt.figure(figsize=(17.8*cm, 12*cm))
+    # Create figure
+    fig = plt.figure(figsize=(17.8*cm, 10*cm))
     
-    # Create GridSpec with minimal space horizontally between plots
-    gs = GridSpec(n_rows, n_cols, figure=fig, wspace=0.35, hspace=0.3)
+    # Create GridSpec with slightly more spacing to reduce cramping
+    gs = GridSpec(n_rows, n_cols, figure=fig, wspace=0.10, hspace=0.12)
     
-    # Use viridis colormap for consistency with trajectory plots
+    # Use viridis colormap for consistency
     cmap = plt.cm.viridis
     
     # Define the 2D histogram bins
-    param_bins = np.linspace(0, max_param_value, PARAM_BINS+1)
+    # Create bins that match your actual data
+    param_vals = np.linspace(0, 0.05, 12)
+    param_bins = np.linspace(0, 0.05, PARAM_BINS+1) 
     state_bins = np.linspace(-1, 1, STATE_BINS+1)
     
     # Create parameter values array for consistent tick spacing
     param_vals = np.linspace(0, max_param_value, PARAM_BINS)
+    
+    # Track the last image for colorbar
+    last_im = None
     
     # Process each cell in grid
     for row_idx, topology in enumerate(all_topologies):
@@ -209,6 +222,7 @@ def create_state_heatmap_grid(df, param_name, max_param_value=0.06):
                        fontsize=ANNOTATION_FONT_SIZE)
                 ax.set_xticks([])
                 ax.set_yticks([])
+                ax.set_frame_on(False)
             else:
                 # Compute 2D histogram manually for better control
                 H, xedges, yedges = np.histogram2d(
@@ -217,7 +231,7 @@ def create_state_heatmap_grid(df, param_name, max_param_value=0.06):
                     bins=[param_bins, state_bins]
                 )
                 
-                # Simple log transformation for enhancing visibility of low counts
+                # Log transformation for enhancing visibility (keeping original functionality)
                 H_log = np.log1p(H)  # log(1+x) to handle zeros
                 
                 # Normalize to get full color range
@@ -228,62 +242,70 @@ def create_state_heatmap_grid(df, param_name, max_param_value=0.06):
                 
                 # Plot the normalized 2D histogram
                 im = ax.pcolormesh(xedges, yedges, H_norm.T, cmap=cmap, vmin=0, vmax=1)
+                last_im = im
                 
                 # Set dynamic axis limits
                 ax.set_xlim(0, max_param_value)
                 ax.set_ylim(-1, 1)
                 
-                # Set x-ticks with consistent spacing like in trajectory plot
-                x_ticks = np.arange(len(param_vals))
-                x_tick_labels = [f'{val:.1f}' for val in param_vals]  # 1 decimal place
-                tick_spacing = max(1, len(param_vals) // 5)  # 5 ticks max
-                ax.set_xticks(param_vals[::tick_spacing])
-                ax.set_xticklabels([f'{val:.1f}' for val in param_vals[::tick_spacing]], 
-                                  fontsize=TICK_FONT_SIZE)
+          
+        
+                tick_indices = [2, 6, 10]
+                tick_values = param_vals[tick_indices]
                 
-                # Set y-ticks consistently
-                y_ticks = [-1, -0.5, 0, 0.5, 1]
+                ax.set_xticks(tick_indices)
+                
+                # Only show x-tick labels on bottom row
+                if row_idx == n_rows - 1:
+                    tick_labels = [f'{val:.2f}'[1:] for val in tick_values]  # ['.01', '.03', '.05']
+                    ax.set_xticklabels(tick_labels, fontsize=TICK_FONT_SIZE)
+                else:
+                    ax.set_xticklabels([])
+                
+                # Set y-ticks consistently to -1, 0, 1
+                y_ticks = [-1, 0, 1]
                 ax.set_yticks(y_ticks)
                 
-                # Only remove y-axis tick labels for non-first columns, keep the ticks
-                if col_idx > 0:
-                    ax.set_yticklabels([])
+                # Only show y-tick labels on leftmost column
+                if col_idx == 0:
+                    ax.set_yticklabels([f'{y:.0f}' for y in y_ticks], fontsize=TICK_FONT_SIZE)
                 else:
-                    ax.set_yticklabels([f'{y:.1f}' for y in y_ticks], fontsize=TICK_FONT_SIZE)
+                    ax.set_yticklabels([])
                 
                 # Apply tick parameters for consistent appearance
                 ax.tick_params(axis='both', which='major', labelsize=TICK_FONT_SIZE,
                               width=0.8, length=2, pad=2)
                 
                 # Add grid for better readability
-                ax.grid(True, linestyle='--', alpha=0.2, linewidth=0.2)
+                ax.grid(True, linestyle='--', alpha=0.7, linewidth=0.3)
             
-            # Add labels with improved positioning for journal width
+            # Add labels with improved positioning
             if col_idx == 0:  # First column gets ⟨x⟩ label
-                ax.set_ylabel('⟨x⟩', fontsize=AXIS_LABEL_FONT_SIZE, labelpad=5)
+                ax.set_ylabel(r'$\langle a\rangle$', fontsize=AXIS_LABEL_FONT_SIZE+1, labelpad=5, fontweight='bold')
                 
-                # Add topology label further from plot (beyond ⟨x⟩)
-                ax.text(-0.85, 0.5, topology.upper(), transform=ax.transAxes, 
+                # Add topology label further from plot (adjusted for new spacing)
+                ax.text(-0.50, 0.5, topology.upper(), transform=ax.transAxes, 
                        rotation=90, fontsize=AXIS_LABEL_FONT_SIZE+1, 
                        fontweight='bold', va='center', ha='center')
             
             if row_idx == 0:  # First row gets scenario title
                 title_color = FRIENDLY_COLORS.get(friendly_name, 'black')
-                ax.set_title(friendly_name, fontsize=TITLE_FONT_SIZE-1, 
+                ax.set_title(friendly_name, fontsize=TITLE_FONT_SIZE, 
                            color=title_color, pad=2, fontweight='bold')
             
-            if row_idx == n_rows - 1:  # Last row gets x-axis label
-                ax.set_xlabel(param_name, fontsize=AXIS_LABEL_FONT_SIZE, labelpad=5)
+            # if row_idx == n_rows - 1:  # Last row gets x-axis label
+            #     ax.set_xlabel("Poltical climate, $\phi$", fontsize=AXIS_LABEL_FONT_SIZE+1, labelpad=5, fontweight='bold')
     
-    # Add a colorbar with diagonal tick labels
-    cbar_ax = fig.add_axes([0.91, 0.15, 0.01, 0.7])  # [left, bottom, width, height]
-    cbar = fig.colorbar(im, cax=cbar_ax)
-    cbar.set_label('log(Count+1)', fontsize=AXIS_LABEL_FONT_SIZE-1)
-    cbar.ax.tick_params(labelsize=TICK_FONT_SIZE)
-    cbar.outline.set_linewidth(0.4)  # Make colorbar outline thinner
-    
-    # Rotate colorbar ticks diagonally to save space
-    plt.setp(cbar_ax.get_yticklabels(), rotation=45, ha='left')
+    # Add centered x-axis label at bottom of entire figure
+    fig.text(0.5, 0.04, "Poltical climate, $\phi$", ha='center', fontsize=AXIS_LABEL_FONT_SIZE+1, fontweight='bold')
+
+    # Add a colorbar
+    if last_im:
+        cbar_ax = fig.add_axes([0.93, 0.15, 0.02, 0.7])  # Moved slightly right
+        cbar = fig.colorbar(last_im, cax=cbar_ax)
+        cbar.set_label('log(Count+1)', fontsize=LEGEND_FONT_SIZE)
+        cbar.ax.tick_params(labelsize=TICK_FONT_SIZE)
+        cbar.outline.set_linewidth(0.4)
     
     # Save figure
     os.makedirs(OUTPUT_DIR, exist_ok=True)
@@ -322,7 +344,7 @@ def main():
     print(f"Parameter being swept: {param_name}")
     
     # Set the max parameter value to display
-    max_param_value = 0.06
+    max_param_value = 0.05
     
     # Print excluded algorithms if any
     if EXCLUDED_ALGORITHMS:
