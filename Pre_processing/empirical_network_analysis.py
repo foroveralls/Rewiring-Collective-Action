@@ -310,7 +310,7 @@ for i in os.listdir(folder_path):
 #G_reduced = community_based_reduction_directed(G_remapped, N)
 
 
-nx.draw(T, node_size = 10)
+#nx.draw(T, node_size = 10)
 #G = G_remapped
 
 #save graph

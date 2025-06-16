@@ -386,7 +386,7 @@ def main():
     # Example parameters similar to those in run.py
     simulation_params = {
         "rewiringAlgorithm": "biased",
-        "nwsize": 500,
+        "nwsize": 300,
         "rewiringMode": "diff",
         "type": "cl",
         "polarisingNode_f": 0.10,
