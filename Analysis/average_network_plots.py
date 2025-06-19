@@ -1,19 +1,8 @@
 """
-Network Snapshots Visualization
--------------------------------
-This script creates network visualizations at multiple timesteps,
-averaging across multiple simulation runs with fixed initial states.
-
-WHAT THE NETWORKS REPRESENT:
-- **Node colors**: Average opinion of each agent across all simulation runs
-  (blue = cooperative/positive, red = defecting/negative)
-- **Edge presence**: Edges shown only if they exist in >threshold% of runs
-- **Edge width**: Thickness indicates frequency (thicker = more consistent across runs)  
-- **Edge color**: Plasma colormap showing frequency (purple=low, yellow=high)
-- **Edge transparency**: Lower frequency edges are more transparent
-
-This reveals which network connections are stable vs. dynamic under different
-rewiring algorithms, while showing the average opinion evolution at each position.
+Network Snapshots Visualization - Prioritizing Rewiring Activity
+-----------------------------------------------------------------
+Creates network visualizations focusing on edges created through rewiring
+rather than initial topology, with support for empirical networks.
 """
 
 import os
@@ -26,7 +15,6 @@ from matplotlib.colors import Normalize
 from matplotlib.cm import ScalarMappable
 import multiprocessing
 from datetime import date
-import copy
 import random
 
 # Fix import path
@@ -36,66 +24,49 @@ sys.path.append('..')
 import models_checks
 
 def create_fixed_initial_states(simulation_params):
-    """Create fixed initial agent states that will be reused across all runs"""
-    # Set fixed seed for reproducible initial configuration
+    """Create fixed initial agent states for reproducible runs"""
     np.random.seed(42)
     random.seed(42)
     
-    # Create a reference model to get network structure and initial states
     ref_model = models_checks.simulate(0, simulation_params)
-    
-    # Extract initial agent states
-    initial_states = {}
-    for node in ref_model.graph.nodes():
-        initial_states[node] = ref_model.graph.nodes[node]['agent'].state
+    initial_states = {node: ref_model.graph.nodes[node]['agent'].state 
+                     for node in ref_model.graph.nodes()}
     
     return initial_states, ref_model.graph.copy()
 
 def simulate_with_snapshots(i, simulation_params, initial_states=None):
-    """Run simulation with fixed initial states if provided"""
+    """Run simulation with fixed initial states"""
     snapshot_timesteps = simulation_params.pop('_snapshot_timesteps', None)
     
-    # Set different seed for dynamics but use fixed initial states
-    np.random.seed(42 + i * 1000)  # Different seed for each run's dynamics
+    np.random.seed(42 + i * 1000)
     random.seed(42 + i * 1000)
     
     model = models_checks.simulate(i, simulation_params)
     
-    # Override with fixed initial states if provided
     if initial_states:
         for node, state in initial_states.items():
             if node in model.graph.nodes():
                 model.graph.nodes[node]['agent'].state = state
         
-        # Reset model tracking arrays and re-run simulation from fixed state
-        model.ratio = []
-        model.states = []
-        model.statesds = []
-        model.clustering = []
-        model.degrees = []
-        model.degreesSD = []
-        model.mindegrees_l = []
-        model.maxdegrees_l = []
-        model.clusteravg = []
-        model.clusterSD = []
+        # Reset and re-run from fixed state
+        model.ratio = model.states = model.statesds = []
+        model.clustering = model.degrees = model.degreesSD = []
+        model.mindegrees_l = model.maxdegrees_l = []
+        model.clusteravg = model.clusterSD = []
         
-        # Re-run simulation from fixed initial state
         model.runSim(simulation_params.get('timesteps', 1000), clusters=True, drawModel=False)
     
-    # Capture snapshots at specified timesteps
+    # Capture snapshots
     snapshots = {}
     if snapshot_timesteps:
         for t in snapshot_timesteps:
             if t < len(model.states):
-                snapshot = {}
                 if t == 0:
-                    # Use actual initial states
-                    for node in model.graph.nodes():
-                        snapshot[node] = initial_states.get(node, model.graph.nodes[node]['agent'].state) if initial_states else model.graph.nodes[node]['agent'].state
+                    snapshot = {node: initial_states.get(node, model.graph.nodes[node]['agent'].state) 
+                              for node in model.graph.nodes()} if initial_states else {}
                 else:
-                    # Use current agent states (actual states, not just averages)
-                    for node in model.graph.nodes():
-                        snapshot[node] = model.graph.nodes[node]['agent'].state
+                    snapshot = {node: model.graph.nodes[node]['agent'].state 
+                              for node in model.graph.nodes()}
                 snapshots[t] = snapshot
     
     return {'model': model, 'snapshots': snapshots}
@@ -106,14 +77,9 @@ def run_multiple_simulations(n_runs, simulation_params, snapshot_timesteps=None)
     if snapshot_timesteps:
         params_copy['_snapshot_timesteps'] = snapshot_timesteps
     
-    # Create fixed initial states for all runs
     print("Creating fixed initial agent configuration...")
     initial_states, _ = create_fixed_initial_states(params_copy.copy())
     
-    num_processors = run.get_optimal_process_count()
-    
-    # Run simulations sequentially to maintain state consistency
-    # (multiprocessing with shared initial states is more complex)
     print(f"Running {n_runs} simulations with fixed initial states...")
     results = []
     for i in range(n_runs):
@@ -122,7 +88,6 @@ def run_multiple_simulations(n_runs, simulation_params, snapshot_timesteps=None)
         result = simulate_with_snapshots(i, params_copy.copy(), initial_states)
         results.append(result)
     
-    # Extract models and organize snapshots
     models = [result['model'] for result in results]
     snapshots_by_timestep = {t: [] for t in snapshot_timesteps if t is not None}
     for result in results:
@@ -132,20 +97,20 @@ def run_multiple_simulations(n_runs, simulation_params, snapshot_timesteps=None)
     
     return models, snapshots_by_timestep
 
-def create_average_network(models, snapshots, timestep, edge_threshold=0.1, adaptive_threshold=True):
-    """Create average network with improved edge filtering and weight scaling"""
+def create_average_network(models, snapshots, timestep, edge_threshold=0.1, prioritize_rewiring=True):
+    """Create average network with simple, robust edge filtering"""
     ref_model = models[0]
     num_nodes = len(ref_model.graph.nodes)
     num_models = len(models)
-    network_type = getattr(models[0], 'type', 'unknown')
+    
+    # Store initial topology for edge marking
+    initial_edges = set(ref_model.graph.edges())
+    if not nx.is_directed(ref_model.graph):
+        initial_edges = {(min(e), max(e)) for e in initial_edges}
     
     avg_graph = nx.DiGraph() if nx.is_directed(ref_model.graph) else nx.Graph()
     
-    # Add nodes
-    for i in range(num_nodes):
-        avg_graph.add_node(i)
-    
-    # Calculate average opinions at this timestep
+    # Add nodes with average opinions
     all_opinions = {i: [] for i in range(num_nodes)}
     
     if snapshots and timestep in snapshots and len(snapshots[timestep]) > 0:
@@ -157,101 +122,52 @@ def create_average_network(models, snapshots, timestep, edge_threshold=0.1, adap
             for i in range(num_nodes):
                 all_opinions[i].append(model.graph.nodes[i]['agent'].state)
     
-    # Set average opinions
     for i in range(num_nodes):
         if all_opinions[i]:
             avg_opinion = np.mean(all_opinions[i])
-            avg_graph.nodes[i]['avg_opinion'] = avg_opinion
-            dummy_agent = models_checks.Agent(avg_opinion, 0.5)
-            avg_graph.nodes[i]['agent'] = dummy_agent
+            avg_graph.add_node(i, avg_opinion=avg_opinion, 
+                             agent=models_checks.Agent(avg_opinion, 0.5))
     
-    # Count edge frequencies
+    # Count ALL edge frequencies
     edge_counts = {}
     for model in models:
-        for edge in model.graph.edges():
-            if not nx.is_directed(model.graph) and edge[0] > edge[1]:
-                edge = (edge[1], edge[0])
+        current_edges = set(model.graph.edges())
+        if not nx.is_directed(model.graph):
+            current_edges = {(min(e), max(e)) for e in current_edges}
+        
+        for edge in current_edges:
             edge_counts[edge] = edge_counts.get(edge, 0) + 1
     
-    # Adaptive threshold for dense networks
-    if adaptive_threshold:
-        frequencies = [count / num_models for count in edge_counts.values()]
-        if len(frequencies) > 0:
-            freq_median = np.median(frequencies)
-            freq_75 = np.percentile(frequencies, 75)
-            # Use higher threshold for dense networks
-            if freq_median > 0.8:  # Very dense
-                edge_threshold = max(edge_threshold, freq_75)
-            elif freq_median > 0.6:  # Moderately dense  
-                edge_threshold = max(edge_threshold, 0.7)
-    
-    # Add edges with frequency-based filtering
+    # Add edges above threshold, mark if rewired
     edge_frequencies = []
     for edge, count in edge_counts.items():
         frequency = count / num_models
         if frequency > edge_threshold:
-            avg_graph.add_edge(edge[0], edge[1], weight=frequency)
+            is_rewired = edge not in initial_edges
+            avg_graph.add_edge(edge[0], edge[1], weight=frequency, rewired=is_rewired)
             edge_frequencies.append(frequency)
     
-    # Store edge statistics for visualization scaling
+    # Store edge statistics
     if edge_frequencies:
         avg_graph.graph['edge_freq_min'] = min(edge_frequencies)
         avg_graph.graph['edge_freq_max'] = max(edge_frequencies)
         avg_graph.graph['edge_freq_range'] = max(edge_frequencies) - min(edge_frequencies)
     
+    print(f"Network: {avg_graph.number_of_nodes()} nodes, {avg_graph.number_of_edges()} edges (threshold: {edge_threshold:.2f})")
+    
     return avg_graph
 
-def plot_average_network(avg_graph, title="Average Network", colormap='coolwarm', 
-                        params=None, ax=None, show_colorbar=True, show_legend=True, layout=None):
-    """Plot average network with improved edge weight visualization"""
-    network_type = params.get("type") if params else None
-    
-    if layout is None and network_type not in ["FB", "Twitter"]:
-        # Use more spread out layout for dense networks
-        if avg_graph.number_of_edges() > avg_graph.number_of_nodes() * 2:
-            layout = nx.spring_layout(avg_graph, k=1.0, iterations=100, seed=42)
-        else:
-            layout = nx.spring_layout(avg_graph, k=0.3, iterations=50, seed=42)
+def plot_average_network(avg_graph, title="Average Network", params=None, ax=None, 
+                        show_colorbar=True, layout=None, edge_scale=1.0):
+    """Simplified network plotting"""
+    if layout is None and params and params.get("type") not in ["FB", "Twitter"]:
+        k = 1.0 if avg_graph.number_of_edges() > avg_graph.number_of_nodes() * 2 else 0.3
+        layout = nx.spring_layout(avg_graph, k=k, iterations=50, seed=42)
     
     opinions = nx.get_node_attributes(avg_graph, "avg_opinion")
     norm = Normalize(vmin=-1, vmax=1)
-    cmap = plt.cm.get_cmap(colormap).reversed()
+    cmap = plt.cm.coolwarm_r
     colors = [cmap(norm(opinions[node])) for node in avg_graph.nodes]
-    
-    # Improved edge weight scaling
-    edge_weights = []
-    edge_alphas = []
-    edge_colors = []
-    
-    if avg_graph.number_of_edges() > 0:
-        weights = [avg_graph[u][v]['weight'] for u, v in avg_graph.edges()]
-        min_weight = min(weights)
-        max_weight = max(weights)
-        weight_range = max_weight - min_weight
-        
-        for u, v in avg_graph.edges():
-            freq = avg_graph[u][v]['weight']
-            
-            # Scale width: emphasize differences in frequency
-            if weight_range > 0:
-                # Non-linear scaling to emphasize differences
-                normalized_freq = (freq - min_weight) / weight_range
-                width = 0.3 + normalized_freq * 2.5  # Range: 0.3 to 2.8
-            else:
-                width = 1.0
-                
-            # Use transparency to show frequency: lower freq = more transparent
-            alpha = 0.3 + (freq * 0.7)  # Range: 0.3 to 1.0
-            
-            # Color edges by frequency: red=low freq, blue=high freq
-            edge_color = plt.cm.plasma(freq)
-            
-            edge_weights.append(width)
-            edge_alphas.append(alpha)
-            edge_colors.append(edge_color)
-    
-    sm = ScalarMappable(cmap=cmap, norm=norm)
-    sm.set_array([])
     
     if ax is None:
         plt.figure(figsize=(12, 10))
@@ -260,153 +176,137 @@ def plot_average_network(avg_graph, title="Average Network", colormap='coolwarm'
     else:
         standalone = False
     
-    is_directed = nx.is_directed(avg_graph)
+    # Draw nodes
+    draw_kwargs = {'node_color': colors, 'edgecolors': "black", 'node_size': 50, 'alpha': 0.9, 'ax': ax}
+    if layout: draw_kwargs['pos'] = layout
+    nx.draw_networkx_nodes(avg_graph, **draw_kwargs)
     
-    # Draw nodes first
-    if layout is not None:
-        nx.draw_networkx_nodes(avg_graph, pos=layout, node_color=colors, 
-                              edgecolors="black", node_size=190, alpha=0.9, ax=ax)
+    # Draw edges with frequency-based styling and rewiring highlighting
+    if avg_graph.number_of_edges() > 0:
+        weights = [avg_graph[u][v]['weight'] for u, v in avg_graph.edges()]
+        w_min, w_max = min(weights), max(weights)
+        w_range = w_max - w_min if w_max > w_min else 1
         
-        # Draw edges with individual styling
-        for i, (u, v) in enumerate(avg_graph.edges()):
-            nx.draw_networkx_edges(avg_graph, pos=layout, edgelist=[(u, v)],
-                                 width=edge_weights[i], alpha=edge_alphas[i],
-                                 edge_color=[edge_colors[i]], arrows=is_directed, ax=ax)
-    else:
-        nx.draw_networkx_nodes(avg_graph, node_color=colors,
-                              edgecolors="black", node_size=190, alpha=0.9, ax=ax)
-        
-        for i, (u, v) in enumerate(avg_graph.edges()):
-            nx.draw_networkx_edges(avg_graph, edgelist=[(u, v)],
-                                 width=edge_weights[i], alpha=edge_alphas[i], 
-                                 edge_color=[edge_colors[i]], arrows=is_directed, ax=ax)
+        for u, v in avg_graph.edges():
+            freq = avg_graph[u][v]['weight']
+            is_rewired = avg_graph[u][v].get('rewired', False)
+            
+            width = edge_scale * (0.3 + ((freq - w_min) / w_range) * 2.5)
+            alpha = 0.4 + freq * 0.6
+            
+            # Different styling for rewired vs initial edges
+            if is_rewired:
+                edge_color = plt.cm.plasma(freq)  # Rewired edges in plasma colormap
+                alpha *= 1.2  # Slightly more opaque
+            else:
+                edge_color = plt.cm.gray(0.3 + freq * 0.4)  # Initial edges in gray
+            
+            edge_kwargs = {'edgelist': [(u, v)], 'width': width, 'alpha': min(alpha, 1.0), 
+                          'edge_color': [edge_color], 'arrows': nx.is_directed(avg_graph), 'ax': ax}
+            if layout: edge_kwargs['pos'] = layout
+            nx.draw_networkx_edges(avg_graph, **edge_kwargs)
     
     if show_colorbar:
+        sm = ScalarMappable(cmap=cmap, norm=norm)
+        sm.set_array([])
         cbar = plt.colorbar(sm, ax=ax)
-        cbar.set_label('Average Opinion Value')
+        cbar.set_label('Average Opinion')
     
-    if show_legend and avg_graph.number_of_edges() > 0:
-        # Create edge frequency legend
-        ax.text(1.05, 0.7, 'Edge Frequency', transform=ax.transAxes, fontsize=10, fontweight='bold')
-        
-        # Show frequency color scale
-        freq_cmap = plt.cm.plasma
-        freq_norm = Normalize(vmin=min_weight if 'min_weight' in locals() else 0, 
-                             vmax=max_weight if 'max_weight' in locals() else 1)
-        freq_sm = ScalarMappable(cmap=freq_cmap, norm=freq_norm)
-        
-        # Mini colorbar for edge frequencies
-        cbar_ax = plt.gcf().add_axes([1.05, 0.4, 0.02, 0.25])
-        freq_cbar = plt.colorbar(freq_sm, cax=cbar_ax)
-        freq_cbar.set_label('Edge Freq', fontsize=8)
-        freq_cbar.ax.tick_params(labelsize=6)
-    
+    ax.set_title(title)
     for spine in ax.spines.values():
         spine.set_edgecolor('black')
         spine.set_linewidth(2)
     
-    ax.set_title(title)
-    
-    # Print network statistics
-    if avg_graph.number_of_edges() > 0:
-        print(f"Network stats: {avg_graph.number_of_nodes()} nodes, {avg_graph.number_of_edges()} edges")
-        weights = [avg_graph[u][v]['weight'] for u, v in avg_graph.edges()]
-        print(f"Edge frequencies: min={min(weights):.2f}, max={max(weights):.2f}, mean={np.mean(weights):.2f}")
-    
     filename = None
     if standalone:
         plt.tight_layout()
-        algo = params.get("rewiringAlgorithm", "") if params else ""
-        mode = params.get("rewiringMode", "") if params else ""
-        network_type = params.get("type", "") if params else ""
-        filename = f'../../Figs/Networks/avg_network_{title}_{network_type}_{algo}_{mode}.png'
-        os.makedirs(os.path.dirname(filename), exist_ok=True)
-        plt.savefig(filename, bbox_inches='tight', dpi=300)
+        if params:
+            algo, mode, ntype = params.get("rewiringAlgorithm", ""), params.get("rewiringMode", ""), params.get("type", "")
+            filename = f'../../Figs/Networks/avg_network_{title}_{ntype}_{algo}_{mode}.png'
+            os.makedirs(os.path.dirname(filename), exist_ok=True)
+            plt.savefig(filename, bbox_inches='tight', dpi=300)
         plt.show()
     
     return layout, filename
 
-def plot_network_snapshots(models, snapshots, timesteps, edge_threshold=0.1, params=None):
-    """Plot network evolution panel with improved visualization"""
+def plot_network_snapshots(models, snapshots, timesteps, edge_threshold=0.1, params=None, edge_scale=1.0):
+    """Simplified panel plotting"""
     fig, axes = plt.subplots(1, 3, figsize=(18, 6))
-    
-    if len(timesteps) == 3:
-        titles = [f"Initial (t={timesteps[0]})", f"Middle (t={timesteps[1]})", f"Final (t={timesteps[2]})"]
-    else:
-        titles = [f"t={t}" for t in timesteps]
-    
+    titles = [f"t={t}" for t in timesteps]
     layout = None
     
     for i, (t, ax, title) in enumerate(zip(timesteps, axes, titles)):
-        avg_graph = create_average_network(models, snapshots, t, edge_threshold, adaptive_threshold=True)
-        
-        show_colorbar = (i == len(timesteps) - 1)
-        show_legend = (i == len(timesteps) - 1)
-        
-        layout, _ = plot_average_network(
-            avg_graph, title=title, params=params, ax=ax, 
-            show_colorbar=show_colorbar, show_legend=show_legend, layout=layout
-        )
+        avg_graph = create_average_network(models, snapshots, t, edge_threshold)
+        show_cbar = (i == len(timesteps) - 1)
+        layout, _ = plot_average_network(avg_graph, title=title, params=params, ax=ax, 
+                                       show_colorbar=show_cbar, layout=layout, edge_scale=edge_scale)
     
-    algo = params.get("rewiringAlgorithm", "") if params else ""
-    mode = params.get("rewiringMode", "") if params else ""
-    network_type = params.get("type", "") if params else ""
-    suptitle = f"Network Evolution: {network_type} - {algo} - {mode} (n={len(models)} runs, fixed initial states)"
-    plt.suptitle(suptitle, fontsize=16, y=1.05)
+    if params:
+        algo, mode, ntype = params.get("rewiringAlgorithm", ""), params.get("rewiringMode", ""), params.get("type", "")
+        suptitle = f"Network Evolution: {ntype} - {algo} - {mode} (n={len(models)} runs, rewiring focus)"
+        plt.suptitle(suptitle, fontsize=16, y=1.05)
+        
+        filename = f'../../Figs/Networks/network_evolution_{ntype}_{algo}_{mode}_rewiring.png'
+        os.makedirs(os.path.dirname(filename), exist_ok=True)
+        plt.tight_layout()
+        plt.savefig(filename, bbox_inches='tight', dpi=300)
     
-    filename = f'../../Figs/Networks/network_evolution_{network_type}_{algo}_{mode}_fixed.png'
-    os.makedirs(os.path.dirname(filename), exist_ok=True)
-    plt.tight_layout()
-    #plt.savefig(filename, bbox_inches='tight', dpi=300)
     plt.show()
-    
     return filename
 
 def main():
-    """Main function with improved edge threshold for different network types"""
-    simulation_params = {
-        "rewiringAlgorithm": "biased",
-        "nwsize": 100,
-        "rewiringMode": "diff", 
-        "type": "cl",
-        "polarisingNode_f": 0.10,
-        "timesteps": 25000,
-        "plot": False
+    """Main function with empirical network support"""
+    # Network configuration options
+    network_configs = {
+        "cl": {"type": "cl", "nwsize": 100},
+        "DPAH": {"type": "DPAH", "nwsize": 100}, 
+        "FB": {"type": "FB", "nwsize": 786, "top_file": "FB_graph_N_786.gpickle"},
+        "Twitter": {"type": "Twitter", "nwsize": 789, "top_file": "twitter_graph_N_789.gpickle"}
     }
     
-    n_runs = 3
+    # Select network type
+    print("Available networks:")
+    for i, (key, config) in enumerate(network_configs.items()):
+        print(f"{i}: {key} (N={config['nwsize']})")
     
-    # Adaptive edge threshold based on network type
-    network_type = simulation_params.get("type", "")
-    if network_type in ["cl", "FB"]:  # Dense/clustered networks
-        edge_threshold = 0 # Only show very persistent edges
-    else:  # Sparser networks
-        edge_threshold = 0.50
+    network_idx = int(input("Select network type: "))
+    selected_config = list(network_configs.values())[network_idx]
+    
+    simulation_params = {
+        "rewiringAlgorithm": "biased",
+        "rewiringMode": "diff", 
+        "polarisingNode_f": 0.10,
+        "timesteps": 25000,
+        "plot": False,
+        **selected_config
+    }
+    
+    n_runs = 1
+    
+    # Simple, reliable edge threshold
+    edge_threshold = 0.3 if selected_config["type"] in ["cl", "FB"] else 0.2
+    edge_scale = 0.5  # Adjust this to make edges thicker (>1.0) or thinner (<1.0)
     
     total_timesteps = simulation_params["timesteps"]
     snapshot_timesteps = [0, total_timesteps // 2, total_timesteps - 1]
     
-    print(f"Running {n_runs} simulations with fixed initial states...")
-    print(f"Using edge threshold: {edge_threshold} for {network_type} network")
+    print(f"Running {n_runs} simulations on {selected_config['type']} network...")
+    print(f"Edge threshold: {edge_threshold}, Edge scale: {edge_scale}")
+    
     models, snapshots = run_multiple_simulations(n_runs, simulation_params, snapshot_timesteps)
     
-    print("Plotting network evolution panel...")
+    print("Plotting network evolution (prioritizing rewiring)...")
     panel_filename = plot_network_snapshots(models, snapshots, snapshot_timesteps, 
-                                           edge_threshold=edge_threshold, params=simulation_params)
-    print(f"Panel plot saved to {panel_filename}")
+                                           edge_threshold=edge_threshold, params=simulation_params, edge_scale=edge_scale)
     
-    print("Creating average network topology (final state)...")
-    avg_graph = create_average_network(models, snapshots, snapshot_timesteps[-1], edge_threshold, adaptive_threshold=True)
+    print("Creating rewiring-focused average network...")
+    avg_graph = create_average_network(models, snapshots, snapshot_timesteps[-1], edge_threshold)
     
-    title = f"Average Network (n={n_runs}, fixed init) - {simulation_params['type']}_{simulation_params['rewiringAlgorithm']}_{simulation_params['rewiringMode']}"
-    _, filename = plot_average_network(avg_graph, title=title, params=simulation_params)
-    print(f"Plot saved to {filename}")
+    title = f"Rewiring Network (n={n_runs}) - {simulation_params['type']}_{simulation_params['rewiringAlgorithm']}_{simulation_params['rewiringMode']}"
+    _, filename = plot_average_network(avg_graph, title=title, params=simulation_params, edge_scale=edge_scale)
     
-    # Save data
-    # avg_df, individual_df = models_checks.saveavgdata(models, "average_data.csv", simulation_params)
-    # output_file = f"../../Output/avg_network_data_fixed_{simulation_params['type']}_{simulation_params['rewiringAlgorithm']}_{date.today()}.csv"
-    # avg_df.to_csv(output_file, index=False)
-    # print(f"Data saved to {output_file}")
+    print(f"Panel: {panel_filename}")
+    print(f"Single: {filename}")
     
     return models, snapshots, panel_filename
 
