@@ -254,7 +254,7 @@ def create_heatmap_grid(df, value_columns, column_labels):
     
     # Add axis labels (only once at bottom and left)
     fig.text(0.5, 0.04, 'Stubbornness, $\\mathbf{w_i}$', ha='center', fontsize=AXIS_LABEL_FONT_SIZE, fontweight='bold')
-    fig.text(0.02, 0.52, 'Polarizing Node Fraction, $\\mathbf{\\rho}$', va='center', rotation=90, 
+    fig.text(0.02, 0.52, 'Diverging Node Fraction, $\\mathbf{\\rho}$', va='center', rotation=90, 
          fontsize=AXIS_LABEL_FONT_SIZE, fontweight='bold')
     return fig
 
