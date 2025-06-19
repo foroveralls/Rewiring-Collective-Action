@@ -561,8 +561,8 @@ def plot_single_topology_dynamics(data, t_max=50, output_file=None):
         # Customize subplot
         ax.set(xlim=(0, t_max), ylim=(-0.6, 1.1),
               # Only set xlabel for bottom row
-              xlabel="T" if is_bottom_row else "",
-              ylabel='Cooperativity, ⟨x⟩' if idx % n_cols == 0 else '',
+              xlabel="Time, t" if is_bottom_row else "",
+              ylabel='Cooperativity, ⟨a⟩' if idx % n_cols == 0 else '',
               title=f'{key}')
             
         # Apply common axis styling

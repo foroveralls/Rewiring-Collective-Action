@@ -160,9 +160,13 @@ def create_average_network(models, snapshots, timestep, edge_threshold=0.1, prio
 def plot_average_network(avg_graph, title="Average Network", params=None, ax=None, 
                         show_colorbar=True, layout=None, edge_scale=1.0):
     """Simplified network plotting"""
-    if layout is None and params and params.get("type") not in ["FB", "Twitter"]:
-        k = 1.0 if avg_graph.number_of_edges() > avg_graph.number_of_nodes() * 2 else 0.3
-        layout = nx.spring_layout(avg_graph, k=k, iterations=50, seed=42)
+    # Always ensure we have a layout
+    if layout is None:
+        if params and params.get("type") not in ["FB", "Twitter"]:
+            k = 1.0 if avg_graph.number_of_edges() > avg_graph.number_of_nodes() * 2 else 0.3
+            layout = nx.spring_layout(avg_graph, k=k, iterations=50, seed=42)
+        else:
+            layout = nx.spring_layout(avg_graph, seed=42)
     
     opinions = nx.get_node_attributes(avg_graph, "avg_opinion")
     norm = Normalize(vmin=-1, vmax=1)
@@ -177,9 +181,8 @@ def plot_average_network(avg_graph, title="Average Network", params=None, ax=Non
         standalone = False
     
     # Draw nodes
-    draw_kwargs = {'node_color': colors, 'edgecolors': "black", 'node_size': 50, 'alpha': 0.9, 'ax': ax}
-    if layout: draw_kwargs['pos'] = layout
-    nx.draw_networkx_nodes(avg_graph, **draw_kwargs)
+    nx.draw_networkx_nodes(avg_graph, pos=layout, node_color=colors, 
+                          edgecolors="black", node_size=50, alpha=0.9, ax=ax)
     
     # Draw edges with frequency-based styling and rewiring highlighting
     if avg_graph.number_of_edges() > 0:
@@ -201,10 +204,9 @@ def plot_average_network(avg_graph, title="Average Network", params=None, ax=Non
             else:
                 edge_color = plt.cm.gray(0.3 + freq * 0.4)  # Initial edges in gray
             
-            edge_kwargs = {'edgelist': [(u, v)], 'width': width, 'alpha': min(alpha, 1.0), 
-                          'edge_color': [edge_color], 'arrows': nx.is_directed(avg_graph), 'ax': ax}
-            if layout: edge_kwargs['pos'] = layout
-            nx.draw_networkx_edges(avg_graph, **edge_kwargs)
+            nx.draw_networkx_edges(avg_graph, pos=layout, edgelist=[(u, v)], 
+                                 width=width, alpha=min(alpha, 1.0), 
+                                 edge_color=[edge_color], arrows=nx.is_directed(avg_graph), ax=ax)
     
     if show_colorbar:
         sm = ScalarMappable(cmap=cmap, norm=norm)
@@ -276,12 +278,12 @@ def main():
         "rewiringAlgorithm": "biased",
         "rewiringMode": "diff", 
         "polarisingNode_f": 0.10,
-        "timesteps": 25000,
+        "timesteps": 15000,
         "plot": False,
         **selected_config
     }
     
-    n_runs = 1
+    n_runs = 2
     
     # Simple, reliable edge threshold
     edge_threshold = 0.3 if selected_config["type"] in ["cl", "FB"] else 0.2
