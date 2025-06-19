@@ -155,6 +155,7 @@ if  __name__ ==  '__main__':
             fname = f'../Output/{i}_linkif_{v}_top_{j}.csv'
             print("starting save")
             out_list.append(models_checks.saveavgdata(sim, fname, args = argList[0]))
+            models_checks.save_network_properties(sim, f'../Output/{i}_linkif_{v}_top_{j}', argList[0])
             end_1 = time.time()
             mins = (end_1 - start_1) / 60
             sec = (end_1 - start_1) % 60
