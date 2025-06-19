@@ -98,7 +98,7 @@ friendship = 0.5
 friendshipSD = 0.19
 clustering = 0.5 # CSF clustering in louvain algorithm
 #new variables:
-breaklinkprob = 0.5
+breaklinkprob = 1
 rewiringMode = "None"
 polarisingNode_f = 0
 establishlinkprob = 0.5 # breaklinkprob and establishlinkprob are used in random rewiring. Are always chosen to be the same to keep average degree constant!
@@ -775,14 +775,13 @@ class Model:
     
         #check that we are not rewiring to neighbours
         rank = 1
-        while rewireIndex in neighbours:
-            #print(rank)
-            if rank <= len(neighbours)-1:
-                #print(rank, neighbours)
-                rewireIndex = potentialIndexes[rank]
-                rank += 1
-            else:
-                return rewireIndex, neighbours
+        while rewireIndex in neighbours and rank < len(potentialIndexes):
+            rewireIndex = potentialIndexes[rank]
+            rank += 1
+        # If no valid target found, return None
+        if rewireIndex in neighbours:
+            return None, neighbours
+        
         return rewireIndex, neighbours
         
     def call_node2vec(self, nodeIndex):
@@ -1220,23 +1219,23 @@ class Model:
         #for some reason the skew is offset by 0.01 after genreation, this brings it back to intended skew
         #skew = skew+ 0.01
         self.fraction_m, self.fraction_M = [], []
-        for n in range (n):
+        for i in range (n):
             
-            node_class = self.graph.nodes[n]["m"]
+            node_class = self.graph.nodes[i]["m"]
             
-            neighbours =  list(self.graph.adj[n].keys())
+            neighbours =  list(self.graph.adj[i].keys())
             
             if(len(neighbours) == 0):    
-                self.randomrewiring(n, establishlinkprob = 1)
+                self.randomrewiring(i, establishlinkprob = 1)
             
             self.fraction_m.append(node_class) if node_class == 1 else self.fraction_M.append(node_class)
             
             agent1 = Agent(self.getInitialState(node_class), args["stubbornness"])
             
-            self.graph.nodes[n]['agent'] = agent1
+            self.graph.nodes[i]['agent'] = agent1
             
             if args["polarisingNode_f"] > np.random.random():
-                self.graph.nodes[n]['agent'].type = "polarising"
+                self.graph.nodes[i]['agent'].type = "polarising"
 
         
         
@@ -1551,7 +1550,7 @@ def test_run():
     model_array = []
     for i in range(1):
         print(i)
-        args.update({"type": "cl", "plot": True, "top_file": f"{twitter}.gpickle", "timesteps": 15000, "rewiringAlgorithm": "node2vec",
+        args.update({"type": "cl", "plot": True, "top_file": f"{twitter}.gpickle", "timesteps": 15000, "rewiringAlgorithm": "bridge",
                       "rewiringMode": "diff", "nwsize":100})
         #nwsize has to equal empirical network size 
         model = simulate(1, args)
