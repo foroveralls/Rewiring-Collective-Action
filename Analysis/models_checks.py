@@ -481,20 +481,17 @@ class Model:
                     # print(self.graph.edges[nodeIndex, establishlinkNeighborIndex[0]]['weight'])
                     rewired_rand = True 
                     
-            init_neighbours =  list(self.graph.adj[nodeIndex].keys())
+        
             
             if rewired_rand == True:
-                
-                 if(len(init_neighbours) < 2):
-                    return nodeIndex
-            
-                 else:
-                    breaklinkNeighbourIndex = init_neighbours[random.randint(0, len(init_neighbours)-1)]
-           
-                    if random.random() < breaklinkprob:
-                     #  print('breaking link')
-                       self.graph.remove_edge(nodeIndex, breaklinkNeighbourIndex)                                
-                
+                if random.random() < breaklinkprob:  # Check probability first
+                    init_neighbours = list(self.graph.adj[nodeIndex].keys())
+                    # Remove newly added neighbor to avoid breaking it
+                    init_neighbours = [n for n in init_neighbours if n != establishlinkNeighborIndex[0]]
+                    
+                    if len(init_neighbours) >= 1:
+                        breaklinkNeighbourIndex = init_neighbours[random.randint(0, len(init_neighbours)-1)]
+                        self.graph.remove_edge(nodeIndex, breaklinkNeighbourIndex)
             
             # print('ending random rewiring')
             
@@ -556,14 +553,13 @@ class Model:
                    
            if rewired == True: #links are only broken if a link is established
                if random.random() < breaklinkprob:
-                    init_neighbours =  list(self.graph.adj[nodeIndex].keys())
-                    if(len(init_neighbours) < 2):
-                        return nodeIndex
-                
-                    else:
-                         #print('breaking a link')
-                         breaklinkNeighbourIndex = init_neighbours[random.randint(0, len(init_neighbours)-1)]
-                         self.graph.remove_edge(nodeIndex, breaklinkNeighbourIndex)
+                    current_neighbours = list(self.graph.adj[nodeIndex].keys())
+                    old_neighbours = [n for n in current_neighbours if n != establishlinkNeighborIndex]
+                    
+                    if len(old_neighbours) >= 1:
+                        breaklinkNeighbourIndex = old_neighbours[random.randint(0, len(old_neighbours)-1)]
+                        self.graph.remove_edge(nodeIndex, breaklinkNeighbourIndex)
+
 
 
     def bridgerewiring(self, nodeIndex):
@@ -625,13 +621,12 @@ class Model:
             
             if rewired == True:
                 if random.random() < breaklinkprob:
-                    init_neighbours =  list(self.graph.adj[nodeIndex].keys())
-                    if(len(init_neighbours) < 2):
-                        return nodeIndex
-                     
-                    else:
-                        breaklinkNeighbourIndex = init_neighbours[random.randint(0, len(init_neighbours)-1)]
-                            
+                    # Get neighbors before rewiring by getting current neighbors and removing new one
+                    current_neighbours = list(self.graph.adj[nodeIndex].keys())
+                    old_neighbours = [n for n in current_neighbours if n != partnerOutClusterIndex]
+                    
+                    if len(old_neighbours) >= 1:
+                        breaklinkNeighbourIndex = old_neighbours[random.randint(0, len(old_neighbours)-1)]
                         self.graph.remove_edge(nodeIndex, breaklinkNeighbourIndex)
     #-----------------------------------------------------------------------------------
           
@@ -753,10 +748,18 @@ class Model:
         if sim is None:
             return False, False
         
+        rewired = self.rewire(nodeIndex, sim)
+        
+        if rewired and random.random() < breaklinkprob:
+            # Use old neighbors (from neighbours_check) for breaking
+            if len(neighbours) >= 1:
+                breaklinkNeighbourIndex = neighbours[random.randint(0, len(neighbours)-1)]
+                self.graph.remove_edge(nodeIndex, breaklinkNeighbourIndex)
+        
         sim_neighbours = list(self.graph.adj[sim].keys()) if sim is not None else []
         affected_nodes = [sim] + sim_neighbours
         
-        return self.rewire(nodeIndex, sim), affected_nodes
+        return rewired, affected_nodes
          
             
         
@@ -878,12 +881,11 @@ class Model:
         rewired = self.rewire(nodeIndex, rewireIndex)
         
         # If rewired successfully, break an existing link
-        if rewired:
-            if random.random() < breaklinkprob:
-                brokenIndex, success = self.break_link(nodeIndex, rewireIndex, neighbours)
-                if success:
-                    # Track affected nodes for future retraining
-                    self.affected_nodes += [nodeIndex, rewireIndex, brokenIndex]
+        if rewired and random.random() < breaklinkprob:
+            
+            breaklinkNeighbourIndex = neighbours[random.randint(0, len(neighbours)-1)]
+            self.graph.remove_edge(nodeIndex, breaklinkNeighbourIndex)
+            self.affected_nodes += [nodeIndex, rewireIndex, breaklinkNeighbourIndex]
             
         return rewired
             
