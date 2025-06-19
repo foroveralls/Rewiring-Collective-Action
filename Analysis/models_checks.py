@@ -265,7 +265,8 @@ class Model:
         self.retrain = 0
         self.lock = lock
         self.process_id = os.getpid()
-        self.network_snapshots = {}
+        self.degree_distributions = {}
+        
          
     
         #setting rewiring algorithm to be used
@@ -297,7 +298,18 @@ class Model:
         #otherwise we are using the static scenario and we don't include rewiring
         else:
             self.interact_main = self.interact_init
-
+        
+        
+    def record_degree_dist(self, t):
+        """Record degree distribution at timestep t"""
+        degrees = [d for _, d in self.graph.degree()]
+        self.degree_distributions[t] = {
+            'degrees': degrees,
+            'mean': np.mean(degrees),
+            'std': np.std(degrees),
+            'max': max(degrees),
+            'min': min(degrees)
+        }
          
     # picks a randon agent to perform an interaction with a random neighbour and then to rewire
     def interact(self):
@@ -1039,10 +1051,11 @@ class Model:
                 self.defectorDefectingNeighsSTDList.append(defectorDefectingNeighsSTD)
                 self.cooperatorDefectingNeighsSTDList.append(cooperatorDefectingNeighsSTD)
             
-            snapshots = [0, int(args["timesteps"]/2), args["timesteps"]-1]
+            snapshots = [0, int(args["timesteps"]/10), args["timesteps"]-1]
            
-            if i in snapshots and drawModel:
-                self.plot_network(self.graph, title = f"T = {i}, N = {args['nwsize']}")
+            if i in snapshots:
+                self.record_degree_dist(i)
+                #self.plot_network(self.graph, title = f"T = {i}, N = {args['nwsize']}")
             
 
         (avgs, sds, sizes) = findAvgStateInClusters(self, self.partition)
