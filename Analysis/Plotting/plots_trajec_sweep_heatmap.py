@@ -437,7 +437,7 @@ def create_master_heatmap_grid(data):
         cbar.outline.set_linewidth(0.4)
     
     # Add centered axis labels - adjusted for tighter layout
-    fig.text(0.5, 0.04, "Polarizing node fraction, $\\mathbf{\\rho}$", ha='center', fontsize=AXIS_LABEL_FONT_SIZE+1, fontweight='bold')
+    fig.text(0.5, 0.04, "Diverging node fraction, $\\mathbf{\\rho}$", ha='center', fontsize=AXIS_LABEL_FONT_SIZE+1, fontweight='bold')
     fig.text(0.06, 0.5, 'Rate (×10³)', va='center', rotation='vertical', 
             fontsize=AXIS_LABEL_FONT_SIZE+1, fontweight='bold')
     

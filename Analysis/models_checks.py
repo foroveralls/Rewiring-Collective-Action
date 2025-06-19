@@ -84,6 +84,7 @@ politicalClimate = 0.05
 newPoliticalClimate = 1*politicalClimate # we can change the political climate mid run
 stubbornness = 0.6
 degree = 8 
+m = 8
 timesteps= 100 #70000 
 continuous = True
 skew = -0.20
@@ -1037,27 +1038,11 @@ class Model:
                 self.defectorDefectingNeighsSTDList.append(defectorDefectingNeighsSTD)
                 self.cooperatorDefectingNeighsSTDList.append(cooperatorDefectingNeighsSTD)
             
-            # snapshots = [0, int(args["timesteps"]/2), args["timesteps"]-1]
+            snapshots = [0, int(args["timesteps"]/2), args["timesteps"]-1]
            
-            # if i in snapshots and drawModel:
-            #     self.plot_network(self.graph, title = f"T = {i}, N = {args['nwsize']}")
+            if i in snapshots and drawModel:
+                self.plot_network(self.graph, title = f"T = {i}, N = {args['nwsize']}")
             
-            if hasattr(self, 'snapshot_timesteps') and i in self.snapshot_timesteps:
-                snapshot = {}
-                for node in self.graph.nodes():
-                    snapshot[node] = self.graph.nodes[node]['agent'].state
-                self.network_snapshots[i] = snapshot
-                
-            # if(gifname != None and (i in snapshots)):
-            #     draw_model(self, True, i, extraTitle = f'  avg state: {self.states[-1]:1.2f} agreement: {self.avgNbAgreeingList[-1]:1.2f}')
-            #     filenames.append("plot" + str(i) +".png")
-            
-        #if(gifname != None):
-        #    images = []
-        #    for filename in filenames:
-        #        images.append(imageio.imread(filename))
-        #    #0.08167
-        #    imageio.mimsave("network" +gifname+ ".gif", images, duration=0.08167)
 
         (avgs, sds, sizes) = findAvgStateInClusters(self, self.partition)
         self.clusteravg.append(avgs)
@@ -1562,10 +1547,10 @@ def test_run():
     start = time.time()
     plt.figure()
     model_array = []
-    for i in range(5):
+    for i in range(1):
         print(i)
-        args.update({"type": "DPAH", "plot": False, "top_file": f"{twitter}.gpickle", "timesteps": 15000, "rewiringAlgorithm": "node2vec",
-                      "rewiringMode": "diff", "nwsize":300})
+        args.update({"type": "cl", "plot": True, "top_file": f"{twitter}.gpickle", "timesteps": 15000, "rewiringAlgorithm": "node2vec",
+                      "rewiringMode": "diff", "nwsize":100})
         #nwsize has to equal empirical network size 
         model = simulate(1, args)
         init_states.append(model.states[0])
@@ -1626,48 +1611,6 @@ if  __name__ ==  '__main__':
 # # nx.draw(model.graph, pos=layout, labels = labels, arrows=True)
 # # nx.is_directed(model.graph)
 # # plt.show()
-# #model.plot_network(model.graph)
-
-
-
-
- # def run_climate_phase():
- #     """Execute Phase 2: Adjusting average state with gradual changes"""
- #     print("\nPhase 2: Adjusting Average State")
- #     self.politicalClimate = -0.05  # Start with smaller climate effect
- #     min_climate = -0.1  # Prevent extreme negative climate
- #     max_climate = 0.1   # Prevent extreme positive climate
-     
- #     for iteration in range(40):  # Increased max iterations since we're moving slower
- #         # Reduced interactions per adjustment
- #         for _ in range(int(n*0.3)):  # Reduced from 5N to 2N interactions
- #             self.interact_init()
-         
- #         avg_state, h_m, h_M = get_metrics()
- #         # print(f"P2: {iteration}: Avg: {avg_state:.3f}, PC: {self.politicalClimate:.3f}, \
- #         #       h_m: {h_m}, h_M: {h_M}")
-         
- #         if abs(avg_state - target_skew) <= 0.03 and abs(h_m - h_all) <= 0.05 and abs(h_M - h_all) <= 0.05:
- #             break
-         
- #         # Smaller climate adjustments
- #         if avg_state > target_skew:
- #             self.politicalClimate -= 0.01  # Reduced from 0.02
- #         else:
- #             self.politicalClimate += 0.01  # Reduced from 0.01
-             
- #         # Bound climate to prevent extremes
- #         self.politicalClimate = max(min_climate, min(max_climate, self.politicalClimate))
-         
- #         # More aggressive scaling back if states are becoming extreme
- #         if abs(avg_state) > 0.8:  # If average state is getting too extreme
- #             self.politicalClimate *= 0.25  # More aggressive reduction
- #         elif abs(h_m - h_all) > 0.1 or abs(h_M - h_all) > 0.1:
- #             self.politicalClimate *= 0.5
-
- #     return avg_state, h_m, h_M
-
-
 
 
 

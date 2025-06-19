@@ -207,7 +207,7 @@ def configure_axis_style(ax, t_max):
             width=line_params["tick_major_width"],  # Use parameter
             colors='black',
             zorder=100,  # High zorder to ensure visibility
-            bottom=True, top=True, left=True, right=True,  # Show ticks on all sides
+            bottom=True, top=False, left=True, right=False,  # Show ticks on all sides
             labelbottom=True, labeltop=False, labelleft=True, labelright=False
         )
         
@@ -562,7 +562,7 @@ def plot_single_topology_dynamics(data, t_max=50, output_file=None):
         ax.set(xlim=(0, t_max), ylim=(-0.6, 1.1),
               # Only set xlabel for bottom row
               xlabel="Time, t" if is_bottom_row else "",
-              ylabel='Cooperativity, ⟨a⟩' if idx % n_cols == 0 else '',
+              ylabel=r'Cooperativity, $\langle a \rangle$' if idx % n_cols == 0 else '',
               title=f'{key}')
             
         # Apply common axis styling
