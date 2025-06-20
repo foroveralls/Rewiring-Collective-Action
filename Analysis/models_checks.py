@@ -1462,6 +1462,26 @@ def findAvgSDinClusters(model, part):
   
 #-------- save data functions ---------
 
+
+def save_network_properties(models, filename_base, args):
+    """Save network properties separately from main data"""
+    all_props = []
+    for i, model in enumerate(models):
+        for t, props in model.degree_distributions.items():
+            all_props.append({
+                'model_run': i,
+                'timestep': t,
+                'scenario': args["rewiringAlgorithm"], 
+                'rewiring': args["rewiringMode"],
+                'type': args["type"],
+                **props
+            })
+    
+    if all_props:
+        df = pd.DataFrame(all_props)
+        df.to_csv(f'{filename_base}_network_props.csv', index=False)
+    return all_props
+
 def saveavgdata(models, filename, args):
     # Get the maximum number of timesteps
     max_timesteps = max(len(model.states) for model in models)
