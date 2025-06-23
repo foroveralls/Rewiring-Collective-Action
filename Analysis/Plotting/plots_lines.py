@@ -8,41 +8,67 @@ from matplotlib.lines import Line2D
 from matplotlib.ticker import ScalarFormatter, AutoMinorLocator
 from matplotlib.gridspec import GridSpec
 
-# Configuration
+# Line width parameters
+line_params = {
+    "data_line_width": 0.5,
+    "axis_line_width": 0.8,
+    "grid_line_width": 0.5,
+    "tick_major_width": 0.8,
+    "tick_minor_width": 0.6,
+    "markersize": 3
+}
+
 cm = 1/2.54
 FONT_SIZE = 7
-LINE_WIDTH = 0.5
-COLORS = {
-    'none_none': '#EE7733', 'random_none': '#0077BB', 'biased_same': '#33BBEE',
-    'biased_diff': '#009988', 'bridge_same': '#CC3311', 'bridge_diff': '#EE3377',
-    'wtf_none': '#BBBBBB', 'node2vec_none': '#44BB99'
+
+# Color scheme
+PLOT_COLORS = {
+    'none_none': '#EE7733',
+    'random_none': '#0077BB',
+    'biased_same': '#33BBEE',
+    'biased_diff': '#009988',
+    'bridge_same': '#CC3311',
+    'bridge_diff': '#EE3377',
+    'wtf_none': '#BBBBBB',
+    'node2vec_none': '#44BB99'
 }
-NETWORKS = {'cl': 'CSF', 'DPAH': 'DPAH', 'Twitter': 'Twitter', 'FB': 'FB'}
-LABELS = {
-    'none_none': 'static', 'random_none': 'random', 'biased_same': 'local (similar)',
-    'biased_diff': 'local (opposite)', 'bridge_same': 'bridge (similar)', 
-    'bridge_diff': 'bridge (opposite)', 'wtf_none': 'wtf', 'node2vec_none': 'node2vec'
+
+NETWORK_DISPLAY_NAMES = {
+    'cl': 'CSF',
+    'DPAH': 'DPAH',
+    'Twitter': 'Twitter',
+    'FB': 'FB'
 }
 
 def set_plot_style():
+    """Set consistent style elements for all plots"""
     sns.set_style("white")
     plt.rcParams.update({
-        'font.size': FONT_SIZE, 'axes.labelsize': FONT_SIZE, 'axes.titlesize': FONT_SIZE,
-        'xtick.labelsize': FONT_SIZE, 'ytick.labelsize': FONT_SIZE, 'axes.linewidth': 0.8,
-        'lines.linewidth': 1.5, 'figure.dpi': 300, 'savefig.dpi': 300,
-        'figure.figsize': (17.8*cm, 8.9*cm), 'grid.alpha': 0.4, 'grid.linestyle': '--',
-        'mathtext.default': 'regular', 'axes.formatter.use_mathtext': True, 'axes.axisbelow': True
+        'font.size': FONT_SIZE,
+        'axes.labelsize': FONT_SIZE,
+        'axes.titlesize': FONT_SIZE,
+        'xtick.labelsize': FONT_SIZE,
+        'ytick.labelsize': FONT_SIZE,
+        'axes.linewidth': line_params["axis_line_width"],
+        'lines.linewidth': 1.5,
+        'figure.dpi': 300,
+        'savefig.dpi': 300,
+        'figure.figsize': (17.8*cm, 8.9*cm),
+        'grid.alpha': 0.4,
+        'grid.linestyle': '--',
+        'mathtext.default': 'regular',
+        'axes.formatter.use_mathtext': True,
+        'axes.axisbelow': True
     })
 
 def process_data(data, t_max, scale_type='linear'):
+    """Process and prepare data for plotting"""
     req_cols = ['t', 'avg_state', 'std_states', 'scenario', 'rewiring', 'type']
     for col in req_cols:
         if col not in data.columns:
             raise ValueError(f"Required column '{col}' not found")
     
     data = data[data['t'] <= t_max].copy()
-    if scale_type == 'log':
-        data = data[data['t'] > 0].copy()
     
     data['rewiring'] = data['rewiring'].fillna('none')
     data['scenario'] = data['scenario'].fillna('none')
@@ -53,247 +79,404 @@ def process_data(data, t_max, scale_type='linear'):
                    value_vars=['avg_state', 'polarization'], 
                    var_name='measure', value_name='value')
 
-def configure_axis(ax, t_max, scale_type='linear', show_ylabel=True):
+def configure_axis_style(ax, t_max, scale_type='linear', show_ylabel=True, show_xlabel=True):
+    """Apply comprehensive axis styling with proper ticks and labels"""
     ax.set_ylim(-0.6, 1.1)
     
-    if scale_type == 'log':
-        ax.set_xscale('log')
-        ax.set_xlim(1, t_max)
-        xlabel = "Time, t (log scale)"
-    elif scale_type == 'symlog':
+    if scale_type == 'symlog':
         ax.set_xscale('symlog', linthresh=30000)
         ax.set_xlim(0, t_max)
         xlabel = "Time, t (symlog)"
-    else:
+    else:  # linear
         ax.set_xlim(0, t_max)
-        formatter = ScalarFormatter(useMathText=True)
-        formatter.set_scientific(True)
-        formatter.set_powerlimits((-2, 1))
-        ax.xaxis.set_major_formatter(formatter)
+        sci_formatter = ScalarFormatter(useMathText=True)
+        sci_formatter.set_scientific(True)
+        sci_formatter.set_powerlimits((-2, 1))
+        ax.xaxis.set_major_formatter(sci_formatter)
         
-        # Create nice round tick intervals
+        # Dynamic x-ticks based on t_max
         step = 10000 if t_max <= 60000 else 20000 if t_max <= 120000 else 50000
         ticks = np.arange(0, t_max + step, step)
         ax.set_xticks(ticks[ticks <= t_max])
         xlabel = "Time, t"
     
-    ax.grid(True, alpha=0.4, linestyle='--', zorder=5)
+    # Grid configuration
+    ax.grid(True, alpha=0.4, linestyle='--', linewidth=line_params["grid_line_width"], zorder=1)
     ax.set_axisbelow(True)
     
+    # Spine configuration
     for spine in ax.spines.values():
         spine.set_visible(True)
-        spine.set_linewidth(0.8)
+        spine.set_linewidth(line_params["axis_line_width"])
         spine.set_zorder(100)
-    
+
+    # Y-axis configuration
     ax.set_yticks([-0.5, -0.25, 0, 0.25, 0.5, 0.75, 1.0])
-    ax.yaxis.set_major_formatter(plt.FormatStrFormatter('%.1f'))
+    ax.yaxis.set_major_formatter(plt.FormatStrFormatter('%.2f'))
     
+    # Minor tick locators
     if scale_type == 'linear':
         ax.xaxis.set_minor_locator(AutoMinorLocator(5))
     ax.yaxis.set_minor_locator(AutoMinorLocator(2))
     
-    for axis in ['x', 'y']:
-        ax.tick_params(axis=axis, which='major', direction='out', length=2, width=0.8, 
-                      colors='black', zorder=100)
-        ax.tick_params(axis=axis, which='minor', direction='out', length=1, width=0.6, 
-                      colors='black', zorder=100)
+    # Tick parameters
+    ax.tick_params(
+        axis='both', 
+        which='major', 
+        direction='out', 
+        length=3, 
+        width=line_params["tick_major_width"],
+        colors='black',
+        zorder=100,
+        bottom=True, top=False, left=True, right=False,
+        labelbottom=show_xlabel, labeltop=False, 
+        labelleft=show_ylabel, labelright=False
+    )
     
-    if show_ylabel:
-        ax.set_ylabel("Cooperativity, ⟨a⟩")
-    ax.set_xlabel(xlabel)
+    ax.tick_params(
+        axis='both', 
+        which='minor', 
+        direction='out', 
+        length=1.5, 
+        width=line_params["tick_minor_width"],
+        colors='black',
+        zorder=100,
+        bottom=True, top=False, left=True, right=False,
+        labelbottom=False, labeltop=False, 
+        labelleft=False, labelright=False
+    )
     
     return xlabel
 
-def add_legends(fig, data, legend_type='full'):
-    if legend_type == 'full':
-        # Top legend
-        legend_ax = fig.add_axes([0.15, 0.90, 0.7, 0.04])
-        legend_ax.axis('off')
-        line_elements = [
-            Line2D([], [], color='black', linestyle='-', label='cooperativity'),
-            Line2D([], [], color='black', linestyle='--', dashes=(4, 2), label='polarization')
-        ]
-        legend_ax.legend(handles=line_elements, ncol=2, loc='center', frameon=True, bbox_to_anchor=(0.5, 0.5))
-        
-        # Bottom legend
-        bottom_ax = fig.add_axes([0.15, 0.03, 0.7, 0.05])
-        bottom_ax.axis('off')
-        color_elements = [Line2D([], [], color=COLORS[k], label=v) for k, v in LABELS.items() 
-                         if any(k in s for s in data['scenario_grouped'])]
-        bottom_ax.legend(handles=color_elements, ncol=4, loc='center', frameon=True, bbox_to_anchor=(0.5, 0.5))
-    
-    else:  # compact legend
-        legend_ax = fig.add_axes([0.1, 0.95, 0.8, 0.05])
-        legend_ax.axis('off')
-        all_elements = [
-            Line2D([], [], color='black', linestyle='-', label='cooperativity'),
-            Line2D([], [], color='black', linestyle='--', dashes=(4, 2), label='polarization'),
-            Line2D([], [], color='black', marker='>', markersize=2, label='directed'),
-            Line2D([], [], color='black', label='undirected')
-        ]
-        legend_ax.legend(handles=all_elements, ncol=5, loc='center', frameon=True, 
-                        bbox_to_anchor=(0.5, 0.5), fontsize=FONT_SIZE-2)
+def plot_network_dynamics(data, t_max=50, scale_type='linear', output_file=None):
+    """Plot network dynamics across different network types with improved styling"""
+    # Create color mapping
+    scenario_color_map = {}
+    for scenario in data['scenario_grouped'].unique():
+        base_scenario = '_'.join(scenario.split('_')[:2]).lower()
+        scenario_color_map[scenario] = PLOT_COLORS.get(base_scenario, '#FE6900')
 
-def plot_network_dynamics(data, t_max=55000, scale_type='linear', output_file=None):
-    scenario_colors = {s: COLORS.get('_'.join(s.split('_')[:2]).lower(), '#FE6900') 
-                      for s in data['scenario_grouped'].unique()}
-    
-    avg_data = data[data['measure'] == 'avg_state']
-    pol_data = data[data['measure'] == 'polarization']
-    
-    g = sns.relplot(data=avg_data, x='t', y='value', hue='scenario_grouped',
-                   col='type', linewidth=LINE_WIDTH, kind='line', col_wrap=2, 
-                   height=4, aspect=1, palette=scenario_colors, legend=False)
-    
+    # Create separate dataframes
+    avg_state_data = data[data['measure'] == 'avg_state'].copy()
+    polarization_data = data[data['measure'] == 'polarization'].copy()
+
+    # Create plot
+    g = sns.relplot(
+        data=avg_state_data,
+        x='t', y='value',
+        hue='scenario_grouped',
+        col='type',
+        linewidth=line_params["data_line_width"],
+        linestyle='-',
+        kind='line',
+        col_wrap=2,
+        height=4, aspect=1,
+        palette=scenario_color_map,
+        legend=False
+    )
+
     g.fig.set_size_inches(11.8*cm, 11*cm)
     
     # Add polarization lines
-    for i, ax in enumerate(g.axes.flat):
-        network = list(avg_data['type'].unique())[i]
-        for scenario in pol_data['scenario_grouped'].unique():
-            pol_subset = pol_data[(pol_data['scenario_grouped'] == scenario) & 
-                                (pol_data['type'] == network)]
-            if not pol_subset.empty:
-                ax.plot(pol_subset['t'], pol_subset['value'], linestyle='--', 
-                       dashes=(4, 2), color=scenario_colors[scenario], linewidth=LINE_WIDTH)
-    
-    # Configure axes
-    xlabel = configure_axis(g.axes[0], t_max, scale_type, True)
-    for i, ax in enumerate(g.axes.flat):
-        network = list(avg_data['type'].unique())[i]
-        ax.set_title(NETWORKS.get(network, network))
-        configure_axis(ax, t_max, scale_type, i % 2 == 0)  # ylabel only on left column
+    for ax_idx, ax in enumerate(g.axes.flat):
+        network_type = list(avg_state_data['type'].unique())[ax_idx]
         
-        if i < 2:  # top row
-            ax.set_xlabel("")
-            if scale_type == 'linear':
-                ax.xaxis.offsetText.set_visible(False)
-    
+        for scenario in polarization_data['scenario_grouped'].unique():
+            pol_data = polarization_data[
+                (polarization_data['scenario_grouped'] == scenario) & 
+                (polarization_data['type'] == network_type)
+            ]
+            
+            if not pol_data.empty:
+                ax.plot(
+                    pol_data['t'], 
+                    pol_data['value'], 
+                    linestyle='--',
+                    dashes=(4, 2),
+                    color=scenario_color_map[scenario],
+                    linewidth=line_params["data_line_width"]
+                )
+
+    # Apply styling to each subplot
+    xlabel = "Time, t"  # default
+    for i, ax in enumerate(g.axes.flat):
+        is_bottom_row = i >= 2
+        is_left_col = i % 2 == 0
+        
+        xlabel = configure_axis_style(ax, t_max, scale_type,
+                                    show_ylabel=is_left_col, 
+                                    show_xlabel=is_bottom_row)
+        
+        # Set titles
+        network_type = list(avg_state_data['type'].unique())[i]
+        ax.set_title(NETWORK_DISPLAY_NAMES.get(network_type, network_type))
+        
+        # Only show scientific notation offset on bottom row
+        if not is_bottom_row and scale_type == 'linear':
+            ax.xaxis.offsetText.set_visible(False)
+
+    # Set axis labels
     g.set_axis_labels(xlabel, "Cooperativity, ⟨a⟩")
+    
+    # Adjust spacing
     g.fig.subplots_adjust(top=0.84, bottom=0.20, hspace=0.45, wspace=0.28, left=0.1, right=0.95)
     
-    add_legends(g.fig, data, 'full')
+    # Add legends
+    fig = g.fig
+    legend_ax = fig.add_axes([0.15, 0.90, 0.7, 0.04])
+    legend_ax.axis('off')
     
+    line_style_elements = [
+        Line2D([], [], color='black', linestyle='-', label='cooperativity'),
+        Line2D([], [], color='black', linestyle='--', dashes=(4, 2), label='polarization')
+    ]
+    legend_ax.legend(handles=line_style_elements, ncol=2, loc='center', 
+                    frameon=True, bbox_to_anchor=(0.5, 0.5))
+
+    bottom_legend_ax = fig.add_axes([0.15, 0.03, 0.7, 0.05])
+    bottom_legend_ax.axis('off')
+    
+    color_elements = [
+        Line2D([], [], color=PLOT_COLORS['none_none'], label='static'),
+        Line2D([], [], color=PLOT_COLORS['random_none'], label='random'),
+        Line2D([], [], color=PLOT_COLORS['biased_same'], label='local (similar)'),
+        Line2D([], [], color=PLOT_COLORS['biased_diff'], label='local (opposite)'),
+        Line2D([], [], color=PLOT_COLORS['bridge_same'], label='bridge (similar)'),
+        Line2D([], [], color=PLOT_COLORS['bridge_diff'], label='bridge (opposite)'),
+    ]
+    
+    if any('wtf' in s for s in data['scenario_grouped']):
+        color_elements.append(Line2D([], [], color=PLOT_COLORS['wtf_none'], label='wtf'))
+    
+    if any('node2vec' in s for s in data['scenario_grouped']):
+        color_elements.append(Line2D([], [], color=PLOT_COLORS['node2vec_none'], label='node2vec'))
+    
+    bottom_legend_ax.legend(handles=color_elements, ncol=4, loc='center', 
+                          frameon=True, bbox_to_anchor=(0.5, 0.5))
+
     if output_file:
         plt.savefig(output_file, dpi=300, bbox_inches='tight')
+    
     return g
 
-def plot_single_topology_dynamics(data, t_max=55000, scale_type='linear', output_file=None):
-    categories = {'none_none': 'static', 'random_none': 'random', 'biased_same': 'local',    
-                 'biased_diff': 'local', 'bridge_same': 'bridge', 'bridge_diff': 'bridge',  
-                 'wtf_none': 'wtf', 'node2vec_none': 'node2vec'}
+def plot_single_topology_dynamics(data, t_max=50, scale_type='linear', output_file=None):
+    """Plot single topology dynamics with proper static references"""
+    scenario_categories = {
+        'none_none': 'static',
+        'random_none': 'random',
+        'biased_same': 'local',    
+        'biased_diff': 'local',    
+        'bridge_same': 'bridge',  
+        'bridge_diff': 'bridge',  
+        'wtf_none': 'wtf',
+        'node2vec_none': 'node2vec'
+    }
     
-    dpah_data = data[data['type'] == 'DPAH']
-    cl_data = data[data['type'] == 'cl']
+    scenario_to_color = {
+        'static': 'none_none',
+        'random': 'random_none',
+        'local': {'same': 'biased_same', 'diff': 'biased_diff'},
+        'bridge': {'same': 'bridge_same', 'diff': 'bridge_diff'},
+        'wtf': 'wtf_none',
+        'node2vec': 'node2vec_none'
+    }
     
-    if scale_type == 'log':
-        dpah_data = dpah_data[dpah_data['t'] > 0]
-        cl_data = cl_data[cl_data['t'] > 0]
+    # Split data by network type
+    dpah_data = data[data['type'] == 'DPAH'].copy()
+    cl_data = data[data['type'] == 'cl'].copy()
     
-    # Group scenarios by category
-    plots = {}
-    for cat, label in {'static': 'A', 'random': 'B', 'local': 'C', 
-                      'bridge': 'D', 'wtf': 'E', 'node2vec': 'F'}.items():
-        scenarios = [s for s in data['scenario_grouped'].unique() 
-                    if categories.get('_'.join(s.split('_')[:2]).lower()) == cat]
+    # Plot configs
+    plot_configs = {}
+    for category, label in {'static': 'A', 'random': 'B', 'local': 'C', 
+                          'bridge': 'D', 'wtf': 'E', 'node2vec': 'F'}.items():
+        scenarios = []
+        for scenario_group in data['scenario_grouped'].unique():
+            base_scenario = '_'.join(scenario_group.split('_')[:2]).lower()
+            if scenario_categories.get(base_scenario) == category:
+                scenarios.append(scenario_group)
         if scenarios:
-            plots[label] = scenarios
-    
-    n = len(plots)
-    cols = min(3, n)
-    rows = (n + cols - 1) // cols
-    
+            plot_configs[label] = {'scenarios': scenarios}
+
+    # Setup figure
+    n_plots = len(plot_configs)
+    n_cols = min(3, n_plots)
+    n_rows = (n_plots + n_cols - 1) // n_cols
     fig = plt.figure(figsize=(17.8*cm, 12*cm))
-    plt.subplots_adjust(top=0.90, bottom=0.16, hspace=0.27, wspace=0.22, left=0.1, right=0.95)
     
-    add_legends(fig, data, 'compact')
+    top, bottom, hspace, wspace, left, right = 0.90, 0.16, 0.27, 0.22, 0.1, 0.95
+    plt.subplots_adjust(top=top, bottom=bottom, hspace=hspace, wspace=wspace, left=left, right=right)
     
-    # Get static reference data
-    static_dpah = dpah_data[dpah_data['scenario_grouped'].str.startswith('none_none')]
-    static_cl = cl_data[cl_data['scenario_grouped'].str.startswith('none_none')]
+    # Add legends
+    plot_width = right - left
     
-    gs = GridSpec(rows, cols, figure=fig, top=0.90, bottom=0.16, hspace=0.27, wspace=0.22, left=0.1, right=0.95)
+    legend_ax = fig.add_axes([left, 0.95, plot_width, 0.05])
+    legend_ax.axis('off')
     
-    for i, (key, scenarios) in enumerate(plots.items()):
-        ax = fig.add_subplot(gs[i // cols, i % cols])
+    line_style_elements = [
+        Line2D([], [], color='black', linestyle='-', label='cooperativity'),
+        Line2D([], [], color='black', linestyle='--', dashes=(4, 2), label='polarization'),
+        Line2D([], [], color='black', linestyle='-', marker='>', markersize=2, 
+               markevery=0.1, label='directed (DPAH)'),
+        Line2D([], [], color='black', linestyle='-', label='undirected (CSF)')
+    ]
+    legend_ax.legend(handles=line_style_elements, ncol=5, loc='center', 
+                    frameon=True, bbox_to_anchor=(0.5, 0.5), fontsize=FONT_SIZE-2)
+
+    bottom_legend_ax = fig.add_axes([left, 0.03, plot_width, 0.01])
+    bottom_legend_ax.axis('off')
+    
+    color_elements = [
+        Line2D([], [], color=PLOT_COLORS['none_none'], label='static'),
+        Line2D([], [], color=PLOT_COLORS['random_none'], label='random'),
+        Line2D([], [], color=PLOT_COLORS['biased_same'], label='local (similar)'),
+        Line2D([], [], color=PLOT_COLORS['biased_diff'], label='local (opposite)'),
+        Line2D([], [], color=PLOT_COLORS['bridge_same'], label='bridge (similar)'),
+        Line2D([], [], color=PLOT_COLORS['bridge_diff'], label='bridge (opposite)'),
+        Line2D([], [], color=PLOT_COLORS['wtf_none'], label='wtf'),
+        Line2D([], [], color=PLOT_COLORS['node2vec_none'], label='node2vec')
+    ]
+    bottom_legend_ax.legend(handles=color_elements, ncol=4, loc='center', 
+                          frameon=True, bbox_to_anchor=(0.5, 0.5))
+
+    # Create subplot grid
+    gs = GridSpec(n_rows, n_cols, figure=fig,
+                 top=top, bottom=bottom, hspace=hspace, wspace=wspace, left=left, right=right)
+    
+    # Get static network data
+    static_dpah = dpah_data[dpah_data['scenario_grouped'].str.lower().str.startswith('none_none')].copy()
+    static_cl = cl_data[cl_data['scenario_grouped'].str.lower().str.startswith('none_none')].copy()
+    
+    # Plot each subplot
+    for idx, (key, config) in enumerate(plot_configs.items()):
+        ax = fig.add_subplot(gs[idx // n_cols, idx % n_cols])
         is_static = key == 'A'
         
-        # Plot data
+        # Plot for both network types and measures
         for measure in ['avg_state', 'polarization']:
-            linestyle = '-' if measure == 'avg_state' else '--'
-            dashes = None if measure == 'avg_state' else (4, 2)
-            
-            # Plot static reference for both networks
-            for data_subset, is_directed in [(dpah_data, True), (cl_data, False)]:
-                static_subset = static_dpah if is_directed else static_cl
-                static_measure = static_subset[static_subset['measure'] == measure]
-                
+            # Plot static references
+            for data_type, static_data, is_directed in [
+                (dpah_data, static_dpah, True),
+                (cl_data, static_cl, False)
+            ]:
+                static_measure = static_data[static_data['measure'] == measure]
                 if not static_measure.empty:
                     static_avg = static_measure.groupby('t')['value'].mean()
-                    props = {'color': COLORS['none_none'], 'linestyle': linestyle, 
-                           'linewidth': LINE_WIDTH, 'alpha': 0.7 if not is_static else 1.0}
-                    if dashes:
-                        props['dashes'] = dashes
+                    
+                    line_props = {
+                        'color': PLOT_COLORS['none_none'],
+                        'linestyle': '-' if measure == 'avg_state' else '--',
+                        'linewidth': line_params["data_line_width"],
+                        'alpha': 0.7 if not is_static else 1.0
+                    }
+                    
+                    if measure == 'polarization':
+                        line_props['dashes'] = (4, 2)
+                        
                     if is_directed:
-                        props.update({'marker': '>', 'markersize': 2, 'markevery': 0.1})
-                    ax.plot(static_avg.index, static_avg.values, **props)
+                        line_props.update({
+                            'marker': '>',
+                            'markersize': 2,
+                            'markevery': 0.1 if measure == 'avg_state' else 0.15
+                        })
+                    
+                    ax.plot(static_avg.index, static_avg.values, **line_props)
             
             # Plot scenario data
             if not is_static:
-                for scenario in scenarios:
-                    color_key = '_'.join(scenario.split('_')[:2]).lower()
-                    for data_subset, is_directed in [(dpah_data, True), (cl_data, False)]:
-                        subset = data_subset[(data_subset['scenario_grouped'] == scenario) & 
-                                           (data_subset['measure'] == measure)]
-                        if not subset.empty:
-                            avg = subset.groupby('t')['value'].mean()
-                            props = {'color': COLORS.get(color_key, '#FE6900'), 'linestyle': linestyle, 
-                                   'linewidth': LINE_WIDTH}
-                            if dashes:
-                                props['dashes'] = dashes
-                            if is_directed:
-                                props.update({'marker': '>', 'markersize': 2, 'markevery': 0.1})
-                            ax.plot(avg.index, avg.values, **props)
+                for scenario in config['scenarios']:
+                    base_scenario = '_'.join(scenario.split('_')[:2]).lower()
+                    scenario_type = scenario_categories.get(base_scenario)
+                    
+                    if scenario_type in scenario_to_color:
+                        if scenario_type in ['local', 'bridge']:
+                            sub_type = scenario.split('_')[-1].lower()
+                            color_key = scenario_to_color[scenario_type][sub_type]
+                        else:
+                            color_key = scenario_to_color[scenario_type]
+                            
+                        for data_type, is_directed in [(dpah_data, True), (cl_data, False)]:
+                            scenario_data = data_type[data_type['scenario_grouped'] == scenario]
+                            scenario_measure = scenario_data[scenario_data['measure'] == measure]
+                            
+                            if not scenario_measure.empty:
+                                scenario_avg = scenario_measure.groupby('t')['value'].mean()
+                                
+                                line_props = {
+                                    'color': PLOT_COLORS[color_key],
+                                    'linestyle': '-' if measure == 'avg_state' else '--',
+                                    'linewidth': line_params["data_line_width"]
+                                }
+                                
+                                if measure == 'polarization':
+                                    line_props['dashes'] = (4, 2)
+                                    
+                                if is_directed:
+                                    line_props.update({
+                                        'marker': '>',
+                                        'markersize': 2,
+                                        'markevery': 0.1 if measure == 'avg_state' else 0.15
+                                    })
+                                
+                                ax.plot(scenario_avg.index, scenario_avg.values, **line_props)
         
         # Configure axis
-        xlabel = configure_axis(ax, t_max, scale_type, i % cols == 0)  # ylabel only on leftmost
-        ax.set_title(key)
+        is_bottom_row = idx >= (n_plots - n_cols)
+        is_left_col = idx % n_cols == 0
         
-        if i < n - cols:  # not bottom row
-            ax.set_xlabel("")
-            if scale_type == 'linear':
-                ax.xaxis.offsetText.set_visible(False)
+        xlabel = configure_axis_style(ax, t_max, scale_type,
+                                    show_ylabel=is_left_col, 
+                                    show_xlabel=is_bottom_row)
+        
+        # Set labels and title
+        ax.set_title(f'{key}')
+        if is_left_col:
+            ax.set_ylabel(r'Cooperativity, $\langle a \rangle$')
+        if is_bottom_row:
+            ax.set_xlabel(xlabel)
+        
+        # Hide scientific notation for non-bottom row
+        if not is_bottom_row and scale_type == 'linear':
+            ax.xaxis.offsetText.set_visible(False)
     
     if output_file:
         plt.savefig(output_file, dpi=300, bbox_inches='tight')
+    
     return fig
 
+# Main execution
 if __name__ == "__main__":
     set_plot_style()
     
-    files = [f for f in os.listdir("../../Output") if f.endswith(".csv") and "default_run_avg" in f]
-    if not files:
-        print("No files found")
+    file_list = [f for f in os.listdir("../../Output") if f.endswith(".csv") and "default_run_avg" in f]
+
+    if not file_list:
+        print("No suitable files found in the Output directory.")
         exit()
-    
-    for i, f in enumerate(files):
-        print(f"{i}: {f}")
-    
-    idx = int(input("File index: "))
-    scale = input("Scale type (linear/log/symlog): ").lower().strip()
-    if scale not in ['linear', 'log', 'symlog']:
+
+    for i, file in enumerate(file_list):
+        print(f"{i}: {file}")
+
+    file_index = int(input("Enter the index of the file you want to plot: "))
+
+    if file_index < 0 or file_index >= len(file_list):
+        print("Invalid file index.")
+        exit()
+
+    scale = input("Scale type (linear/symlog): ").lower().strip()
+    if scale not in ['linear', 'symlog']:
         scale = 'linear'
+
+    data = pd.read_csv(os.path.join("../../Output", file_list[file_index]))
     t_max = 55000
+    get_N, get_n = file_list[file_index].split("_")[4], file_list[file_index].split("_")[6]
     
-    data = pd.read_csv(f"../../Output/{files[idx]}")
-    processed = process_data(data, t_max, scale)
+    processed_data = process_data(data, t_max, scale)
     
-    N, n = files[idx].split("_")[4], files[idx].split("_")[6]
-    suffix = f"_{scale}" if scale != 'linear' else ""
     today = date.today()
+    suffix = f"_{scale}" if scale != 'linear' else ""
     
-    plot_network_dynamics(processed, t_max, scale,
-                         f"../../Figs/Trajectories/network_dynamics_N{N}_n_{n}_{today}{suffix}.pdf")
+    plot_network_dynamics(processed_data, t_max, scale,
+                         output_file=f"../../Figs/Trajectories/network_dynamics_comparison_N{get_N}_n{get_n}_{today}{suffix}.pdf")
     
-    plot_single_topology_dynamics(processed, t_max, scale,
-                                 f"../../Figs/Trajectories/single_topology_N{N}_n_{n}_{today}{suffix}.pdf")
+    plot_single_topology_dynamics(processed_data, t_max, scale,
+                                output_file=f"../../Figs/Trajectories/single_topology_dynamics_comparison_N{get_N}_n{get_n}_{today}{suffix}.pdf")
