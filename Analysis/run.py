@@ -32,6 +32,8 @@ from itertools import product
 date = date.today()
 lock = None
 
+all_network_props = []
+
 #This is magic to present data racing I don't know why it works
 def init(lock_):
     models_checks.init_lock(lock_)
@@ -137,7 +139,7 @@ if  __name__ ==  '__main__':
         
         ## You can specify simulation parameters here. If they are not set here, they will default to some values set in models.py
         argList.append({"rewiringAlgorithm": i, "nwsize": nwsize, "rewiringMode": v, "type": k,
-                        "top_file": top_file, "polarisingNode_f": 0.10, "timesteps": 45000 , "plot": False})
+                        "top_file": top_file, "polarisingNode_f": 0.10, "timesteps": 85000 , "plot": False})
        
         
         #print (argList)
@@ -154,6 +156,17 @@ if  __name__ ==  '__main__':
             fname = f'../Output/{i}_linkif_{v}_top_{j}.csv'
             print("starting save")
             out_list.append(models_checks.saveavgdata(sim, fname, args = argList[0]))
+            
+            # Add these lines right after:
+            scenario_info = {
+                'scenario_id': f'{i}_{v}_{j}',
+                'linkif': v,
+                'top': j,
+                'args': argList[0]
+            }
+            
+            all_network_props.extend(models_checks.collect_network_properties(sim, scenario_info))
+            
             models_checks.save_network_properties(sim, f'../Output/{i}_linkif_{v}_top_{j}', argList[0])
             end_1 = time.time()
             mins = (end_1 - start_1) / 60
