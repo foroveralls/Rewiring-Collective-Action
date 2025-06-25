@@ -84,7 +84,7 @@ def configure_axis_style(ax, t_max, scale_type='linear', show_ylabel=True, show_
     ax.set_ylim(-0.6, 1.1)
     
     if scale_type == 'symlog':
-        ax.set_xscale('symlog', linthresh=30000)
+        ax.set_xscale('symlog', linthresh=50000)
         ax.set_xlim(0, t_max)
         xlabel = "Time, t (symlog)"
     else:  # linear
@@ -112,7 +112,7 @@ def configure_axis_style(ax, t_max, scale_type='linear', show_ylabel=True, show_
 
     # Y-axis configuration
     ax.set_yticks([-0.5, -0.25, 0, 0.25, 0.5, 0.75, 1.0])
-    ax.yaxis.set_major_formatter(plt.FormatStrFormatter('%.2f'))
+    ax.yaxis.set_major_formatter(plt.FormatStrFormatter('%.1f'))
     
     # Minor tick locators
     if scale_type == 'linear':
@@ -467,7 +467,7 @@ if __name__ == "__main__":
         scale = 'linear'
 
     data = pd.read_csv(os.path.join("../../Output", file_list[file_index]))
-    t_max = 55000
+    t_max = 85000
     get_N, get_n = file_list[file_index].split("_")[4], file_list[file_index].split("_")[6]
     
     processed_data = process_data(data, t_max, scale)
