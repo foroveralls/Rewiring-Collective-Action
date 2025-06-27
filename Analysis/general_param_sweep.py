@@ -51,6 +51,8 @@ def get_adaptive_timesteps(algo, topology, mode="None", base=45000):
     # Try specific (topology, algo, mode) first, then fallback to (topology, algo)
     key = (topology, algo, mode) if mode != "None" else (topology, algo)
     factor = factors.get(key, factors.get((topology, algo), 1.0))
+
+    return int(base*factor)
     
 
     
@@ -144,7 +146,7 @@ if __name__ == '__main__':
                 "rewiringMode": mode,
                 "type": topology,
                 "top_file": top_file,
-                "adaptive_timesteps": adaptive_timesteps, 
+                "timesteps": adaptive_timesteps, 
                 "plot": False,
                 **params
             }
