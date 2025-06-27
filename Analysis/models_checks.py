@@ -1053,8 +1053,8 @@ class Model:
             
             snapshots = [0, int(args["timesteps"]/10), args["timesteps"]-1]
            
-            if i in snapshots:
-                self.record_degree_dist(i)
+            #if i in snapshots:
+             #   self.record_degree_dist(i)
                 #self.plot_network(self.graph, title = f"T = {i}, N = {args['nwsize']}")
             
 
