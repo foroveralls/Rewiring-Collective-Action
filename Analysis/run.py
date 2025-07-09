@@ -30,6 +30,7 @@ from itertools import product
 #np.random.seed(1574705741)
 
 date = date.today()
+
 lock = None
 
 all_network_props = []
@@ -167,14 +168,21 @@ if  __name__ ==  '__main__':
             
             all_network_props.extend(models_checks.collect_network_properties(sim, scenario_info))
             
-            models_checks.save_network_properties(sim, f'../Output/{i}_linkif_{v}_top_{j}', argList[0])
+            
             end_1 = time.time()
             mins = (end_1 - start_1) / 60
             sec = (end_1 - start_1) % 60
             print(f'algorithim run is complete: {mins:5.0f} mins {round(sec)}s\n')
-            
+    
+
     pool.close()
     pool.join()
+    
+
+    if all_network_props:
+        df = pd.DataFrame(all_network_props)
+        df.to_csv(f'../Output/network_properties_all_{date}.csv', index=False)
+        print(f"Saved {len(all_network_props)} network property records")
     
     end = time.time()
     mins = (end - start) / 60
@@ -220,14 +228,13 @@ if  __name__ ==  '__main__':
         })
         
         # Save the combined averaged DataFrame
-        today = date.today()
         avg_output_file = f'../Output/default_run_avg_N_{nwsize}_n_ \
-        {numberOfSimulations}_pNf_{argList[0]["polarisingNode_f"]}_pc_{models_checks.politicalClimate}_{today}.csv'
+        {numberOfSimulations}_pNf_{argList[0]["polarisingNode_f"]}_pc_{models_checks.politicalClimate}_{date}.csv'
         combined_avg_df.to_csv(avg_output_file, index=False)
         
         # Save the combined individual DataFrame
         individual_output_file = f'../Output/default_run_individual_N_{nwsize}_n_ \
-        {numberOfSimulations}_pNf_{argList[0]["polarisingNode_f"]}_pc_{models_checks.politicalClimate}_{today}.csv'
+        {numberOfSimulations}_pNf_{argList[0]["polarisingNode_f"]}_pc_{models_checks.politicalClimate}_{date}.csv'
         combined_individual_df.to_csv(individual_output_file, index=False)
         
         print(f"Averaged output saved to {avg_output_file}")
