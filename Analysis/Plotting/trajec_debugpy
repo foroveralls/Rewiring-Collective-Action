@@ -1,0 +1,73 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Created on Mon Jun 23 18:50:14 2025
+
+@author: jpoveralls
+"""
+
+#!/usr/bin/env python3
+"""
+Minimal reproducible example to debug log scale plotting issue
+"""
+import pandas as pd
+import matplotlib.pyplot as plt
+import numpy as np
+import os
+
+def load_data():
+    """Load the first available data file"""
+    file_list = [f for f in os.listdir("../../Output") if f.endswith(".csv") and "default_run_avg" in f]
+    if not file_list:
+        print("No data files found")
+        return None
+    
+    data = pd.read_csv(os.path.join("../../Output", file_list[0]))
+    print(f"Loaded {file_list[0]}")
+    print(f"Data shape: {data.shape}")
+    print(f"Time range: {data['t'].min()} to {data['t'].max()}")
+    print(f"Columns: {data.columns.tolist()}")
+    return data
+
+def simple_plot_test(data):
+    """Create simple linear vs log plots to see the difference"""
+    
+    # Filter one scenario and one network type for simplicity
+    test_data = data[(data['scenario'] == 'biased') & (data['type'] == 'cl')].copy()
+    print(f"Test data shape: {test_data.shape}")
+    
+    if test_data.empty:
+        print("No test data found, trying different filters...")
+        print("Available scenarios:", data['scenario'].unique())
+        print("Available types:", data['type'].unique())
+        return
+    
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
+    
+    # Linear plot
+    ax1.plot(test_data['t'], test_data['avg_state'], 'b-', linewidth=1, label='avg_state')
+    ax1.set_xlabel('Time (linear)')
+    ax1.set_ylabel('Average State')
+    ax1.set_title('Linear Scale')
+    ax1.grid(True, alpha=0.3)
+    
+    # Log plot
+    ax2.plot(test_data['t'], test_data['avg_state'], 'r-', linewidth=1, label='avg_state')
+    ax2.set_xscale('log')
+    ax2.set_xlabel('Time (log)')
+    ax2.set_ylabel('Average State')
+    ax2.set_title('Log Scale')
+    ax2.grid(True, alpha=0.3)
+    
+    plt.tight_layout()
+    plt.savefig('debug_log_comparison.png', dpi=150)
+    plt.show()
+    
+    # Print some diagnostics
+    print(f"Time values (first 10): {test_data['t'].head(10).values}")
+    print(f"Time values (last 10): {test_data['t'].tail(10).values}")
+
+if __name__ == "__main__":
+    data = load_data()
+    if data is not None:
+        simple_plot_test(data)
