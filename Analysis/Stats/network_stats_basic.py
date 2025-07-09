@@ -13,8 +13,10 @@ Network analysis for empirical networks
 
 import os
 import pandas as pd
+import pickle
 import networkx as nx
 import numpy as np
+from netin import DPAH
 from pathlib import Path
 from scipy import stats
 import warnings
@@ -96,12 +98,21 @@ def main():
     """Load networks and analyze"""
     results = []
     
-    for f in Path("../Pre_processing/networks_processed").glob("*.gpickle"):
-        name = f.stem.replace('_graph', '').replace('_N_', '_')
-        G = nx.read_gpickle(f)
-        print(f"Analyzing {name}: N={G.number_of_nodes()}, M={G.number_of_edges()}")
-        metrics = analyze_network(G, name)
-        results.append(metrics)
+    # #empirical
+    # for f in Path("../../Pre_processing/networks_processed").glob("*.gpickle"):
+    #     name = f.stem.replace('_graph', '').replace('_N_', '_')
+    #     #G = nx.read_gpickle(f)
+    #     with open(f, 'rb') as f:
+    #         G = pickle.load(f)
+    #     print(f"Analyzing {name}: N={G.number_of_nodes()}, M={G.number_of_edges()}")
+    #     metrics = analyze_network(G, name)
+    #     results.append(metrics)
+    
+    #synthetic 
+    G = DPAH(n=300, f_m=0.5, d=0.02, h_MM=0.5, h_mm=0.5, plo_M=2.0, plo_m=2.0, seed = 42)
+    
+    G.generate()
+    results.append(analyze_network(G, "DPAH_graph"))
     
     df = pd.DataFrame(results)
     df.to_csv("network_properties.csv", index=False)
