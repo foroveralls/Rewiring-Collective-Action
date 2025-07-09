@@ -20,6 +20,41 @@ from datetime import date
 def init(lock_):
     models_checks.init_lock(lock_)
     
+
+def get_adaptive_timesteps(algo, topology, mode="None", base=45000):
+# Factors based on empirical convergence patterns from trajectories
+    factors = {
+        # Directed networks - longer convergence times
+        ("DPAH", "biased", "same"): 2.0, ("DPAH", "biased", "diff"): 1.4,
+        ("DPAH", "bridge", "same"): 1.7, ("DPAH", "bridge", "diff"): 1.4,
+        ("Twitter", "biased", "same"): 1.8, ("Twitter", "biased", "diff"): 1.8,
+        ("Twitter", "bridge", "same"): 1.8, ("Twitter", "bridge", "diff"): 1.8,
+        
+        # Other algorithms on directed networks
+        ("DPAH", "random"): 0.9, ("Twitter", "random"): 0.9,
+        ("DPAH", "node2vec"): 1.4, ("Twitter", "node2vec"): 1.0,
+        ("DPAH", "wtf"): 0.8, ("Twitter", "wtf"): 1.2,
+        ("DPAH", "None"): 1.1, ("Twitter", "None"): 1.0,
+        
+        # Undirected networks - faster convergence
+        ("cl", "biased", "same"): 1.75, ("cl", "biased", "diff"): 1.9,
+        ("cl", "bridge", "same"): 1.1, ("cl", "bridge", "diff"): 1.9,
+        ("FB", "biased", "same"): 1.35, ("FB", "biased", "diff"): 1.9,
+        ("FB", "bridge", "same"): 1.35, ("FB", "bridge", "diff"): 1.9,
+        
+        # Other algorithms on undirected networks
+        ("cl", "random"): 0.8, ("FB", "random"): 0.8,
+        ("cl", "node2vec"): 0.8, ("FB", "node2vec"): 0.9,
+        ("cl", "None"): 0.8, ("FB", "None"): 0.8
+    }
+
+    # Try specific (topology, algo, mode) first, then fallback to (topology, algo)
+    key = (topology, algo, mode) if mode != "None" else (topology, algo)
+    factor = factors.get(key, factors.get((topology, algo), 1.0))
+
+    return int(base*factor)
+    
+
     
 def get_optimal_process_count():
     total_cpus = multiprocessing.cpu_count()
@@ -36,7 +71,7 @@ def get_optimal_process_count():
 
 if __name__ == '__main__':
     # Constants and Variables
-    numberOfSimulations = 30
+    numberOfSimulations = 40
     numberOfProcessors = get_optimal_process_count()
     lock = multiprocessing.Lock()
     
@@ -67,7 +102,7 @@ if __name__ == '__main__':
     # Parameter sweep configuration
     parameter_names = ["politicalClimate"]
     parameters = {
-        "politicalClimate": np.linspace(0, 1, 10)
+        "politicalClimate": np.linspace(0, 0.05, 12)
     }
     param_product = [dict(zip(parameters.keys(), x)) for x in product(*parameters.values())]
 
@@ -103,7 +138,7 @@ if __name__ == '__main__':
             else:
                 top_file = None
                 nwsize = 800
-
+            adaptive_timesteps = get_adaptive_timesteps(algo, topology)
             # Prepare simulation arguments
             sim_args = {
                 "rewiringAlgorithm": algo,
@@ -111,7 +146,7 @@ if __name__ == '__main__':
                 "rewiringMode": mode,
                 "type": topology,
                 "top_file": top_file,
-                "timesteps": 45000,
+                "timesteps": adaptive_timesteps, 
                 "plot": False,
                 **params
             }
