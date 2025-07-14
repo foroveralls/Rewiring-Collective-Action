@@ -58,11 +58,6 @@ def get_truncated_normal(mean=0, sd=1, low=0, upp=10):
     return truncnorm(
             (low - mean) / sd, (upp - mean) / sd, loc=mean, scale=sd)
 
-def setArgs(newArgs):
-    global args
-    for arg, value in newArgs.items():
-        args[arg] = value
-
 def getRandomExpo():
     x = np.random.exponential(scale=0.6667)-1
     if(x>1): return 1
@@ -135,8 +130,8 @@ def simulate(i, newArgs, func_changes = False): #RG for random graph (used for t
 
 
     # random number generators
-    friendshipWeightGenerator = get_truncated_normal(args["friendship"], args["friendshipSD"], 0, 1) 
-    initialStateGenerator = get_truncated_normal(args["skew"], args["initSD"], -1, 1)
+    friendshipWeightGenerator = get_truncated_normal(newArgs["friendship"], newArgs["friendshipSD"], 0, 1) 
+    initialStateGenerator = get_truncated_normal(newArgs["skew"], newArgs["initSD"], -1, 1)
 
 
     # network type to use, I always ran on a cl 
@@ -227,7 +222,7 @@ class Model:
     # initial values
     def __init__(self, friendshipWeightGenerator = None, initialStateGenerator=None, args=None):
         if args is None:
-            args = globals()['args']
+            args = {"rewiringAlgorithm": "None"}
             
         self.local_args=args
         self.graph = nx.Graph()
@@ -989,25 +984,16 @@ class Model:
             print("Defectors: avg: ", defectorDefectingNeighs, " std: ", defectorDefectingNeighsSTD)
             print("Cooperators: avg: ", cooperatorDefectingFriends, " std: ", cooperatorDefectingFriendsSTD)
 
-        #create list of number of agreeing friends
-        # self.findNbAgreeingFriends()
-        # self.avgNbAgreeingList.append(mean(self.NbAgreeingFriends))
         
-        global args 
         
         if args["rewiringAlgorithm"] in "node2vec":
             self.train_node2vec()
             self.trained = True
             #print("initial training complete")
             
-        # elif args["rewiringAlgorithm"] in "wtf":
-        #     self.wtf_1()
-        #     self.trained = True
-        #     #print("initial training complete")
        
         for i in range(steps):
             
-           # if 
         
             self.t = i 
         
@@ -1062,7 +1048,7 @@ class Model:
 
     # initial generation of agents in network
     def populateModel(self, n, skew = 0):
-        global args
+        
         for i in range (n):
             
             agent1 = Agent(self.getInitialState(), args["stubbornness"])
@@ -1559,6 +1545,8 @@ def savesubdata(models,filename):
     outs = np.array(outs)
     np.savetxt(filename,outs,delimiter=',')
 
+
+
 #-------- drawing functions ---------
 
 
@@ -1584,12 +1572,13 @@ def test_run():
     start = time.time()
     plt.figure()
     model_array = []
+    #f"{twitter}.gpickle"
     for i in range(1):
         print(i)
-        args.update({"type": "cl", "plot": True, "top_file": f"{twitter}.gpickle", "timesteps": 15000, "rewiringAlgorithm": "bridge",
-                      "rewiringMode": "diff", "nwsize":100})
+        args.update({"type": "cl", "plot": True, "top_file": None, "timesteps": 15000, "rewiringAlgorithm": "node2vec",
+                      "rewiringMode": "None", "nwsize":300})
         #nwsize has to equal empirical network size 
-        model = simulate(1, args)
+        model = simulate(2, args)
         init_states.append(model.states[0])
         states = model.states
         final_states.append(states[-1])
@@ -1602,52 +1591,40 @@ def test_run():
     plt.axline((0, np.mean(final_states)), slope= 0, color ="black")
     plt.show()  # Ensure plot is rendered
     return model_array
+
+def test_consistency():
+    """Test multiprocessing consistency"""
+    import multiprocessing
+    from itertools import repeat
+    
+    scenarios = [
+        {"rewiringAlgorithm": "wtf", "rewiringMode": "none", "type": "cl", "nwsize": 100},
+        {"rewiringAlgorithm": "node2vec", "rewiringMode": "none", "type": "cl", "nwsize": 100}
+    ]
+    
+    for scenario in scenarios:
+        base_args = getargs()
+        complete_args = {**base_args, **scenario}
+        
+        with multiprocessing.Pool(processes=2) as pool:
+            models = pool.starmap(simulate, zip(range(3), repeat(complete_args)))
+        
+        algos = [str(m.algo) for m in models]
+        expected = scenario['rewiringAlgorithm']
+        consistent = len(set(algos)) == 1 and algos[0] == expected
+        
+        print(f"Test {expected}: {consistent} (got {set(algos)})")
+
     
 if  __name__ ==  '__main__': 
     start = time.time()
     models = test_run()
+    #test_consistency()
     end = time.time()
     mins = (end - start) / 60
     sec = (end - start) % 60
     print(f'Runtime was complete: {mins:5.0f} mins {sec}s\n')
 
-
-    #fname = f'../Output/lol.csv'
-    #out = saveavgdata(models, fname, args)
-#baseline run node2vec is 1 min 7 
-    
-# plt.savefig(f'../Figs/_{args["rewiringAlgorithm"]}_full_args_{args["nwsize"]}_{args["timesteps"]}.jpg')
-# print(np.mean([models[i].retrain for i in range(len(models))]))
-# print(np.std([models[i].retrain for i in range(len(models))]))
-#227, 3.38 for last step rewire
-
-
-# # final_states_compile_list = list(zip(final_states_2nd, final_states_3rd))
-# # final_states_compiled = pd.DataFrame(final_states_compile_list, columns = ["final_states_t_2", 'final_states_full'])
-# # final_states_compiled.to_csv("final_states_node2vec_test.csv")
-# #final_states_2nd = final_states.copy()
-# end = time.time()
-# mins = (end - start) / 60
-# sec = (end - start) % 60
-# print(f'Runtime was complete: {mins:5.0f} mins {sec}s\n')
-
-# states = model.states
-# plt.plot(states)
-# plt.show
-# # plt.plot(init_states)
-# # plt.axhline(y=np.mean(init_states), color='r', linestyle='-')
-# # plt.show()
-# # #viz.plot_graph(model.graph, edge_width = 1, cell_size = 3, node_size = 50)
-# # # # hom = Homophily.infer_homophily_values(model.graph)
-
-
-
-# # layout = nx.spring_layout(model.graph)
-# # labels = nx.get_node_attributes(model.graph, "m")
-# # #(model.graph, pos=layout, labels = labels) 
-# # nx.draw(model.graph, pos=layout, labels = labels, arrows=True)
-# # nx.is_directed(model.graph)
-# # plt.show()
 
 
 
