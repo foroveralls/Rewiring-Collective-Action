@@ -179,7 +179,6 @@ class Agent:
         if (self.type == "polarising") & (self.state*neighbour.state < 0):
             mod = -1 
      
-        global args
         weight = self.state*self.stubbornness + politicalClimate + args["defectorUtility"] + neighboursWeight*neighbour.state 
 
 
@@ -400,7 +399,7 @@ class Model:
         
         rewired = False
         if random.random() < establishlinkprob:
-            weight = get_truncated_normal(args["friendship"], args["friendshipSD"], 0, 1).rvs(1)[0]
+            weight = get_truncated_normal(self.local_args["friendship"], self.local_args["friendshipSD"], 0, 1).rvs(1)[0]
             
             self.graph.add_edge(node_i, neighbour_i, weight = weight)
             #self.TF_step(node_i, neighbour_i, weight = weight)
@@ -428,19 +427,6 @@ class Model:
         return 
     
         
-        
-    #this takes too long currently
-    def property_checks(self, R_G): 
-    
-        
-        #small world property "sigma"
-        #sw_property = nx.sigma(self.graph)
-        sw_property = self.quick_sigma(self.graph, R_G, args)
-        #calculate avg clustering
-        clustering = nx.average_clustering(self.graph)
-        
-        return clustering, sw_property
-    
  
     def find_2_steps(self, nodeIndex):
         
@@ -459,16 +445,16 @@ class Model:
         return total_neighbours 
     
     
-    def randomrewiring(self, nodeIndex, establishlinkprob = args["establishlinkprob"]):
-        
+    def randomrewiring(self, nodeIndex, establishlinkprob = None):
+            establishlinkprob = establishlinkprob or self.local_args["establishlinkprob"]
                
            # print('starting random rewiring')
             
             #reseting rewired value
             rewired_rand = False 
             
-            #establishlinkprob = args["establishlinkprob"]
-            breaklinkprob = args["breaklinkprob"]
+    
+            breaklinkprob = self.local_args["breaklinkprob"]
             self.probs  = establishlinkprob, breaklinkprob
                 
             non_neighbors = []
@@ -481,7 +467,7 @@ class Model:
                 establishlinkNeighborIndex = random.sample(non_neighbors, 1)
                 if random.random() < establishlinkprob:
                    # print('establishing link')
-                    self.graph.add_edge(nodeIndex, establishlinkNeighborIndex[0], weight = get_truncated_normal(args["friendship"], args["friendshipSD"], 0, 1).rvs(1)[0])
+                    self.graph.add_edge(nodeIndex, establishlinkNeighborIndex[0], weight = get_truncated_normal(self.local_args["friendship"], self.local_args["friendshipSD"], 0, 1).rvs(1)[0])
                     # print(self.graph.edges[nodeIndex, establishlinkNeighborIndex[0]]['weight'])
                     rewired_rand = True 
                     
@@ -542,7 +528,7 @@ class Model:
           
            node_state = self.check_node_state(node, establishlinkNeighbor)
            
-           rewiring_mode = args["rewiringMode"]
+           rewiring_mode = self.local_args["rewiringMode"]
            
            if node_state in "different" and rewiring_mode in "diff":
                rewired = self.rewire(nodeIndex, establishlinkNeighborIndex) 
@@ -604,7 +590,7 @@ class Model:
             
             node_state = self.check_node_state(node, partnerOutCluster)
             
-            rewiring_mode = args["rewiringMode"]
+            rewiring_mode = self.local_args["rewiringMode"]
         
             
             if node_state in "different" and rewiring_mode in "diff":
@@ -942,12 +928,12 @@ class Model:
 
     #majority = 0, minority 1
     def getInitialState(self, skew_temp, node_state = False, gen=None):
-        global args
+       
         
         if gen == None:
             initialStateGenerator = self.initialStateGenerator
         else:
-            initialStateGenerator = get_truncated_normal(skew_temp, args["initSD"], -1, 1)
+            initialStateGenerator = get_truncated_normal(skew_temp, self.local_args["initSD"], -1, 1)
         state = initialStateGenerator.rvs(1)[0]
         
         #implicitly checks if node_state exists
@@ -986,7 +972,7 @@ class Model:
 
         
         
-        if args["rewiringAlgorithm"] in "node2vec":
+        if self.local_args["rewiringAlgorithm"] in "node2vec":
             self.train_node2vec()
             self.trained = True
             #print("initial training complete")
@@ -1034,11 +1020,11 @@ class Model:
                 self.defectorDefectingNeighsSTDList.append(defectorDefectingNeighsSTD)
                 self.cooperatorDefectingNeighsSTDList.append(cooperatorDefectingNeighsSTD)
             
-            snapshots = [0, int(args["timesteps"]/10), args["timesteps"]-1]
+            snapshots = [0, int(self.local_args["timesteps"]/10), self.local_args["timesteps"]-1]
            
             #if i in snapshots:
              #   self.record_degree_dist(i)
-                #self.plot_network(self.graph, title = f"T = {i}, N = {args['nwsize']}")
+                #self.plot_network(self.graph, title = f"T = {i}, N = {self.local_args['nwsize']}")
             
 
         (avgs, sds, sizes) = findAvgStateInClusters(self, self.partition)
@@ -1051,10 +1037,10 @@ class Model:
         
         for i in range (n):
             
-            agent1 = Agent(self.getInitialState(), args["stubbornness"])
+            agent1 = Agent(self.getInitialState(), self.local_args["stubbornness"])
             self.graph.nodes[i]['agent'] = agent1
             
-            if args["polarisingNode_f"] > np.random.random():
+            if self.local_args["polarisingNode_f"] > np.random.random():
                 self.graph.nodes[i]['agent'].type = "polarising"
                 
             # making sure no loners
@@ -1070,128 +1056,129 @@ class Model:
             
     # this runs the model without rewiring for a while to align the opinion clusters
     #with the topological clusters
-    def populateModel_empirical(self, n, target_skew=skew, h_all=args["f_all"]):
-       """Two-phase model population with modular implementation"""
-       
-       target_skew = skew
-       def initialize_agents():
-           """Initialize all agents in the network"""
-           self.fraction_m, self.fraction_M = [], []
-           for i in range(n):
-               agent = Agent(self.getInitialState(target_skew, gen = True), args["stubbornness"])
-               self.graph.nodes[i]['agent'] = agent
-               self.graph.nodes[i]["m"] = 1 if agent.state >= 0 else 0
-               
-               if args["polarisingNode_f"] > np.random.random():
-                   self.graph.nodes[i]['agent'].type = "polarising"
-                   
-               if not list(self.graph.adj[i].keys()):    
-                   self.randomrewiring(i, establishlinkprob=1)
-                   
-           for e in self.graph.edges():
-               self.graph[e[0]][e[1]]['weight'] = self.getFriendshipWeight()
-
-       def get_metrics():
-           """Calculate current network metrics"""
-           states = [self.graph.nodes[i]['agent'].state for i in range(n)]
-           avg_state = np.mean(states)
-           self.update_minority_fraction(n)
-           minority_frac = sum(self.fraction_m) / n
-           h_m, h_M = network_stats.infer_homophily_values(self.graph, minority_frac)
-           return avg_state, h_m, h_M
-       
-       def should_adjust_node(node, needs_adj_min, needs_adj_maj, lock_min, lock_maj, h_m, h_M):
-           ntype = self.graph.nodes[node]["m"]
-           if (ntype and lock_min) or (not ntype and lock_maj) or \
-              (ntype and not needs_adj_min) or (not ntype and not needs_adj_maj) or \
-              (abs(h_m - h_M) > 0.1 and ((ntype and h_m > h_M) or (not ntype and h_M > h_m))):
-               return False
-           nbrs = list(self.graph.adj[node])
-           diff = sum(1 for n in nbrs if self.graph.nodes[n]["m"] != ntype)
-           return diff > len(nbrs) - diff - 1
-       
-       def flip_node_state(node):
-           """Flip a node's state and update its type"""
-           node_type = self.graph.nodes[node]["m"]
-           agent = self.graph.nodes[node]['agent']
-           new_state = random.uniform(0, 1) if node_type == 0 else random.uniform(-1, 0)
-           agent.state = new_state
-           self.graph.nodes[node]["m"] = 1 if agent.state >= 0 else 0
-           
-       def run_homophily_phase():
-           """Execute Phase 1 with balanced homophily adjustments"""
-           avg_state, h_m, h_M = get_metrics()
-           print(f"Initial metrics - h_m: {h_m:.3f}, h_M: {h_M:.3f}")
-           locked_minority = locked_majority = False
-           stagnant_iterations = 0
-           
-           for iteration in range(200):
-               if h_m > h_all or h_M > h_all:
-                   break
-                   
-               # Only lock if both homophilies are close to target
-               if not locked_minority and h_all - 0.05 <= h_m <= h_all and abs(h_m - h_M) < 0.1:
-                   locked_minority = True
-               if not locked_majority and h_all - 0.05 <= h_M <= h_all and abs(h_m - h_M) < 0.1:
-                   locked_majority = True
-                   
-               if locked_minority and locked_majority:
-                   break
-               
-               changes_made = False
-               max_changes = max(2, n // 50)  # Increased minimum changes
-               changes_count = 0
-               
-               needs_adj_min = not locked_minority and h_m < h_all - 0.05
-               needs_adj_maj = not locked_majority and h_M < h_all - 0.05
-               
-               # Prioritize adjusting the faction with lower homophily
-               nodes = list(self.graph.nodes())
-               if h_m < h_M:
-                   nodes.sort(key=lambda x: 1 if self.graph.nodes[x]["m"] == 1 else 0)
-               else:
-                   nodes.sort(key=lambda x: 1 if self.graph.nodes[x]["m"] == 0 else 0)
-               
-               for node in nodes:
-                   if changes_count >= max_changes:
-                       break
-                       
-                   if should_adjust_node(node, needs_adj_min, needs_adj_maj,
-                                      locked_minority, locked_majority, h_m, h_M):
-                       old_state = self.graph.nodes[node]["m"]
-                       agent = self.graph.nodes[node]['agent']
-                       new_state = random.uniform(0, 1) if old_state == 0 else random.uniform(-1, 0)
-                       agent.state = new_state
-                       self.graph.nodes[node]["m"] = 1 if agent.state >= 0 else 0
-                       
-                       temp_avg, temp_h_m, temp_h_M = get_metrics()
-                       
-                       # Revert if changes make things worse
-                       if temp_h_m > h_all or temp_h_M > h_all or abs(temp_h_m - temp_h_M) > 0.15:
-                           agent.state = -new_state
-                           self.graph.nodes[node]["m"] = old_state
-                       else:
-                           changes_made = True
-                           changes_count += 1
-               
-               if not changes_made:
-                   stagnant_iterations += 1
-                   print(stagnant_iterations)
-                   if stagnant_iterations >= 3:
-                       break
-               else:
-                   stagnant_iterations = 0
-               
-               avg_state, h_m, h_M = get_metrics()
-               if iteration % 2 == 0:
-                    print(f"Iteration {iteration}: h_m: {h_m:.3f}, h_M: {h_M:.3f}, gap: {abs(h_m - h_M):.3f}")
-           
-           return avg_state, h_m, h_M
+    
+    def populateModel_empirical(self, n, target_skew=skew, h_all=None):
+        h_all  = h_all or self.local_args["f_all"]
+        target_skew = skew
+        
+        def initialize_agents():
+            """Initialize all agents in the network"""
+            self.fraction_m, self.fraction_M = [], []
+            for i in range(n):
+                agent = Agent(self.getInitialState(target_skew, gen = True), self.local_args["stubbornness"])
+                self.graph.nodes[i]['agent'] = agent
+                self.graph.nodes[i]["m"] = 1 if agent.state >= 0 else 0
+                
+                if self.local_args["polarisingNode_f"] > np.random.random():
+                    self.graph.nodes[i]['agent'].type = "polarising"
+                    
+                if not list(self.graph.adj[i].keys()):    
+                    self.randomrewiring(i, establishlinkprob=1)
+                    
+            for e in self.graph.edges():
+                self.graph[e[0]][e[1]]['weight'] = self.getFriendshipWeight()
+     
+        def get_metrics():
+            """Calculate current network metrics"""
+            states = [self.graph.nodes[i]['agent'].state for i in range(n)]
+            avg_state = np.mean(states)
+            self.update_minority_fraction(n)
+            minority_frac = sum(self.fraction_m) / n
+            h_m, h_M = network_stats.infer_homophily_values(self.graph, minority_frac)
+            return avg_state, h_m, h_M
+        
+        def should_adjust_node(node, needs_adj_min, needs_adj_maj, lock_min, lock_maj, h_m, h_M):
+            ntype = self.graph.nodes[node]["m"]
+            if (ntype and lock_min) or (not ntype and lock_maj) or \
+               (ntype and not needs_adj_min) or (not ntype and not needs_adj_maj) or \
+               (abs(h_m - h_M) > 0.1 and ((ntype and h_m > h_M) or (not ntype and h_M > h_m))):
+                return False
+            nbrs = list(self.graph.adj[node])
+            diff = sum(1 for n in nbrs if self.graph.nodes[n]["m"] != ntype)
+            return diff > len(nbrs) - diff - 1
+        
+        def flip_node_state(node):
+            """Flip a node's state and update its type"""
+            node_type = self.graph.nodes[node]["m"]
+            agent = self.graph.nodes[node]['agent']
+            new_state = random.uniform(0, 1) if node_type == 0 else random.uniform(-1, 0)
+            agent.state = new_state
+            self.graph.nodes[node]["m"] = 1 if agent.state >= 0 else 0
+            
+        def run_homophily_phase():
+            """Execute Phase 1 with balanced homophily adjustments"""
+            avg_state, h_m, h_M = get_metrics()
+            print(f"Initial metrics - h_m: {h_m:.3f}, h_M: {h_M:.3f}")
+            locked_minority = locked_majority = False
+            stagnant_iterations = 0
+            
+            for iteration in range(200):
+                if h_m > h_all or h_M > h_all:
+                    break
+                    
+                # Only lock if both homophilies are close to target
+                if not locked_minority and h_all - 0.05 <= h_m <= h_all and abs(h_m - h_M) < 0.1:
+                    locked_minority = True
+                if not locked_majority and h_all - 0.05 <= h_M <= h_all and abs(h_m - h_M) < 0.1:
+                    locked_majority = True
+                    
+                if locked_minority and locked_majority:
+                    break
+                
+                changes_made = False
+                max_changes = max(2, n // 50)  # Increased minimum changes
+                changes_count = 0
+                
+                needs_adj_min = not locked_minority and h_m < h_all - 0.05
+                needs_adj_maj = not locked_majority and h_M < h_all - 0.05
+                
+                # Prioritize adjusting the faction with lower homophily
+                nodes = list(self.graph.nodes())
+                if h_m < h_M:
+                    nodes.sort(key=lambda x: 1 if self.graph.nodes[x]["m"] == 1 else 0)
+                else:
+                    nodes.sort(key=lambda x: 1 if self.graph.nodes[x]["m"] == 0 else 0)
+                
+                for node in nodes:
+                    if changes_count >= max_changes:
+                        break
+                        
+                    if should_adjust_node(node, needs_adj_min, needs_adj_maj,
+                                       locked_minority, locked_majority, h_m, h_M):
+                        old_state = self.graph.nodes[node]["m"]
+                        agent = self.graph.nodes[node]['agent']
+                        new_state = random.uniform(0, 1) if old_state == 0 else random.uniform(-1, 0)
+                        agent.state = new_state
+                        self.graph.nodes[node]["m"] = 1 if agent.state >= 0 else 0
+                        
+                        temp_avg, temp_h_m, temp_h_M = get_metrics()
+                        
+                        # Revert if changes make things worse
+                        if temp_h_m > h_all or temp_h_M > h_all or abs(temp_h_m - temp_h_M) > 0.15:
+                            agent.state = -new_state
+                            self.graph.nodes[node]["m"] = old_state
+                        else:
+                            changes_made = True
+                            changes_count += 1
+                
+                if not changes_made:
+                    stagnant_iterations += 1
+                    print(stagnant_iterations)
+                    if stagnant_iterations >= 3:
+                        break
+                else:
+                    stagnant_iterations = 0
+                
+                avg_state, h_m, h_M = get_metrics()
+                if iteration % 2 == 0:
+                     print(f"Iteration {iteration}: h_m: {h_m:.3f}, h_M: {h_M:.3f}, gap: {abs(h_m - h_M):.3f}")
+            
+            return avg_state, h_m, h_M
        
      
-       
-       # Main execution
-       initialize_agents()
+        
+        # Main execution
+        initialize_agents()
 
        #avg_state, h_m, h_M = run_homophily_phase()
        #self.plot_network(self.graph)
@@ -1226,11 +1213,11 @@ class Model:
             
             self.fraction_m.append(node_class) if node_class == 1 else self.fraction_M.append(node_class)
             
-            agent1 = Agent(self.getInitialState(node_class), args["stubbornness"])
+            agent1 = Agent(self.getInitialState(node_class), self.local_args["stubbornness"])
             
             self.graph.nodes[i]['agent'] = agent1
             
-            if args["polarisingNode_f"] > np.random.random():
+            if self.local_args["polarisingNode_f"] > np.random.random():
                 self.graph.nodes[i]['agent'].type = "polarising"
 
         
@@ -1294,7 +1281,7 @@ class Model:
         # Draw the graph
         plt.figure(figsize=(10, 7))
         ax = plt.gca()
-        if args["type"] in ["FB", "Twitter"]:
+        if self.local_args["type"] in ["FB", "Twitter"]:
             nx.draw(graph, labels=labels, arrows=nx.is_directed(graph), 
                     node_color=colors, with_labels=False, edge_color='gray', edgecolors = "black", node_size=190, 
                     font_size=10, alpha=0.9, ax=ax)
@@ -1315,7 +1302,7 @@ class Model:
         # Show plot
         plt.title(title)
         plt.tight_layout()
-        plt.savefig(f'../Figs/Networks/graph_{title}_{args["type"]}_{args["rewiringAlgorithm"]}_{args["rewiringAlgorithm"]}.png', bbox_inches='tight', dpi = 300)
+        plt.savefig(f'../Figs/Networks/graph_{title}_{self.local_args["type"]}_{self.local_args["rewiringAlgorithm"]}_{self.local_args["rewiringAlgorithm"]}.png', bbox_inches='tight', dpi = 300)
         plt.show()
         
 #%% Network topologies 
@@ -1446,7 +1433,7 @@ def findAvgSDinClusters(model, part):
 #-------- save data functions ---------
 
 
-def collect_network_properties(models, scenario_info):
+def collect_network_properties(models, scenario_info, args):
     """Collect network properties for later batch saving"""
     props_list = []
     for i, model in enumerate(models):
