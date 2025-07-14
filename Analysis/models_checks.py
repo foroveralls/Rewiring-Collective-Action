@@ -30,6 +30,7 @@ from operator import itemgetter
 import heapq
 from IPython.display import Image
 import time
+import hashlib
 import matplotlib.patches as mpatches
 from matplotlib.colors import Normalize
 from matplotlib.cm import ScalarMappable
@@ -115,6 +116,7 @@ args = {"defectorUtility" : defectorUtility,
         "breaklinkprob" : breaklinkprob,
         "establishlinkprob" : establishlinkprob,
         "polarisingNode_f": polarisingNode_f,
+        "seed": 42,
         "f_all": 0.5}
 
 #%% simulate 
@@ -127,7 +129,24 @@ def init_lock(lock_):
     # lock = lock_
 
 def simulate(i, newArgs, func_changes = False): #RG for random graph (used for testing)
+    
 
+  # Base seed for reproducibility
+    base_seed = newArgs.get("seed", 42)
+    
+    # Create unique identifier from scenario + simulation
+    scenario_str = f"{newArgs['rewiringAlgorithm']}_{newArgs.get('rewiringMode', 'none')}_{newArgs['type']}"
+    seed_string = f"{base_seed}_{scenario_str}_{i}_{os.getpid()}"
+    
+    # Generate unique seed
+    unique_seed = int(hashlib.md5(seed_string.encode()).hexdigest()[:8], 16)
+    
+    random.seed(unique_seed)
+    np.random.seed(unique_seed)
+    
+    # Optional: Set NetworkX seed for reproducible graph generation
+    if hasattr(newArgs, 'nwsize'):
+        np.random.seed(unique_seed)  # Ensures NetworkX operations are seeded
 
     # random number generators
     friendshipWeightGenerator = get_truncated_normal(newArgs["friendship"], newArgs["friendshipSD"], 0, 1) 
@@ -162,7 +181,8 @@ def simulate(i, newArgs, func_changes = False): #RG for random graph (used for t
 
 #%% Agent class 
 class Agent:
-    def __init__(self, state, stubbornness):
+    def __init__(self, state, stubbornness, defector_util):
+        self.defector_util = defector_util
         self.state = state 
         self.interactionsReceived = 0
         self.interactionsGiven = 0
@@ -179,7 +199,7 @@ class Agent:
         if (self.type == "polarising") & (self.state*neighbour.state < 0):
             mod = -1 
      
-        weight = self.state*self.stubbornness + politicalClimate + args["defectorUtility"] + neighboursWeight*neighbour.state 
+        weight = self.state*self.stubbornness + politicalClimate + self.defector_util + neighboursWeight*neighbour.state 
 
 
         p1 = 0
@@ -1037,7 +1057,7 @@ class Model:
         
         for i in range (n):
             
-            agent1 = Agent(self.getInitialState(), self.local_args["stubbornness"])
+            agent1 = Agent(self.getInitialState(), self.local_args["stubbornness"], self.local_args["defectorUtility"])
             self.graph.nodes[i]['agent'] = agent1
             
             if self.local_args["polarisingNode_f"] > np.random.random():
@@ -1065,7 +1085,7 @@ class Model:
             """Initialize all agents in the network"""
             self.fraction_m, self.fraction_M = [], []
             for i in range(n):
-                agent = Agent(self.getInitialState(target_skew, gen = True), self.local_args["stubbornness"])
+                agent = Agent(self.getInitialState(target_skew, gen = True), self.local_args["stubbornness"], self.local_args["defectorUtility"])
                 self.graph.nodes[i]['agent'] = agent
                 self.graph.nodes[i]["m"] = 1 if agent.state >= 0 else 0
                 
@@ -1213,7 +1233,7 @@ class Model:
             
             self.fraction_m.append(node_class) if node_class == 1 else self.fraction_M.append(node_class)
             
-            agent1 = Agent(self.getInitialState(node_class), self.local_args["stubbornness"])
+            agent1 = Agent(self.getInitialState(node_class), self.local_args["stubbornness"], self.local_args["defectorUtility"])
             
             self.graph.nodes[i]['agent'] = agent1
             
