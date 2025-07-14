@@ -467,7 +467,7 @@ if __name__ == "__main__":
         scale = 'linear'
 
     data = pd.read_csv(os.path.join("../../Output", file_list[file_index]))
-    t_max = 85000
+    t_max = 60000
     get_N, get_n = file_list[file_index].split("_")[4], file_list[file_index].split("_")[6]
     
     processed_data = process_data(data, t_max, scale)

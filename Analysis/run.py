@@ -147,12 +147,27 @@ if  __name__ ==  '__main__':
         
         for j in range(len(argList)):
             
-            start_1  = time.time()
-            sim = pool.starmap(models_checks.simulate, zip(range(numberOfSimulations), repeat(argList[j])))#, repeat(lock)))
+            start_1 = time.time()
+    
+            # CRITICAL FIX: Merge complete args in main thread before multiprocessing
+            base_args = models_checks.getargs()  # Get all default parameters
+            complete_args = {**base_args, **argList[j]}  # Merge defaults + scenario-specific
+            
+            # DEBUG: Verify args are complete
+            print(f"Scenario {i}_{v}_{k}: algo={complete_args['rewiringAlgorithm']}, mode={complete_args.get('rewiringMode', 'none')}")
+            
+            sim = pool.starmap(models_checks.simulate, zip(range(numberOfSimulations), repeat(complete_args)))
+            
+            # VERIFICATION: Check model consistency after simulation
+            algos = [str(m.algo) for m in sim[:3]]  # Check first 3 models
+            print(f"Models created with algo: {set(algos)}")
+            if len(set(algos)) > 1:
+                print("WARNING: Mixed algorithms in single batch!")
         
             assert argList[0]["rewiringAlgorithm"] == str(sim[0].algo), "Inconsistent values"
+            
             # #print(sim[0]. __class__. __name__)
-            print(sim[0].polar)
+            #print(sim[0].polar)
             
             fname = f'../Output/{i}_linkif_{v}_top_{j}.csv'
             print("starting save")
