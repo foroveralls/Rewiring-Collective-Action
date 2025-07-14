@@ -132,8 +132,7 @@ def init_lock(lock_):
     # lock = lock_
 
 def simulate(i, newArgs, func_changes = False): #RG for random graph (used for testing)
-    setArgs(newArgs)
-    #global args
+
 
     # random number generators
     friendshipWeightGenerator = get_truncated_normal(args["friendship"], args["friendshipSD"], 0, 1) 
@@ -141,33 +140,28 @@ def simulate(i, newArgs, func_changes = False): #RG for random graph (used for t
 
 
     # network type to use, I always ran on a cl 
-    if(args["type"] == "cl"):
-        model =ClusteredPowerlawModel(args["nwsize"], args["degree"], skew=args["skew"], friendshipWeightGenerator=friendshipWeightGenerator, initialStateGenerator=initialStateGenerator)
-    elif(args["type"] == "cl_nh"):
-         model =ClusteredPowerlawModel_nh(args["nwsize"], args["degree"], skew=args["skew"], friendshipWeightGenerator=friendshipWeightGenerator, initialStateGenerator=initialStateGenerator)
-    elif(args["type"] == "sf"):
-        model = ScaleFreeModel(args["nwsize"], args["degree"], skew=args["skew"], friendshipWeightGenerator=friendshipWeightGenerator, initialStateGenerator=initialStateGenerator)
-    elif(args["type"] == "rand"):
-        model = RandomModel(args["nwsize"], args["degree"], skew=args["skew"], friendshipWeightGenerator=friendshipWeightGenerator, initialStateGenerator=initialStateGenerator)
-    elif(args["type"] == "FB"):
-        model = EmpiricalModel(f"../Pre_processing/networks_processed/{args['top_file']}", args["nwsize"], args["degree"],  skew=args["skew"], friendshipWeightGenerator=friendshipWeightGenerator, initialStateGenerator=initialStateGenerator)
-    elif(args["type"] == "Twitter"):
-        model = EmpiricalModel(f"../Pre_processing/networks_processed/{args['top_file']}", args["nwsize"], args["degree"],  skew=args["skew"], friendshipWeightGenerator=friendshipWeightGenerator, initialStateGenerator=initialStateGenerator)
-    elif(args["type"] == "DPAH"):
-        #args degre a.k.a 'm' is just passed here as a dummy variable but does not affect the DPAH model
-        model = DPAHModel(args["nwsize"], args["degree"], skew=args["skew"], friendshipWeightGenerator=friendshipWeightGenerator, initialStateGenerator=initialStateGenerator)
-    
+    if(newArgs["type"] == "cl"):
+        model = ClusteredPowerlawModel(newArgs["nwsize"], newArgs["degree"], skew=newArgs["skew"], friendshipWeightGenerator=friendshipWeightGenerator, initialStateGenerator=initialStateGenerator, args=newArgs)
+    elif(newArgs["type"] == "cl_nh"):
+        model = ClusteredPowerlawModel_nh(newArgs["nwsize"], newArgs["degree"], skew=newArgs["skew"], friendshipWeightGenerator=friendshipWeightGenerator, initialStateGenerator=initialStateGenerator, args=newArgs)
+    elif(newArgs["type"] == "sf"):
+        model = ScaleFreeModel(newArgs["nwsize"], newArgs["degree"], skew=newArgs["skew"], friendshipWeightGenerator=friendshipWeightGenerator, initialStateGenerator=initialStateGenerator, args=newArgs)
+    elif(newArgs["type"] == "rand"):
+        model = RandomModel(newArgs["nwsize"], newArgs["degree"], skew=newArgs["skew"], friendshipWeightGenerator=friendshipWeightGenerator, initialStateGenerator=initialStateGenerator, args=newArgs)
+    elif(newArgs["type"] == "FB"):
+        model = EmpiricalModel(f"../Pre_processing/networks_processed/{newArgs['top_file']}", newArgs["nwsize"], newArgs["degree"], skew=newArgs["skew"], friendshipWeightGenerator=friendshipWeightGenerator, initialStateGenerator=initialStateGenerator, args=newArgs)
+    elif(newArgs["type"] == "Twitter"):
+        model = EmpiricalModel(f"../Pre_processing/networks_processed/{newArgs['top_file']}", newArgs["nwsize"], newArgs["degree"], skew=newArgs["skew"], friendshipWeightGenerator=friendshipWeightGenerator, initialStateGenerator=initialStateGenerator, args=newArgs)
+    elif(newArgs["type"] == "DPAH"):
+        model = DPAHModel(newArgs["nwsize"], newArgs["degree"], skew=newArgs["skew"], friendshipWeightGenerator=friendshipWeightGenerator, initialStateGenerator=initialStateGenerator, args=newArgs)
     else:
-        model = RandomModel(args["nwsize"], args["degree"],  friendshipWeightGenerator=friendshipWeightGenerator, initialStateGenerator=initialStateGenerator)
+        model = RandomModel(newArgs["nwsize"], newArgs["degree"], friendshipWeightGenerator=friendshipWeightGenerator, initialStateGenerator=initialStateGenerator, args=newArgs)
     
     if func_changes:
         update_instance_methods(model, func_changes)
     
-    #model.lock = lock
-    res = model.runSim(args["timesteps"], clusters=True, drawModel=args["plot"]) ## gifname provide a gif name if you want a gif animation, need to specify time stamps later on
-    #C_end, S_end = model.property_checks(R_G)
-
-    #draw_model(model)
+    
+    res = model.runSim(newArgs["timesteps"], clusters=True, drawModel=newArgs["plot"])
     return model
 
 
@@ -231,8 +225,11 @@ class Agent:
 # this class contains functions and values partaining to the model, some of it is in use, some of it is not
 class Model:
     # initial values
-    def __init__(self, friendshipWeightGenerator = None, initialStateGenerator=None):
-        global args
+    def __init__(self, friendshipWeightGenerator = None, initialStateGenerator=None, args=None):
+        if args is None:
+            args = globals()['args']
+            
+        self.local_args=args
         self.graph = nx.Graph()
         self.politicalClimate = args["politicalClimate"]
         self.ratio = []
@@ -1338,8 +1335,8 @@ class Model:
 #%% Network topologies 
 
 class EmpiricalModel(Model):
-    def __init__(self,  filename, n, m, skew= 0, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(self,  filename, n, m, skew= 0, args = None, **kwargs):
+        super().__init__(args=args, **kwargs)
         with open(filename, 'rb') as f:
             self.graph = pickle.load(f)
       
@@ -1349,16 +1346,16 @@ class EmpiricalModel(Model):
         self.populateModel_empirical(n, skew)
         
 class EmpiricalModel_w_agents(Model):
-    def __init__(self,  filename, n, m, skew= 0, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(self,  filename, n, m, skew= 0, args = None, **kwargs):
+        super().__init__(args=args, **kwargs)
         with open(filename, 'rb') as f:
             self.graph = pickle.load(f)
        # np.savetxt("debug.txt", list(self.graph.nodes))
         #self.populateModel_empirical(n, skew)
         #TODO: implement populate function for this model class
 class DPAHModel(Model):
-    def __init__(self, n, m, skew= 0, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(self, n, m, skew= 0, args = None, **kwargs):
+        super().__init__(args=args, **kwargs)
         #TODO: make these not hard-coded 
         self.graph = DPAH(n, f_m=0.5, d=0.02, h_MM=args["f_all"], h_mm=args["f_all"], plo_M=2.0, plo_m=2.0,
                      seed = 42)
@@ -1369,14 +1366,14 @@ class DPAHModel(Model):
 
         
 class ScaleFreeModel(Model):
-    def __init__(self, n, m, skew= 0, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(self, n, m, skew= 0, args = None, **kwargs):
+        super().__init__(args=args, **kwargs)
         self.graph = nx.barabasi_albert_graph(n, m)
         self.populateModel(n, skew)
 
 class ClusteredPowerlawModel(Model):
-    def __init__(self, n, m, skew = 0, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(self, n, m, skew = 0, args = None, **kwargs):
+        super().__init__(args=args, **kwargs)
 
         self.graph = PATCH(n =n, k = m, f_m=0.5, h_MM=args["f_all"], h_mm=args["f_all"], tc = clustering,
                      seed = 42)
@@ -1391,8 +1388,8 @@ class ClusteredPowerlawModel(Model):
 
         
 class ClusteredPowerlawModel_nh(Model):
-    def __init__(self, n, m, skew = 0, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(self, n, m, skew = 0, args = None, **kwargs):
+        super().__init__(args=args, **kwargs)
 
         self.graph = PATCH(n = n, k = m, f_m=0.5, h_MM=args["f_all"], h_mm=args["f_all"], tc = clustering,
                      seed = 42)
@@ -1405,9 +1402,9 @@ class ClusteredPowerlawModel_nh(Model):
         self.populateModel_netin(n, skew)
 
 class RandomModel(Model):
-    def __init__(self, n, m, skew= 0, **kwargs):
+    def __init__(self, n, m, skew= 0, args = None, **kwargs):
         #m is avg degree/2
-        super().__init__(**kwargs)
+        super().__init__(args=args, **kwargs)
         p = 2*m/(n-1)
 
         self.graph =nx.erdos_renyi_graph(n, p)
@@ -1482,6 +1479,13 @@ def collect_network_properties(models, scenario_info):
     return props_list
 
 def saveavgdata(models, filename, args):
+    
+    if models:
+        model_algo = str(models[0].algo) if models[0].algo else "None"
+        args_algo = str(args["rewiringAlgorithm"])
+        if model_algo != args_algo:
+            print(f"MISMATCH: Model={model_algo}, Args={args_algo}, File={filename}")
+            
     # Get the maximum number of timesteps
     max_timesteps = max(len(model.states) for model in models)
     
