@@ -149,7 +149,7 @@ if  __name__ ==  '__main__':
             
             start_1 = time.time()
     
-            # CRITICAL FIX: Merge complete args in main thread before multiprocessing
+            # Merge complete args in main thread before multiprocessing
             base_args = models_checks.getargs()  # Get all default parameters
             complete_args = {**base_args, **argList[j]}  # Merge defaults + scenario-specific
             
@@ -181,7 +181,7 @@ if  __name__ ==  '__main__':
                 'args': argList[0]
             }
             
-            all_network_props.extend(models_checks.collect_network_properties(sim, scenario_info))
+            all_network_props.extend(models_checks.collect_network_properties(sim, scenario_info, argList[0]))
             
             
             end_1 = time.time()
