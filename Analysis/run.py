@@ -83,10 +83,6 @@ if  __name__ ==  '__main__':
 
     pathFig = '/Figs'
     pathData = '/Output'
-    
-    modelargs= models_checks.getargs()  # requires models.py to be imported
-
-    #runs = 4   ## has to be even for multiple runs also n is actually n-1 because I'm lazy
         
     rewiring_list_h = ["diff", "same"]
     directed_topology_list = ["DPAH", "Twitter"]  
@@ -144,13 +140,12 @@ if  __name__ ==  '__main__':
        
         
         #print (argList)
-        
+        base_args = models_checks.getargs()
         for j in range(len(argList)):
             
             start_1 = time.time()
     
             # Merge complete args in main thread before multiprocessing
-            base_args = models_checks.getargs()  # Get all default parameters
             complete_args = {**base_args, **argList[j]}  # Merge defaults + scenario-specific
             
             # DEBUG: Verify args are complete
