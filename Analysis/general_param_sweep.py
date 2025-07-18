@@ -120,6 +120,7 @@ if __name__ == '__main__':
     models_checks_module=models_checks
 )
 
+    base_args = models_checks.getargs()
     
     # Main sweep loop
     for params in param_product:    
@@ -148,12 +149,14 @@ if __name__ == '__main__':
                 "top_file": top_file,
                 "timesteps": adaptive_timesteps, 
                 "plot": False,
+                "seed": 42
                 **params
             }
-
+            
+            complete_args = {**base_args, **sim_args}
             # Run simulations
             sims = pool.starmap(models_checks.simulate, 
-                              zip(range(numberOfSimulations), repeat(sim_args)))
+                              zip(range(numberOfSimulations), repeat(complete_args)))
             
             for sim in sims:
                 results.append({
@@ -165,7 +168,9 @@ if __name__ == '__main__':
                     'topology': topology,
                     #'run': sim.run_id  # Add run identifier
                 })
-
+                algos = [str(m.algo) for m in sim[:min(3, len(sim))]]
+                if len(set(algos)) > 1:
+                    raise ValueError(f"Mixed algorithms in batch: {set(algos)}")
     pool.close()
     pool.join()
 
