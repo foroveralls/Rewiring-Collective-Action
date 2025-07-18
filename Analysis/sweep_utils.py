@@ -3,6 +3,7 @@
 import time
 import random
 import string
+import os
 from datetime import date
 
 def get_sweep_id(parameter_names):
@@ -14,7 +15,6 @@ def get_sweep_id(parameter_names):
     Returns:
         A unique sweep identifier string
     """
-
     # Create timestamp component
     timestamp = time.strftime("%Y%m%d_%H%M")
     
@@ -30,7 +30,7 @@ def get_sweep_id(parameter_names):
     return sweep_id
 
 def save_sweep_config(sweep_id, parameter_names, parameters, combined_list, 
-                     num_simulations, models_checks_module, output_dir="../Output"):
+                     num_simulations, complete_args, output_dir="../Output"):
     """Save the parameter sweep configuration to a text file.
     
     Args:
@@ -39,33 +39,36 @@ def save_sweep_config(sweep_id, parameter_names, parameters, combined_list,
         parameters: Dictionary of parameters and their values
         combined_list: List of (algorithm, mode, topology) combinations
         num_simulations: Number of simulations per parameter combination
-        models_checks_module: The imported models_checks module
+        complete_args: Complete merged arguments dictionary
         output_dir: Directory to save the configuration file
     """
     # Ensure output directory exists
-    import os
     os.makedirs(output_dir, exist_ok=True)
     
     # Create the output file path
     config_file = os.path.join(output_dir, f"sweep_config_{sweep_id}.txt")
     
     with open(config_file, "w") as f:
-        f.write(f"Parameter Sweep ID: {sweep_id}\n")
+        f.write(f"Sweep ID: {sweep_id}\n")
         f.write(f"Date: {date.today()}\n")
-        f.write(f"Number of simulations per parameter combination: {num_simulations}\n\n")
+        f.write(f"Sims per combo: {num_simulations}\n")
+        f.write(f"Total sims: {len(list(parameters.values())[0]) * len(combined_list) * num_simulations if parameters else 0}\n\n")
         
-        f.write("Parameters being swept:\n")
+        f.write("Swept parameters:\n")
         for param_name, param_values in parameters.items():
-            f.write(f"  {param_name}: {param_values}\n")
+            if hasattr(param_values, '__iter__') and not isinstance(param_values, str):
+                f.write(f"  {param_name}: {len(param_values)} values [{min(param_values):.4f}, {max(param_values):.4f}]\n")
+            else:
+                f.write(f"  {param_name}: {param_values}\n")
         
-        f.write("\nScenarios being tested:\n")
+        f.write(f"\nScenarios ({len(combined_list)}):\n")
         for algo, mode, topology in combined_list:
             f.write(f"  {algo}_{mode}_{topology}\n")
         
-        f.write("\nFixed parameters:\n")
-        fixed_params = models_checks_module.getargs()
-        for key, value in sorted(fixed_params.items()):
-            if key not in parameters and key not in ["rewiringAlgorithm", "rewiringMode", "type", "top_file"]:
+        f.write("\nFixed params:\n")
+        excluded = set(parameter_names) | {"rewiringAlgorithm", "rewiringMode", "type", "top_file", "nwsize"}
+        for key, value in sorted(complete_args.items()):
+            if key not in excluded:
                 f.write(f"  {key}: {value}\n")
     
-    print(f"Sweep configuration saved to: {config_file}")
+    print(f"Config saved: {config_file}")

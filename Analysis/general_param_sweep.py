@@ -71,7 +71,7 @@ def get_optimal_process_count():
 
 if __name__ == '__main__':
     # Constants and Variables
-    numberOfSimulations = 40
+    numberOfSimulations = 30
     numberOfProcessors = get_optimal_process_count()
     lock = multiprocessing.Lock()
     
@@ -100,9 +100,10 @@ if __name__ == '__main__':
     #combined_list = [("biased", "diff", "cl"), ("bridge", "diff", "cl") ]
     
     # Parameter sweep configuration
-    parameter_names = ["politicalClimate"]
+    parameter_names = ["stubbornness", "polarisingNode_f" ]
     parameters = {
-        "politicalClimate": np.linspace(0, 0.05, 12)
+        "stubbornness": np.linspace(0, 1, 10),
+        "polarisingNode_f": np.linspace(0, 1, 10)
     }
     param_product = [dict(zip(parameters.keys(), x)) for x in product(*parameters.values())]
 
@@ -149,7 +150,7 @@ if __name__ == '__main__':
                 "top_file": top_file,
                 "timesteps": adaptive_timesteps, 
                 "plot": False,
-                "seed": 42
+                "seed": 42,
                 **params
             }
             
@@ -158,19 +159,24 @@ if __name__ == '__main__':
             sims = pool.starmap(models_checks.simulate, 
                               zip(range(numberOfSimulations), repeat(complete_args)))
             
+            # Verify algorithm consistency
+            algos = [str(m.algo) for m in sims]
+            if len(set(algos)) > 1:
+                raise ValueError(f"Mixed algorithms in batch: {set(algos)}") 
+                 
             for sim in sims:
                 results.append({
                     'state': sim.states[-1],  # Store individual final state
                     'state_std': sim.statesds[-1],
                     'political_climate': params['politicalClimate'],
+                    'stubbornness': params['stubbornness'],
+                    'polarisingNode_f': params['polarisingNode_f'],
                     'rewiring': mode,
                     'mode': algo,
                     'topology': topology,
                     #'run': sim.run_id  # Add run identifier
                 })
-                algos = [str(m.algo) for m in sim[:min(3, len(sim))]]
-                if len(set(algos)) > 1:
-                    raise ValueError(f"Mixed algorithms in batch: {set(algos)}")
+           
     pool.close()
     pool.join()
 
