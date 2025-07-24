@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Phased run script - executes algorithms sequentially to avoid race conditions
+Phased run script with isolated biased/bridge subvariants - executes algorithms sequentially to avoid race conditions
 Compatible with existing plotting scripts like plots_lines.py
 """
 
@@ -20,22 +20,28 @@ def init(lock_):
 def get_optimal_process_count():
     total_cpus = multiprocessing.cpu_count()
     reserved_cpus = max(2, int(0.25 * total_cpus))
-    return max(1, int(0.70 * (total_cpus - reserved_cpus)))
+    return max(1, int(0.75 * (total_cpus - reserved_cpus)))
 
 def group_scenarios_by_algorithm(combined_list):
-    """Group scenarios by algorithm for phased execution"""
+    """Group scenarios by algorithm for phased execution - isolates biased/bridge subvariants"""
     algo_groups = {}
     for scenario, rewiring, topology in combined_list:
-        if scenario not in algo_groups:
-            algo_groups[scenario] = []
-        algo_groups[scenario].append((scenario, rewiring, topology))
+        # Create separate groups for biased/bridge subvariants
+        if scenario in ["biased", "bridge"] and rewiring in ["same", "diff"]:
+            key = f"{scenario}_{rewiring}"
+        else:
+            key = scenario
+            
+        if key not in algo_groups:
+            algo_groups[key] = []
+        algo_groups[key].append((scenario, rewiring, topology))
     return algo_groups
 
 def run_algorithm_phase(algo_scenarios, numberOfSimulations, base_args):
     """Run all scenarios for a single algorithm - one topology at a time"""
     numberOfProcessors = get_optimal_process_count()
     
-    print(f"\n=== PHASE: {algo_scenarios[0][0].upper()} ===")
+    print(f"\n=== PHASE: {algo_scenarios[0][0].upper()}_{algo_scenarios[0][1].upper()} ===")
     print(f"Scenarios: {len(algo_scenarios)}")
     print(f"Sims per scenario: {numberOfSimulations}")
     print(f"Processors: {numberOfProcessors}")
@@ -110,9 +116,9 @@ def run_algorithm_phase(algo_scenarios, numberOfSimulations, base_args):
 
 def main():
     start = time.time()
-    numberOfSimulations = 2
+    numberOfSimulations = 90
     
-    print("=== PHASED EXECUTION RUN ===")
+    print("=== PHASED EXECUTION RUN (ISOLATED SUBVARIANTS) ===")
     print(f"Date: {date.today()}")
     print(f"Simulations per scenario: {numberOfSimulations}")
     
@@ -132,8 +138,8 @@ def main():
     combined_list_rand = [("random", "None", topology) for topology in directed_topology_list + undirected_topology_list]
     
     combined_list = combined_list1 + combined_list_rand + combined_list2 + combined_list3 + combined_list4
-    #combined_list = combined_list_rand 
-    # Group scenarios by algorithm
+    
+    # Group scenarios by algorithm (now isolates subvariants)
     algo_groups = group_scenarios_by_algorithm(combined_list)
     base_args = models_checks.getargs()
     
@@ -170,8 +176,8 @@ def main():
         })
         
         # Save files (compatible with plots_lines.py)
-        avg_file = f'../Output/phased_run_avg_N_{nwsize}_n_{numberOfSimulations}_pNf_{base_args["polarisingNode_f"]}_pc_{models_checks.politicalClimate}_{date.today()}.csv'
-        individual_file = f'../Output/phased_run_individual_N_{nwsize}_n_{numberOfSimulations}_pNf_{base_args["polarisingNode_f"]}_pc_{models_checks.politicalClimate}_{date.today()}.csv'
+        avg_file = f'../Output/phased_isolated_run_avg_N_{nwsize}_n_{numberOfSimulations}_pNf_{base_args["polarisingNode_f"]}_pc_{models_checks.politicalClimate}_{date.today()}.csv'
+        individual_file = f'../Output/phased_isolated_run_individual_N_{nwsize}_n_{numberOfSimulations}_pNf_{base_args["polarisingNode_f"]}_pc_{models_checks.politicalClimate}_{date.today()}.csv'
         
         combined_avg_df.to_csv(avg_file, index=False)
         combined_individual_df.to_csv(individual_file, index=False)
