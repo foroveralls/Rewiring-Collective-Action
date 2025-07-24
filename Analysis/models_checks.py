@@ -668,8 +668,9 @@ class Model:
             self.affected_nodes_set = set()
         
         self.affected_nodes_set.update(self.affected_nodes)
-        process_input_file = f"{input_file}_{self.process_id}"
-        process_output_file = f"{output_file}_{self.process_id}"
+        unique_id = f"{self.process_id}_{int(time.time()*1000)}_{random.randint(0,999)}"
+        process_input_file = f"{input_file}_{unique_id}"
+        process_output_file = f"{output_file}_{unique_id}"
     
         try:
             # Determine if full retrain is needed

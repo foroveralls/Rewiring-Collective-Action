@@ -32,9 +32,8 @@ def group_scenarios_by_algorithm(combined_list):
     return algo_groups
 
 def run_algorithm_phase(algo_scenarios, numberOfSimulations, base_args):
-    """Run all scenarios for a single algorithm with multiprocessing"""
+    """Run all scenarios for a single algorithm - one topology at a time"""
     numberOfProcessors = get_optimal_process_count()
-    lock = multiprocessing.Lock()
     
     print(f"\n=== PHASE: {algo_scenarios[0][0].upper()} ===")
     print(f"Scenarios: {len(algo_scenarios)}")
@@ -43,49 +42,69 @@ def run_algorithm_phase(algo_scenarios, numberOfSimulations, base_args):
     
     phase_results = []
     
-    with multiprocessing.Pool(processes=numberOfProcessors, initializer=init, initargs=(lock,)) as pool:
+    # Group by topology within this algorithm
+    topology_groups = {}
+    for scenario in algo_scenarios:
+        topology = scenario[2]
+        if topology not in topology_groups:
+            topology_groups[topology] = []
+        topology_groups[topology].append(scenario)
+    
+    # Run each topology sequentially
+    for topology, topo_scenarios in topology_groups.items():
+        print(f"\n  Topology: {topology} ({len(topo_scenarios)} scenarios)")
         
-        for i, v, k in algo_scenarios:
-            start_scenario = time.time()
-            print(f"Running: {i}_{v}_{k}")
+        # Create fresh pool for each topology
+        lock = multiprocessing.Lock()
+        with multiprocessing.Pool(processes=numberOfProcessors, initializer=init, initargs=(lock,)) as pool:
             
-            # Network config
-            if k == "Twitter":
-                top_file, nwsize = "twitter_graph_N_789.gpickle", 789
-            elif k == "FB":
-                top_file, nwsize = "FB_graph_N_786.gpickle", 786
-            else:
-                top_file, nwsize = None, 200
+            for i, v, k in topo_scenarios:
+                start_scenario = time.time()
+                print(f"    Running: {i}_{v}_{k}")
+                
+                # Network config (unchanged)
+                if k == "Twitter":
+                    top_file, nwsize = "twitter_graph_N_789.gpickle", 789
+                elif k == "FB":
+                    top_file, nwsize = "FB_graph_N_786.gpickle", 786
+                else:
+                    top_file, nwsize = None, 800
+                
+                sim_args = {
+                    "rewiringAlgorithm": i, "nwsize": nwsize, "rewiringMode": v, 
+                    "type": k, "top_file": top_file, "polarisingNode_f": 0.10, 
+                    "timesteps": 60000, "plot": False
+                }
+                
+                complete_args = {**base_args, **sim_args}
+                
+                # Run simulations for this scenario
+                sims = pool.starmap(models_checks.simulate, 
+                                   zip(range(numberOfSimulations), repeat(complete_args)))
+                
+                # Verify consistency (unchanged)
+                algos = [str(m.algo) for m in sims]
+                if len(set(algos)) > 1:
+                    raise ValueError(f"Mixed algorithms in {i}_{v}_{k}: {set(algos)}")
+                
+                assert sim_args["rewiringAlgorithm"] == str(sims[0].algo), "Inconsistent algo"
+                
+                # Save and collect results (unchanged)
+                fname = f'../Output/{i}_linkif_{v}_top_{k}.csv'
+                result = models_checks.saveavgdata(sims, fname, args=sim_args)
+                phase_results.append(result)
+                
+                elapsed = (time.time() - start_scenario) / 60
+                print(f"      Completed in {elapsed:.1f} min")
             
-            sim_args = {
-                "rewiringAlgorithm": i, "nwsize": nwsize, "rewiringMode": v, 
-                "type": k, "top_file": top_file, "polarisingNode_f": 0.10, 
-                "timesteps": 15000, "plot": False
-            }
-            
-            complete_args = {**base_args, **sim_args}
-            
-            # Run simulations for this scenario
-            sims = pool.starmap(models_checks.simulate, 
-                               zip(range(numberOfSimulations), repeat(complete_args)))
-            
-            # Verify consistency
-            algos = [str(m.algo) for m in sims]
-            if len(set(algos)) > 1:
-                raise ValueError(f"Mixed algorithms in {i}_{v}_{k}: {set(algos)}")
-            
-            assert sim_args["rewiringAlgorithm"] == str(sims[0].algo), "Inconsistent algo"
-            
-            # Save and collect results
-            fname = f'../Output/{i}_linkif_{v}_top_{k}.csv'
-            result = models_checks.saveavgdata(sims, fname, args=sim_args)
-            phase_results.append(result)
-            
-            elapsed = (time.time() - start_scenario) / 60
-            print(f"  Completed in {elapsed:.1f} min")
+            # Explicit pool cleanup for this topology
+            pool.close()
+            pool.join()
         
-        pool.close()
-        pool.join()
+        # Force cleanup between topologies
+        import gc
+        gc.collect()
+        time.sleep(0.1)
     
     return phase_results
 
@@ -113,7 +132,7 @@ def main():
     combined_list_rand = [("random", "None", topology) for topology in directed_topology_list + undirected_topology_list]
     
     combined_list = combined_list1 + combined_list_rand + combined_list2 + combined_list3 + combined_list4
-    combined_list = combined_list_rand 
+    #combined_list = combined_list_rand 
     # Group scenarios by algorithm
     algo_groups = group_scenarios_by_algorithm(combined_list)
     base_args = models_checks.getargs()
@@ -163,7 +182,7 @@ def main():
         return combined_avg_df, combined_individual_df
     
     # Process all results
-    nwsize = 300  # Default, gets overridden by empirical networks
+    nwsize = 800  # Default, gets overridden by empirical networks
     processed_avg_df, processed_individual_df = process_outputs(all_results, nwsize)
     
     # Cleanup
