@@ -45,6 +45,7 @@ from netin.generators.h import Homophily
 from collections import Counter
 from Auxillary import network_stats
 import rustworkx as rx
+from copy import deepcopy
 import multiprocessing
 import subprocess
 from Auxillary import node2vec_cpp as n2v
@@ -174,8 +175,13 @@ def simulate(i, newArgs, func_changes = False): #RG for random graph (used for t
     if func_changes:
         update_instance_methods(model, func_changes)
     
+    save_snapshots = newArgs.get('save_snapshots', False) and (i % 2 == 0)
     
-    res = model.runSim(newArgs["timesteps"], clusters=True, drawModel=newArgs["plot"])
+    res = model.runSim(newArgs["timesteps"], clusters=True, drawModel=newArgs["plot"], 
+                       save_snapshots=save_snapshots)
+    if save_snapshots:
+        return model, model.snapshots
+    
     return model
 
 
@@ -808,7 +814,6 @@ class Model:
             self.affected_nodes.extend(affected)
             self.trained = False
               
-            
           
 
     def _get_personalized_recommendations(self, nodeIndex, topk=5):
@@ -849,21 +854,6 @@ class Model:
         
         return recommendations
       
- 
-    # def wtf_rewire(self, nodeIndex):
-    #     rewireIndex = np.argmax(self.ranking)
-    #     rewireIndex, neighbours = self.neighbours_check(nodeIndex, rewireIndex, self.ranking)
-        
-    #     rewired = self.rewire(nodeIndex, rewireIndex)
-        
-    #     if rewired:    
-    #         brokenIndex = self.break_link(nodeIndex, rewireIndex, neighbours)
-    #         #need to check how brokenIndex works here
-    #         self.affected_nodes += [nodeIndex, rewireIndex, brokenIndex]
-            
-    #     return rewired
-            
-
 
     def wtf_rewire(self, nodeIndex):
         """Rewire based on personalized recommendations"""
@@ -967,8 +957,14 @@ class Model:
 #%% Model run
 
     # this part actually runs the simulation
-    def runSim(self, steps, groupInteract=False, drawModel = False, countNeighbours = False, gifname= 'trialtrial', clusters= False):
+    def runSim(self, steps, groupInteract=False, drawModel = False, countNeighbours = False, gifname= 'trialtrial', clusters= False,
+               save_snapshots =False):
       
+        
+        if save_snapshots:
+            key_timesteps = [0, steps//4, steps//2, 3*steps//4, steps-1]
+            self.snapshots = {}
+        
         if(self.partition ==None):
             if nx.is_directed(self.graph):
                 
@@ -978,8 +974,6 @@ class Model:
             else:
                 
                 self.partition = self.community_detection_with_leidenalg(self.graph)
-
-           
 
         filenames = []
 
@@ -1003,49 +997,19 @@ class Model:
             
         
             self.t = i 
-        
-
-            #print("step: ", i)
             nodeIndex = self.interact_main()
             ratio = self.countCooperatorRatio()
             self.ratio.append(ratio)
             (state, sd) = self.getAvgState()
             self.states.append(state)
-            #self.clustering.append(nx.average_clustering(self.graph))
             self.statesds.append(sd)
-            (degree, degreeSD, mindegree, maxdegree) = self.getAvgDegree()
-            self.degrees.append(degree)
-            self.degreesSD.append(degreeSD)
-            self.mindegrees_l.append(mindegree)
-            self.maxdegrees_l.append(maxdegree)
+            if save_snapshots and i in key_timesteps:
+                self.snapshots[i] = deepcopy(self.graph)
+                
             # avgFriends = self.updateAvgNbAgreeingFriends(nodeIndex)
             #avgFriends = self.findNbAgreeingFriends(nodeIndex)
             #draw_model(self) #this should draw the model in every timestep! 
             # self.avgNbAgreeingList.append(avgFriends)
-            
-           
-           
-           # some book keeping
-            if (clusters):
-                (s, sds, size) = findAvgStateInClusters(self, self.partition)
-                self.clusterSD.append(sds)
-                self.clusteravg.append(s)
-
-            if(countNeighbours):
-                (defectorDefectingNeighs,
-                        cooperatorDefectingNeighs,
-                        defectorDefectingNeighsSTD,
-                        cooperatorDefectingNeighsSTD) = self.getAvgNumberOfDefectorNeigh()
-                self.defectorDefectingNeighsList.append(defectorDefectingNeighs)
-                self.cooperatorDefectingNeighsList.append(cooperatorDefectingNeighs)
-                self.defectorDefectingNeighsSTDList.append(defectorDefectingNeighsSTD)
-                self.cooperatorDefectingNeighsSTDList.append(cooperatorDefectingNeighsSTD)
-            
-            snapshots = [0, int(self.local_args["timesteps"]/10), self.local_args["timesteps"]-1]
-           
-            #if i in snapshots:
-             #   self.record_degree_dist(i)
-                #self.plot_network(self.graph, title = f"T = {i}, N = {self.local_args['nwsize']}")
             
 
         (avgs, sds, sizes) = findAvgStateInClusters(self, self.partition)
