@@ -12,7 +12,8 @@ import multiprocessing
 import models_checks 
 import numpy as np 
 from datetime import date
-import glob
+import glob, gzip, pickle
+from sweep_utils import get_sweep_id
 
 def init(lock_):
     models_checks.init_lock(lock_)
@@ -41,7 +42,6 @@ def run_algorithm_phase(algo_scenarios, numberOfSimulations, base_args):
     """Run all scenarios for a single algorithm - one topology at a time"""
     numberOfProcessors = get_optimal_process_count()
     
-    # Fix: Get algorithm name correctly
     algo_name = algo_scenarios[0][0].upper()
     print(f"\n=== PHASE: {algo_name} ===")
     print(f"Scenarios: {len(algo_scenarios)}")
@@ -52,28 +52,23 @@ def run_algorithm_phase(algo_scenarios, numberOfSimulations, base_args):
     
     # Group by topology within this algorithm
     topology_groups = {}
-    for scenario, rewiring, topology in algo_scenarios:  # Fix: Unpack explicitly
+    for scenario, rewiring, topology in algo_scenarios:
         if topology not in topology_groups:
             topology_groups[topology] = []
         topology_groups[topology].append((scenario, rewiring, topology))
-    
-    # Debug: Print topology groups
-    for topo, scenarios in topology_groups.items():
-        print(f"  DEBUG: {topo} has {len(scenarios)} scenarios: {[(s[0], s[1]) for s in scenarios]}")
     
     # Run each topology sequentially
     for topology, topo_scenarios in topology_groups.items():
         print(f"\n  Topology: {topology} ({len(topo_scenarios)} scenarios)")
         
-        # Create fresh pool for each topology
         lock = multiprocessing.Lock()
         with multiprocessing.Pool(processes=numberOfProcessors, initializer=init, initargs=(lock,)) as pool:
             
-            for scenario, rewiring, topology_name in topo_scenarios:  # Fix: Unpack explicitly
+            for scenario, rewiring, topology_name in topo_scenarios:
                 start_scenario = time.time()
                 print(f"    Running: {scenario}_{rewiring}_{topology_name}")
                 
-                # Network config (unchanged)
+                # Network config
                 if topology_name == "Twitter":
                     top_file, nwsize = "twitter_graph_N_789.gpickle", 789
                 elif topology_name == "FB":
@@ -84,23 +79,38 @@ def run_algorithm_phase(algo_scenarios, numberOfSimulations, base_args):
                 sim_args = {
                     "rewiringAlgorithm": scenario, "nwsize": nwsize, "rewiringMode": rewiring, 
                     "type": topology_name, "top_file": top_file, "polarisingNode_f": 0.10, 
-                    "timesteps": 60000, "plot": False
+                    "timesteps": 160000, "plot": False, "save_snapshots": True
                 }
                 
                 complete_args = {**base_args, **sim_args}
                 
-                # Run simulations for this scenario
-                sims = pool.starmap(models_checks.simulate, 
-                                   zip(range(numberOfSimulations), repeat(complete_args)))
+                # Run simulations
+                results = pool.starmap(models_checks.simulate, 
+                                     zip(range(numberOfSimulations), repeat(complete_args)))
                 
-                # Verify consistency (unchanged)
+                # Separate models and snapshots
+                sims = [r[0] if isinstance(r, tuple) else r for r in results]
+                scenario_snapshots = {i: r[1] for i, r in enumerate(results) if isinstance(r, tuple)}
+                
+                # Verify consistency
                 algos = [str(m.algo) for m in sims]
                 if len(set(algos)) > 1:
                     raise ValueError(f"Mixed algorithms in {scenario}_{rewiring}_{topology_name}: {set(algos)}")
-                
                 assert sim_args["rewiringAlgorithm"] == str(sims[0].algo), "Inconsistent algo"
                 
-                # Save and collect results (unchanged)
+                # Save snapshots if collected
+                if scenario_snapshots:
+                    fname = f'../Output/snapshots_{scenario}_{rewiring}_{topology_name}.pkl.gz'
+                    snapshot_data = {
+                        'metadata': {'algo': scenario, 'mode': rewiring, 'topology': topology_name, 
+                                   'params': sim_args},
+                        'snapshots': scenario_snapshots
+                    }
+                    with gzip.open(fname, 'wb') as f:
+                        pickle.dump(snapshot_data, f)
+                    print(f"      Saved {len(scenario_snapshots)} snapshot sets to {fname}")
+                
+                # Save trajectory results
                 fname = f'../Output/{scenario}_linkif_{rewiring}_top_{topology_name}.csv'
                 result = models_checks.saveavgdata(sims, fname, args=sim_args)
                 phase_results.append(result)
@@ -108,11 +118,9 @@ def run_algorithm_phase(algo_scenarios, numberOfSimulations, base_args):
                 elapsed = (time.time() - start_scenario) / 60
                 print(f"      Completed in {elapsed:.1f} min")
             
-            # Explicit pool cleanup for this topology
             pool.close()
             pool.join()
         
-        # Force cleanup between topologies
         import gc
         gc.collect()
         time.sleep(0.1)
@@ -122,6 +130,7 @@ def run_algorithm_phase(algo_scenarios, numberOfSimulations, base_args):
 def main():
     start = time.time()
     numberOfSimulations = 90
+    sweep_id = get_sweep_id(["phased_run"])
     
     print("=== PHASED EXECUTION RUN (ISOLATED SUBVARIANTS) ===")
     print(f"Date: {date.today()}")
@@ -143,7 +152,7 @@ def main():
     combined_list_rand = [("random", "None", topology) for topology in directed_topology_list + undirected_topology_list]
     
     combined_list = combined_list1 + combined_list_rand + combined_list2 + combined_list3 + combined_list4
-    
+    #combined_list = combined_list_rand
     # Group scenarios by algorithm (now isolates subvariants)
     algo_groups = group_scenarios_by_algorithm(combined_list)
     base_args = models_checks.getargs()
@@ -180,8 +189,8 @@ def main():
         })
         
         # Save files (compatible with plots_lines.py)
-        avg_file = f'../Output/phased_isolated_run_avg_N_{nwsize}_n_{numberOfSimulations}_pNf_{base_args["polarisingNode_f"]}_pc_{models_checks.politicalClimate}_{date.today()}.csv'
-        individual_file = f'../Output/phased_isolated_run_individual_N_{nwsize}_n_{numberOfSimulations}_pNf_{base_args["polarisingNode_f"]}_pc_{models_checks.politicalClimate}_{date.today()}.csv'
+        avg_file = f'../Output/default_run_avg_N_{nwsize}_n_{numberOfSimulations}_pNf_{base_args["polarisingNode_f"]}_pc_{models_checks.politicalClimate}_{sweep_id}_{date.today()}.csv'
+        individual_file = f'../Output/default_run_individual_N_{nwsize}_n_{numberOfSimulations}_pNf_{base_args["polarisingNode_f"]}_pc_{models_checks.politicalClimate}_{sweep_id}_{date.today()}.csv'
         
         combined_avg_df.to_csv(avg_file, index=False)
         combined_individual_df.to_csv(individual_file, index=False)
@@ -190,6 +199,26 @@ def main():
         print(f"Individual output: {individual_file}")
         
         return combined_avg_df, combined_individual_df
+    
+    snapshot_files = glob.glob("../Output/snapshots_*.pkl.gz")
+    if snapshot_files:
+        print(f"\nConsolidating {len(snapshot_files)} snapshot files...")
+        master_snapshots = {}
+        
+        for f in snapshot_files:
+            with gzip.open(f, 'rb') as gz:
+                data = pickle.load(gz)
+                scenario_key = f"{data['metadata']['algo']}_{data['metadata']['mode']}_{data['metadata']['topology']}"
+                master_snapshots[scenario_key] = data
+            os.remove(f)  # Delete individual file
+        
+        # Save consolidated file
+        master_file = f'../Output/all_snapshots_{sweep_id}_{date.today()}.pkl.gz'
+        with gzip.open(master_file, 'wb') as f:
+            pickle.dump(master_snapshots, f)
+        
+        print(f"Consolidated snapshots saved to {master_file}")
+    
     
     # Process all results
     nwsize = 800  # Default, gets overridden by empirical networks

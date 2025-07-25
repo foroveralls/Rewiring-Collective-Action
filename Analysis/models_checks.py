@@ -1418,24 +1418,6 @@ def findAvgSDinClusters(model, part):
 #-------- save data functions ---------
 
 
-def collect_network_properties(models, scenario_info, args):
-    """Collect network properties for later batch saving"""
-    props_list = []
-    for i, model in enumerate(models):
-        for t, props in model.degree_distributions.items():
-            props_list.append({
-                'model_run': i,
-                'timestep': t,
-                'scenario_id': scenario_info['scenario_id'],
-                'linkif_value': scenario_info['linkif'],
-                'top_value': scenario_info['top'],
-                'scenario': scenario_info['args']["rewiringAlgorithm"], 
-                'rewiring': scenario_info['args']["rewiringMode"],
-                'type': scenario_info['args']["type"],
-                **props
-            })
-    return props_list
-
 def saveavgdata(models, filename, args):
     
     if models:
@@ -1450,10 +1432,7 @@ def saveavgdata(models, filename, args):
     # Initialize arrays for storing data from all models
     all_states = np.zeros((len(models), max_timesteps))
     all_statesds = np.zeros((len(models), max_timesteps))
-    all_degrees = np.zeros((len(models), max_timesteps))
-    all_mindegrees = np.zeros((len(models), max_timesteps))
-    all_maxdegrees = np.zeros((len(models), max_timesteps))
-    
+
     all_individual_data = []
     
     for i, model in enumerate(models):
@@ -1462,10 +1441,7 @@ def saveavgdata(models, filename, args):
         # Store data for each model
         all_states[i, :timesteps] = model.states
         all_statesds[i, :timesteps] = model.statesds
-        all_degrees[i, :timesteps] = np.mean(model.degrees, axis=0)
-        all_mindegrees[i, :timesteps] = np.mean(model.mindegrees_l, axis=0)
-        all_maxdegrees[i, :timesteps] = np.mean(model.maxdegrees_l, axis=0)
-        
+  
         # Create individual model data
         individual_model_data = pd.DataFrame({
             't': np.arange(timesteps),
@@ -1482,20 +1458,12 @@ def saveavgdata(models, filename, args):
     # Calculate averages using NumPy functions
     avg_states = np.nanmean(all_states, axis=0)
     avg_statesds = np.nanmean(all_statesds, axis=0)
-    avg_degrees = np.nanmean(all_degrees, axis=0)
-    degree_sd = np.nanstd(all_degrees, axis=0)
-    avg_mindegrees = np.nanmean(all_mindegrees, axis=0)
-    avg_maxdegrees = np.nanmean(all_maxdegrees, axis=0)
     
     # Create a dictionary for the averaged data across all models
     avg_model_data = {
         't': np.arange(max_timesteps),
         'avg_state': avg_states,
         'std_states': avg_statesds,
-        'avgdegree': avg_degrees,
-        'degreeSD': degree_sd,
-        'mindegree': avg_mindegrees,
-        'maxdegree': avg_maxdegrees,
         'scenario': args["rewiringAlgorithm"],
         'rewiring': args["rewiringMode"],
         'type': args["type"]
