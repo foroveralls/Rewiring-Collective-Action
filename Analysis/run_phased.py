@@ -171,8 +171,7 @@ def main():
         # Optimize data types
         combined_avg_df = combined_avg_df.astype({
             't': 'int32', 'avg_state': 'float32', 'std_states': 'float32',
-            'avgdegree': 'float32', 'degreeSD': 'float32', 'mindegree': 'float32',
-            'maxdegree': 'float32', 'scenario': 'category', 'rewiring': 'category', 'type': 'category'
+            'scenario': 'category', 'rewiring': 'category', 'type': 'category'
         })
         
         combined_individual_df = combined_individual_df.astype({
