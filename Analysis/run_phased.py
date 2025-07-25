@@ -41,7 +41,9 @@ def run_algorithm_phase(algo_scenarios, numberOfSimulations, base_args):
     """Run all scenarios for a single algorithm - one topology at a time"""
     numberOfProcessors = get_optimal_process_count()
     
-    print(f"\n=== PHASE: {algo_scenarios[0][0].upper()}_{algo_scenarios[0][1].upper()} ===")
+    # Fix: Get algorithm name correctly
+    algo_name = algo_scenarios[0][0].upper()
+    print(f"\n=== PHASE: {algo_name} ===")
     print(f"Scenarios: {len(algo_scenarios)}")
     print(f"Sims per scenario: {numberOfSimulations}")
     print(f"Processors: {numberOfProcessors}")
@@ -50,11 +52,14 @@ def run_algorithm_phase(algo_scenarios, numberOfSimulations, base_args):
     
     # Group by topology within this algorithm
     topology_groups = {}
-    for scenario in algo_scenarios:
-        topology = scenario[2]
+    for scenario, rewiring, topology in algo_scenarios:  # Fix: Unpack explicitly
         if topology not in topology_groups:
             topology_groups[topology] = []
-        topology_groups[topology].append(scenario)
+        topology_groups[topology].append((scenario, rewiring, topology))
+    
+    # Debug: Print topology groups
+    for topo, scenarios in topology_groups.items():
+        print(f"  DEBUG: {topo} has {len(scenarios)} scenarios: {[(s[0], s[1]) for s in scenarios]}")
     
     # Run each topology sequentially
     for topology, topo_scenarios in topology_groups.items():
@@ -64,21 +69,21 @@ def run_algorithm_phase(algo_scenarios, numberOfSimulations, base_args):
         lock = multiprocessing.Lock()
         with multiprocessing.Pool(processes=numberOfProcessors, initializer=init, initargs=(lock,)) as pool:
             
-            for i, v, k in topo_scenarios:
+            for scenario, rewiring, topology_name in topo_scenarios:  # Fix: Unpack explicitly
                 start_scenario = time.time()
-                print(f"    Running: {i}_{v}_{k}")
+                print(f"    Running: {scenario}_{rewiring}_{topology_name}")
                 
                 # Network config (unchanged)
-                if k == "Twitter":
+                if topology_name == "Twitter":
                     top_file, nwsize = "twitter_graph_N_789.gpickle", 789
-                elif k == "FB":
+                elif topology_name == "FB":
                     top_file, nwsize = "FB_graph_N_786.gpickle", 786
                 else:
                     top_file, nwsize = None, 800
                 
                 sim_args = {
-                    "rewiringAlgorithm": i, "nwsize": nwsize, "rewiringMode": v, 
-                    "type": k, "top_file": top_file, "polarisingNode_f": 0.10, 
+                    "rewiringAlgorithm": scenario, "nwsize": nwsize, "rewiringMode": rewiring, 
+                    "type": topology_name, "top_file": top_file, "polarisingNode_f": 0.10, 
                     "timesteps": 60000, "plot": False
                 }
                 
@@ -91,12 +96,12 @@ def run_algorithm_phase(algo_scenarios, numberOfSimulations, base_args):
                 # Verify consistency (unchanged)
                 algos = [str(m.algo) for m in sims]
                 if len(set(algos)) > 1:
-                    raise ValueError(f"Mixed algorithms in {i}_{v}_{k}: {set(algos)}")
+                    raise ValueError(f"Mixed algorithms in {scenario}_{rewiring}_{topology_name}: {set(algos)}")
                 
                 assert sim_args["rewiringAlgorithm"] == str(sims[0].algo), "Inconsistent algo"
                 
                 # Save and collect results (unchanged)
-                fname = f'../Output/{i}_linkif_{v}_top_{k}.csv'
+                fname = f'../Output/{scenario}_linkif_{rewiring}_top_{topology_name}.csv'
                 result = models_checks.saveavgdata(sims, fname, args=sim_args)
                 phase_results.append(result)
                 
