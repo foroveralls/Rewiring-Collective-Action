@@ -10,7 +10,7 @@ from matplotlib.gridspec import GridSpec
 
 # Line width parameters
 line_params = {
-    "data_line_width": 0.5,
+    "data_line_width": 0.8,
     "axis_line_width": 0.8,
     "grid_line_width": 0.5,
     "tick_major_width": 0.8,
@@ -50,7 +50,6 @@ def set_plot_style():
         'xtick.labelsize': FONT_SIZE,
         'ytick.labelsize': FONT_SIZE,
         'axes.linewidth': line_params["axis_line_width"],
-        'lines.linewidth': 1.5,
         'figure.dpi': 300,
         'savefig.dpi': 300,
         'figure.figsize': (17.8*cm, 8.9*cm),
@@ -175,7 +174,7 @@ def plot_network_dynamics(data, t_max=50, scale_type='linear', output_file=None)
         legend=False
     )
 
-    g.fig.set_size_inches(11.8*cm, 11*cm)
+    g.fig.set_size_inches(17.8*cm, 13*cm)
     
     # Add polarization lines
     for ax_idx, ax in enumerate(g.axes.flat):
@@ -219,11 +218,11 @@ def plot_network_dynamics(data, t_max=50, scale_type='linear', output_file=None)
     g.set_axis_labels(xlabel, "Cooperativity, ⟨a⟩")
     
     # Adjust spacing
-    g.fig.subplots_adjust(top=0.84, bottom=0.20, hspace=0.45, wspace=0.28, left=0.1, right=0.95)
+    g.fig.subplots_adjust(top=0.84, bottom=0.20, hspace=0.25, wspace=0.28, left=0.1, right=0.95)
     
     # Add legends
     fig = g.fig
-    legend_ax = fig.add_axes([0.15, 0.90, 0.7, 0.04])
+    legend_ax = fig.add_axes([0.15, 0.88, 0.7, 0.04])
     legend_ax.axis('off')
     
     line_style_elements = [
@@ -233,7 +232,7 @@ def plot_network_dynamics(data, t_max=50, scale_type='linear', output_file=None)
     legend_ax.legend(handles=line_style_elements, ncol=2, loc='center', 
                     frameon=True, bbox_to_anchor=(0.5, 0.5))
 
-    bottom_legend_ax = fig.add_axes([0.15, 0.03, 0.7, 0.05])
+    bottom_legend_ax = fig.add_axes([0.15, 0.05, 0.7, 0.05])
     bottom_legend_ax.axis('off')
     
     color_elements = [
