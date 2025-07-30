@@ -823,7 +823,7 @@ class Model:
         # PageRank with stricter convergence for determinism
         pp = {node: 0.0 for node in G.nodes()}
         pp[nodeIndex] = 1.0
-        pr = rx.pagerank(G, alpha=0.70, personalization=pp, max_iter=100, tolerance=1e-6)
+        pr = rx.pagerank(G, alpha=0.70, personalization=pp, max_iter=100)
         
         pr_values = np.array(list(pr.values()))
         pr_indices = np.argsort(pr_values)[::-1]
@@ -855,7 +855,7 @@ class Model:
         if edge_list:
             BG.add_edges_from(edge_list)
             try:
-                centrality = rx.eigenvector_centrality(BG, max_iter=100, tolerance=1e-6)
+                centrality = rx.eigenvector_centrality(BG, max_iter=100)
             except:
                 return np.array([])
                 
