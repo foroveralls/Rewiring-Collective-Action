@@ -152,7 +152,7 @@ def main():
     combined_list_rand = [("random", "None", topology) for topology in directed_topology_list + undirected_topology_list]
     
     combined_list = combined_list1 + combined_list_rand + combined_list2 + combined_list3 + combined_list4
-    #combined_list = combined_list_rand
+    combined_list = combined_list4 
     # Group scenarios by algorithm (now isolates subvariants)
     algo_groups = group_scenarios_by_algorithm(combined_list)
     base_args = models_checks.getargs()

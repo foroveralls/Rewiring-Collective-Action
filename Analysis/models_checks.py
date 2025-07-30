@@ -817,90 +817,114 @@ class Model:
           
 
     def _get_personalized_recommendations(self, nodeIndex, topk=5):
-        """Get personalized recommendations for a specific node"""
-        # Convert NetworkX graph to rustworkx graph
+        """Get personalized recommendations with deterministic behavior"""
         G = rx.networkx_converter(self.graph)
         
-        # Get circle of trust for this specific node
-        pp = {node: 0 for node in G.nodes()}
+        # PageRank with stricter convergence for determinism
+        pp = {node: 0.0 for node in G.nodes()}
         pp[nodeIndex] = 1.0
-        pr = rx.pagerank(G, alpha=0.70, personalization=pp, max_iter=50)
+        pr = rx.pagerank(G, alpha=0.70, personalization=pp, max_iter=100, tolerance=1e-6)
+        
         pr_values = np.array(list(pr.values()))
         pr_indices = np.argsort(pr_values)[::-1]
         pr_indices = pr_indices[pr_indices != nodeIndex][:topk]
         cot = pr_indices
         
-        # Use SALSA to get recommendations based on this node's circle of trust
+        if len(cot) == 0:
+            return np.array([])
+        
+        # Build bipartite graph with deterministic ordering
         BG = rx.PyGraph()
-        hubs = [f'h{vi}' for vi in cot]
+        hubs = [f'h{vi}' for vi in sorted(cot)]
         hub_indices = BG.add_nodes_from(hubs)
-        edges = [(f'h{vi}', vj) for vi in cot for vj in G.neighbors(vi)]
-        authorities = list(set(e[1] for e in edges))
+        
+        # Efficient edge collection with list comprehension
+        edges = [(f'h{vi}', vj) for vi in sorted(cot) for vj in sorted(G.neighbors(vi))]
+        
+        # Set comprehension (no intermediate list)
+        authorities = sorted({e[1] for e in edges})
         auth_indices = BG.add_nodes_from(authorities)
         
         hub_index_map = {h: idx for idx, h in enumerate(hubs)}
         auth_index_map = {a: idx for idx, a in enumerate(authorities)}
         
-        edges = [(hub_index_map[f'h{vi}'], auth_index_map[vj]) for vi, vj in edges 
-                 if f'h{vi}' in hub_index_map and vj in auth_index_map]
+        edge_list = [(hub_index_map[f'h{vi}'], auth_index_map[vj]) 
+                     for vi, vj in edges 
+                     if f'h{vi}' in hub_index_map and vj in auth_index_map]
         
-        BG.add_edges_from(edges)
-        centrality = rx.eigenvector_centrality(BG)
-        centrality = {n: c for n, c in centrality.items() 
-                      if isinstance(n, int) and n not in cot and n != nodeIndex 
-                      and n not in G.neighbors(nodeIndex)}
-        sorted_centrality = sorted(centrality.items(), key=lambda item: item[1], reverse=True)
-        recommendations = np.array([n for n, _ in sorted_centrality[:topk]])
+        if edge_list:
+            BG.add_edges_from(edge_list)
+            try:
+                centrality = rx.eigenvector_centrality(BG, max_iter=100, tolerance=1e-6)
+            except:
+                return np.array([])
+                
+            # Filter and return in one operation
+            filtered = {n: c for n, c in centrality.items() 
+                       if (isinstance(n, int) and n not in cot and n != nodeIndex 
+                           and n not in G.neighbors(nodeIndex))}
+            
+            if filtered:
+                return np.array([n for n, _ in sorted(filtered.items(), 
+                                                    key=lambda x: (-x[1], x[0]))[:topk]])
         
-        return recommendations
-      
+        return np.array([])
+
+          
 
     def wtf_rewire(self, nodeIndex):
-        """Rewire based on personalized recommendations"""
-        # Get personalized recommendations for this node
-        recommendations = self._get_personalized_recommendations(nodeIndex)
+        """Rewire based on cached personalized recommendations"""
+        # Get cached recommendations (managed by call_wtf)
+        recommendations = getattr(self, 'wtf_cache', {}).get(nodeIndex, [])
         
-        # If no recommendations, return False
         if len(recommendations) == 0:
             return False
         
-        # Find the first recommended node that's not already a neighbor
+        # Find first non-neighbor recommendation
         neighbours = list(self.graph.adj[nodeIndex].keys())
-        rewireIndex = None
-        
         for rec in recommendations:
             if rec not in neighbours:
-                rewireIndex = rec
-                break
+                rewired = self.rewire(nodeIndex, rec)
+                
+                if rewired and random.random() < breaklinkprob and len(neighbours) > 0:
+                    breaklinkNeighbourIndex = neighbours[random.randint(0, len(neighbours)-1)]
+                    self.graph.remove_edge(nodeIndex, breaklinkNeighbourIndex)
+                    self.affected_nodes += [nodeIndex, rec, breaklinkNeighbourIndex]
+                    
+                    # Force refresh for affected nodes on next interaction
+                    if hasattr(self, 'node_interaction_count'):
+                        cache_threshold = 7
+                        for node in [nodeIndex, rec, breaklinkNeighbourIndex]:
+                            if node in self.node_interaction_count:
+                                self.node_interaction_count[node] = cache_threshold
+                                
+                return rewired
         
-        # If no valid recommendation found
-        if rewireIndex is None:
-            return False
-        
-        # Rewire to the recommended node
-        rewired = self.rewire(nodeIndex, rewireIndex)
-        
-        # If rewired successfully, break an existing link
-        if rewired and random.random() < breaklinkprob:
-            
-            breaklinkNeighbourIndex = neighbours[random.randint(0, len(neighbours)-1)]
-            self.graph.remove_edge(nodeIndex, breaklinkNeighbourIndex)
-            self.affected_nodes += [nodeIndex, rewireIndex, breaklinkNeighbourIndex]
-            
-        return rewired
+        return False
             
     def call_wtf(self, nodeIndex):
-        #checking if the ranking has been affected by rewiring previously
-        # if not self.trained and nodeIndex in self.affected_nodes:
-        #     #self.retrain += 1 
-        #     self.wtf_1()
-        #     self.affected_nodes = []
-        #     self.trained = True
+        """WTF with realistic per-node caching strategy"""
+        # Initialize cache tracking
+        if not hasattr(self, 'wtf_cache'):
+            self.wtf_cache = {}
+            self.node_interaction_count = {}
         
+        # Check if node needs fresh recommendations
+        node_interactions = self.node_interaction_count.get(nodeIndex, 0)
+        cache_threshold = 10  # Refresh every 7 interactions
+        
+        needs_refresh = (nodeIndex not in self.wtf_cache or 
+                        node_interactions >= cache_threshold)
+        
+        if needs_refresh:
+            self.wtf_cache[nodeIndex] = self._get_personalized_recommendations(nodeIndex)
+            self.node_interaction_count[nodeIndex] = 0
+        
+        # Attempt rewiring with cached recommendations
         self.wtf_rewire(nodeIndex)
         
-        # if rewired:
-        #     self.trained = False
+        # Track this interaction
+        self.node_interaction_count[nodeIndex] = node_interactions + 1
     
 
 
