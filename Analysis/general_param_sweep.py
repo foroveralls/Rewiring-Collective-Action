@@ -15,21 +15,21 @@ def init(lock_):
 
 def get_adaptive_timesteps(algo, topology, mode="None", base=45000):
     factors = {
-        ("DPAH", "biased", "same"): 2.0, ("DPAH", "biased", "diff"): 1.4,
-        ("DPAH", "bridge", "same"): 1.7, ("DPAH", "bridge", "diff"): 1.4,
-        ("Twitter", "biased", "same"): 1.8, ("Twitter", "biased", "diff"): 1.8,
-        ("Twitter", "bridge", "same"): 1.8, ("Twitter", "bridge", "diff"): 1.8,
-        ("DPAH", "random"): 0.9, ("Twitter", "random"): 0.9,
-        ("DPAH", "node2vec"): 1.4, ("Twitter", "node2vec"): 1.0,
-        ("DPAH", "wtf"): 0.8, ("Twitter", "wtf"): 1.2,
-        ("DPAH", "None"): 1.1, ("Twitter", "None"): 1.0,
-        ("cl", "biased", "same"): 1.75, ("cl", "biased", "diff"): 1.9,
-        ("cl", "bridge", "same"): 1.1, ("cl", "bridge", "diff"): 1.9,
-        ("FB", "biased", "same"): 1.35, ("FB", "biased", "diff"): 1.9,
-        ("FB", "bridge", "same"): 1.35, ("FB", "bridge", "diff"): 1.9,
-        ("cl", "random"): 0.8, ("FB", "random"): 0.8,
-        ("cl", "node2vec"): 0.8, ("FB", "node2vec"): 0.9,
-        ("cl", "None"): 0.8, ("FB", "None"): 0.8
+        ("DPAH", "biased", "same"): 3.0, ("DPAH", "biased", "diff"): 1.4,
+        ("DPAH", "bridge", "same"): 2.0, ("DPAH", "bridge", "diff"): 1.4,
+        ("Twitter", "biased", "same"): 3.0, ("Twitter", "biased", "diff"): 3.0,
+        ("Twitter", "bridge", "same"): 3.0, ("Twitter", "bridge", "diff"): 3.0,
+        ("DPAH", "random"): 1, ("Twitter", "random"): 0.9,
+        ("DPAH", "node2vec"): 1.2, ("Twitter", "node2vec"): 1.4,
+        ("DPAH", "wtf"): 2.0, ("Twitter", "wtf"): 1.3,
+        ("DPAH", "None"): 1.1, ("Twitter", "None"): 1.3,
+        ("cl", "biased", "same"): 2.0, ("cl", "biased", "diff"): 3.0,
+        ("cl", "bridge", "same"): 2.0, ("cl", "bridge", "diff"): 3.0,
+        ("FB", "biased", "same"): 3.0, ("FB", "biased", "diff"): 3.0,
+        ("FB", "bridge", "same"): 3.0, ("FB", "bridge", "diff"): 3.0,
+        ("cl", "random"): 0.9, ("FB", "random"): 0.9,
+        ("cl", "node2vec"): 0.9, ("FB", "node2vec"): 0.9,
+        ("cl", "None"): 0.9, ("FB", "None"): 0.8
     }
     key = (topology, algo, mode) if mode != "None" else (topology, algo)
     factor = factors.get(key, factors.get((topology, algo), 1.0))

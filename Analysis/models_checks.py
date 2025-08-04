@@ -1579,11 +1579,47 @@ def test_consistency():
         
         print(f"Test {expected}: {consistent} (got {set(algos)})")
 
+
+def test_tmax_dependency():
+    """Test if t_max affects local(similar) algorithm consistency"""
+
+    
+    base_args = {
+        "rewiringAlgorithm": "biased", "rewiringMode": "same", 
+        "type": "cl", "nwsize": 300, "seed": 42, "plot": False
+    }
+    
+    fig, axes = plt.subplots(1, 3, figsize=(15, 4))
+    
+    for i in range(5):
+        short_args = {**getargs(), **base_args, "timesteps": 10000}
+        long_args = {**getargs(), **base_args, "timesteps": 50000}
+        
+        model_short = simulate(i, short_args)
+        model_long = simulate(i, long_args)
+        
+        states_short = np.array(model_short.states)
+        states_long = np.array(model_long.states)
+        
+        # Plot both trajectories
+        axes[i].plot(states_short, 'b-', label='t_max=10k', linewidth=2)
+        axes[i].plot(states_long[:10000], 'r--', label='t_max=50k (first 10k)', linewidth=1)
+        axes[i].set_title(f'Run {i}')
+        axes[i].set_ylim(-1, 1)
+        axes[i].legend()
+        
+        # Check difference
+        max_diff = np.max(np.abs(states_short - states_long[:10000]))
+        print(f"Run {i}: Max difference = {max_diff:.10f}")
+    
+    plt.tight_layout()
+    plt.show()
     
 if  __name__ ==  '__main__': 
-    start = time.time()
-    models = test_run()
+    #start = time.time()
+    #models = test_run()
     #test_consistency()
+    test_tmax_dependency()
     end = time.time()
     mins = (end - start) / 60
     sec = (end - start) % 60
