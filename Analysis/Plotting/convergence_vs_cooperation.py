@@ -118,11 +118,11 @@ def plot_pareto_analysis(metrics_df, output_path):
     # Topology markers
     topology_markers = {'DPAH': 'x', 'cl': '+', 'Twitter': '*', 'FB': '.'}
     
-    # Plot dominated points
+   # Plot dominated points
     for i, (idx, row) in enumerate(dominated_data.iterrows()):
         color = FRIENDLY_COLORS.get(row['scenario'], 'black')
         marker = topology_markers.get(row['topology'], 'o')
-        size = 80 if marker == '.' else 60
+        size = 50 if marker == '.' else 40  # Reduced from 80/60
         
         ax.scatter(speed_ranks.loc[idx], coop_ranks.loc[idx], c=color, marker=marker,
                   s=size, alpha=0.7, edgecolors='black', linewidth=0.5)
@@ -132,7 +132,7 @@ def plot_pareto_analysis(metrics_df, output_path):
     for i, (idx, row) in enumerate(pareto_data.iterrows()):
         color = FRIENDLY_COLORS.get(row['scenario'], 'black')
         marker = topology_markers.get(row['topology'], 'o')
-        size = 120 if marker == '.' else 100
+        size = 80 if marker == '.' else 70  # Reduced from 120/100
         
         x_rank, y_rank = speed_ranks.loc[idx], coop_ranks.loc[idx]
         ax.scatter(x_rank, y_rank, c=color, marker=marker,
