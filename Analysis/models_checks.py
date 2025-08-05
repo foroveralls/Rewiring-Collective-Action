@@ -108,6 +108,7 @@ lock = None
 #print(os.getcwd())
 # the arguments provided in run.py overrides these values
 args = {"defectorUtility" : defectorUtility, 
+        "wtf_freq": 10,
         "politicalClimate" : politicalClimate, 
         "stubbornness": stubbornness, "degree":degree, "timesteps" : timesteps, "continuous" : continuous, "type" : gridtype, "skew": skew, "initSD": initSD, "newPoliticalClimate": newPoliticalClimate, "randomness" : randomness, "friendship" : friendship, "friendshipSD" : friendshipSD, "clustering" : clustering,
         "rewiringAlgorithm" : rewiringAlgorithm,
@@ -283,6 +284,7 @@ class Model:
         self.lock = lock
         self.process_id = os.getpid()
         self.degree_distributions = {}
+        self.wtf_cache_threshold = args.get("wtf_freq", 10)
         
          
     
@@ -911,7 +913,7 @@ class Model:
         
         # Check if node needs fresh recommendations
         node_interactions = self.node_interaction_count.get(nodeIndex, 0)
-        cache_threshold = 10  # Refresh every 7 interactions
+        cache_threshold = self.wtf_cache_threshold 
         
         needs_refresh = (nodeIndex not in self.wtf_cache or 
                         node_interactions >= cache_threshold)
@@ -1621,10 +1623,10 @@ def test_wtf_update_rates():
     """Test WTF performance under different cache update rates"""
     import matplotlib.pyplot as plt
     
-    rates = [1, 5, 10, 25, 50]  # Cache thresholds (interactions before refresh)
+    rates = [1, 5, 10, 25, 50]
     n_runs, timesteps = 2, 15000
     
-    base_args = {**getargs(), "type": "cl", "nwsize": 300, "timesteps": timesteps, 
+    base_args = {**getargs(), "type": "DPAH", "nwsize": 300, "timesteps": timesteps, 
                  "rewiringAlgorithm": "wtf", "rewiringMode": "None", "plot": False}
     
     plt.figure(figsize=(12, 8))
@@ -1643,10 +1645,9 @@ def test_wtf_update_rates():
     for rate, color in zip(rates, colors):
         all_states = []
         for i in range(n_runs):
-            model = simulate(i, base_args)
-            # Modify cache threshold post-hoc for testing
-            if hasattr(model, 'call_wtf'):
-                model.cache_threshold = rate
+            # Pass cache threshold as argument
+            wtf_args = {**base_args, "wtf_freq": rate}
+            model = simulate(i, wtf_args)
             all_states.append(model.states)
         
         mean_states = np.mean(all_states, axis=0)
@@ -1659,13 +1660,14 @@ def test_wtf_update_rates():
     plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
     plt.grid(True, alpha=0.3)
     plt.tight_layout()
+    plt.savefig("WTF_test_updaterates.pdf")
     plt.show()
     
     return rates
 
     
 if  __name__ ==  '__main__': 
-    #start = time.time()
+    start = time.time()
     #models = test_run()
     #test_consistency()
     #test_tmax_dependency()
