@@ -1615,11 +1615,61 @@ def test_tmax_dependency():
     plt.tight_layout()
     plt.show()
     
+    
+    
+def test_wtf_update_rates():
+    """Test WTF performance under different cache update rates"""
+    import matplotlib.pyplot as plt
+    
+    rates = [1, 5, 10, 25, 50]  # Cache thresholds (interactions before refresh)
+    n_runs, timesteps = 2, 15000
+    
+    base_args = {**getargs(), "type": "cl", "nwsize": 300, "timesteps": timesteps, 
+                 "rewiringAlgorithm": "wtf", "rewiringMode": "None", "plot": False}
+    
+    plt.figure(figsize=(12, 8))
+    colors = plt.cm.viridis(np.linspace(0, 1, len(rates)))
+    
+    # Static baseline
+    static_args = {**base_args, "rewiringAlgorithm": "None"}
+    static_states = []
+    for i in range(n_runs):
+        model = simulate(i, static_args)
+        static_states.append(model.states)
+    static_mean = np.mean(static_states, axis=0)
+    plt.plot(static_mean, 'k--', linewidth=2, label='Static', alpha=0.8)
+    
+    # Test different WTF update rates
+    for rate, color in zip(rates, colors):
+        all_states = []
+        for i in range(n_runs):
+            model = simulate(i, base_args)
+            # Modify cache threshold post-hoc for testing
+            if hasattr(model, 'call_wtf'):
+                model.cache_threshold = rate
+            all_states.append(model.states)
+        
+        mean_states = np.mean(all_states, axis=0)
+        plt.plot(mean_states, color=color, linewidth=1.5, 
+                label=f'WTF (update every {rate})')
+    
+    plt.xlabel('Time')
+    plt.ylabel('Average Opinion')
+    plt.title('WTF Update Rate Sensitivity Analysis')
+    plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+    plt.grid(True, alpha=0.3)
+    plt.tight_layout()
+    plt.show()
+    
+    return rates
+
+    
 if  __name__ ==  '__main__': 
     #start = time.time()
     #models = test_run()
     #test_consistency()
-    test_tmax_dependency()
+    #test_tmax_dependency()
+    test_wtf_update_rates()
     end = time.time()
     mins = (end - start) / 60
     sec = (end - start) % 60
