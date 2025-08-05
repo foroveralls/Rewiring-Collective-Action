@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 from scipy.ndimage import gaussian_filter1d
 from scipy.optimize import curve_fit
 from scipy.spatial import ConvexHull
+from matplotlib.lines import Line2D
 from datetime import date
 
 cm = 1/2.54
@@ -30,7 +31,7 @@ FRIENDLY_NAMES = {
 def setup_style():
     plt.rcParams.update({
         'font.size': FONT_SIZE, 'pdf.fonttype': 42, 'ps.fonttype': 42,
-        'figure.figsize': (10*cm, 8*cm), 'axes.linewidth': 0.8,
+        'figure.figsize': (8.7*cm, 8*cm), 'axes.linewidth': 0.8,
         'xtick.major.width': 0.8, 'ytick.major.width': 0.8,
         'xtick.labelsize': FONT_SIZE-1, 'ytick.labelsize': FONT_SIZE-1,
         'axes.labelsize': FONT_SIZE, 'axes.titlesize': FONT_SIZE
@@ -94,7 +95,7 @@ def find_pareto_front(metrics_df):
 def plot_pareto_analysis(metrics_df, output_path):
     """Create focused speed vs cooperativity plot with Pareto analysis"""
     setup_style()
-    fig, ax = plt.subplots(figsize=(10*cm, 8*cm))
+    fig, ax = plt.subplots(figsize=(8.7*cm, 8*cm))
     
     # Filter valid data
     valid_mask = (np.isfinite(metrics_df['speed']) & 
@@ -118,11 +119,11 @@ def plot_pareto_analysis(metrics_df, output_path):
     # Topology markers
     topology_markers = {'DPAH': 'x', 'cl': '+', 'Twitter': '*', 'FB': '.'}
     
-   # Plot dominated points
+    # Plot dominated points
     for i, (idx, row) in enumerate(dominated_data.iterrows()):
         color = FRIENDLY_COLORS.get(row['scenario'], 'black')
         marker = topology_markers.get(row['topology'], 'o')
-        size = 50 if marker == '.' else 40  # Reduced from 80/60
+        size = 40 if marker == '.' else 30
         
         ax.scatter(speed_ranks.loc[idx], coop_ranks.loc[idx], c=color, marker=marker,
                   s=size, alpha=0.7, edgecolors='black', linewidth=0.5)
@@ -132,11 +133,11 @@ def plot_pareto_analysis(metrics_df, output_path):
     for i, (idx, row) in enumerate(pareto_data.iterrows()):
         color = FRIENDLY_COLORS.get(row['scenario'], 'black')
         marker = topology_markers.get(row['topology'], 'o')
-        size = 80 if marker == '.' else 70  # Reduced from 120/100
+        size = 60 if marker == '.' else 50
         
         x_rank, y_rank = speed_ranks.loc[idx], coop_ranks.loc[idx]
         ax.scatter(x_rank, y_rank, c=color, marker=marker,
-                  s=size, alpha=0.9, edgecolors='black', linewidth=1.5)
+                  s=size, alpha=0.9, edgecolors='black', linewidth=1.0)
         pareto_points_ranked.append([x_rank, y_rank])
     
     # Draw Pareto front line
@@ -152,35 +153,33 @@ def plot_pareto_analysis(metrics_df, output_path):
     ax.plot([0, 1], [0, 1], 'k--', alpha=0.5, linewidth=0.8, zorder=1)
     
     # Styling
-    ax.set_xlabel('Convergence Speed (Rank Percentile)', fontweight='bold')
-    ax.set_ylabel('Final Cooperativity (Rank Percentile)', fontweight='bold')
+    ax.set_xlabel('Convergence Rate')
+    ax.set_ylabel(r'Final Cooperation, $\langle a \rangle_{t_{end}}$')
     ax.grid(True, alpha=0.3, linewidth=0.4)
-    ax.set_xlim(0, 1)
-    ax.set_ylim(0, 1)
+    ax.set_xlim(0, 1.02)
+    ax.set_ylim(0, 1.02)
     
     # Adjust subplot to make room for legends
-    plt.subplots_adjust(top=0.82, bottom=0.22)
+    plt.subplots_adjust(top=0.81, bottom=0.24)
     
-    # Add legends
-    from matplotlib.lines import Line2D
     
-    # Topology legend at top (horizontal)
-    topo_elements = [Line2D([0], [0], marker=marker, color='gray', linestyle='None', 
-                           markersize=6, label=topo) 
-                    for topo, marker in topology_markers.items()]
-    topo_legend = ax.legend(handles=topo_elements, bbox_to_anchor=(0.5, 1.12), 
-                           loc='center', frameon=True, fontsize=FONT_SIZE-1, 
-                           ncol=4)
-    
-    # Algorithm legend at bottom (horizontal)
+    # Algorithm legend at bottom (horizontal) first
     algo_elements = [Line2D([0], [0], marker='s', color=color, linestyle='None',
                            markersize=4, label=algo)
                     for algo, color in FRIENDLY_COLORS.items() 
                     if algo in valid_data['scenario'].values]
-    ax.add_artist(topo_legend)
-    ax.legend(handles=algo_elements, bbox_to_anchor=(0.5, -0.22), 
-             loc='center', frameon=True, fontsize=FONT_SIZE-1, 
-             ncol=4)
+    algo_legend = ax.legend(handles=algo_elements, bbox_to_anchor=(0.5, -0.25), 
+                           loc='center', columnspacing=0.8, frameon=True, fontsize=FONT_SIZE-2, 
+                           ncol=4)
+    
+    # Topology legend at top using figlegend (more reliable)
+    topo_elements = [Line2D([0], [0], marker=marker, color='black', linestyle='None', 
+                           markersize=5, label=topo) 
+                    for topo, marker in topology_markers.items()]
+    fig.legend(handles=topo_elements, columnspacing=0.8, bbox_to_anchor=(0.53, 0.995), 
+              loc='center', frameon=True, fontsize=FONT_SIZE-2, 
+              ncol=4)
+    
     
     plt.tight_layout()
     plt.savefig(output_path, dpi=300, bbox_inches='tight')
