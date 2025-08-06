@@ -1621,39 +1621,52 @@ def test_tmax_dependency():
     
 def test_wtf_update_rates():
     """Test WTF performance under different cache update rates"""
-    import matplotlib.pyplot as plt
-    
     rates = [1, 5, 10, 25, 50]
-    n_runs, timesteps = 2, 15000
+    n_runs, timesteps = 2, 25000
     
-    base_args = {**getargs(), "type": "DPAH", "nwsize": 300, "timesteps": timesteps, 
+    base_args = {**getargs(), "type": "DPAH", "nwsize": 400, "timesteps": timesteps, 
                  "rewiringAlgorithm": "wtf", "rewiringMode": "None", "plot": False}
     
-    plt.figure(figsize=(12, 8))
-    colors = plt.cm.viridis(np.linspace(0, 1, len(rates)))
+    # Collect all data first
+    all_data = []
     
     # Static baseline
     static_args = {**base_args, "rewiringAlgorithm": "None"}
-    static_states = []
     for i in range(n_runs):
         model = simulate(i, static_args)
-        static_states.append(model.states)
-    static_mean = np.mean(static_states, axis=0)
-    plt.plot(static_mean, 'k--', linewidth=2, label='Static', alpha=0.8)
+        for t, state in enumerate(model.states):
+            all_data.append({'time': t, 'state': state, 'algorithm': 'Static', 'run': i})
     
     # Test different WTF update rates
-    for rate, color in zip(rates, colors):
-        all_states = []
+    for rate in rates:
+        wtf_args = {**base_args, "wtf_cache_threshold": rate}
         for i in range(n_runs):
-            # Pass cache threshold as argument
-            wtf_args = {**base_args, "wtf_freq": rate}
             model = simulate(i, wtf_args)
-            all_states.append(model.states)
-        
-        mean_states = np.mean(all_states, axis=0)
-        plt.plot(mean_states, color=color, linewidth=1.5, 
-                label=f'WTF (update every {rate})')
+            for t, state in enumerate(model.states):
+                all_data.append({'time': t, 'state': state, 'algorithm': f'WTF_{rate})', 'run': i})
     
+    # Convert to DataFrame
+    df = pd.DataFrame(all_data)
+    
+    # Plot all trajectories
+    plt.figure(figsize=(12, 8))
+    colors = ['black'] + list(plt.cm.viridis(np.linspace(0, 1, len(rates))))
+    
+    algorithms = ['Static'] + [f'WTF_{rate})' for rate in rates]
+    
+    for algo, color in zip(algorithms, colors):
+        algo_data = df[df['algorithm'] == algo]
+        mean_trajectory = algo_data.groupby('time')['state'].mean()
+        
+        linestyle = '--' if algo == 'Static' else '-'
+        linewidth = 2 if algo == 'Static' else 1.5
+        alpha = 0.8 if algo == 'Static' else 1.0
+        
+        plt.plot(mean_trajectory.index, mean_trajectory.values, 
+                color=color, linestyle=linestyle, linewidth=linewidth, 
+                alpha=alpha, label=algo)
+    
+    df.to_csv("out.csv")
     plt.xlabel('Time')
     plt.ylabel('Average Opinion')
     plt.title('WTF Update Rate Sensitivity Analysis')
@@ -1663,8 +1676,7 @@ def test_wtf_update_rates():
     plt.savefig("WTF_test_updaterates.pdf")
     plt.show()
     
-    return rates
-
+    return df
     
 if  __name__ ==  '__main__': 
     start = time.time()
