@@ -895,11 +895,11 @@ class Model:
                     
                     # Force refresh for affected nodes on next interaction
                     if hasattr(self, 'node_interaction_count'):
-                        cache_threshold = self.wtf_cache_threshold
+                        # Use self.wtf_cache_threshold instead of hard-coded 7
                         for node in [nodeIndex, rec, breaklinkNeighbourIndex]:
                             if node in self.node_interaction_count:
-                                self.node_interaction_count[node] = cache_threshold
-                                
+                                self.node_interaction_count[node] = self.wtf_cache_threshold
+                    
                 return rewired
         
         return False
@@ -910,6 +910,10 @@ class Model:
         if not hasattr(self, 'wtf_cache'):
             self.wtf_cache = {}
             self.node_interaction_count = {}
+            self.debug_refresh_count = 0
+            self.debug_total_calls = 0
+        
+        self.debug_total_calls += 1
         
         # Check if node needs fresh recommendations
         node_interactions = self.node_interaction_count.get(nodeIndex, 0)
@@ -921,13 +925,13 @@ class Model:
         if needs_refresh:
             self.wtf_cache[nodeIndex] = self._get_personalized_recommendations(nodeIndex)
             self.node_interaction_count[nodeIndex] = 0
+            self.debug_refresh_count += 1
         
         # Attempt rewiring with cached recommendations
         self.wtf_rewire(nodeIndex)
         
-        # Track this interaction
-        self.node_interaction_count[nodeIndex] = node_interactions + 1
-    
+        # Track this interaction AFTER rewiring
+        self.node_interaction_count[nodeIndex] = self.node_interaction_count.get(nodeIndex, 0) + 1
 
 
     def getAvgState(self):
