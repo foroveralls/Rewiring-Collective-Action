@@ -895,7 +895,7 @@ class Model:
                     
                     # Force refresh for affected nodes on next interaction
                     if hasattr(self, 'node_interaction_count'):
-                        cache_threshold = 7
+                        cache_threshold = self.wtf_cache_threshold
                         for node in [nodeIndex, rec, breaklinkNeighbourIndex]:
                             if node in self.node_interaction_count:
                                 self.node_interaction_count[node] = cache_threshold
