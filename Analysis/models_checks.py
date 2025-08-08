@@ -819,10 +819,10 @@ class Model:
           
 
     def _get_personalized_recommendations(self, nodeIndex, topk=5):
-        """Get personalized recommendations with deterministic behavior"""
+        """Get personalized recommendations with controlled randomness"""
         G = rx.networkx_converter(self.graph)
         
-        # PageRank with stricter convergence for determinism
+        # PageRank (keep deterministic for quality)
         pp = {node: 0.0 for node in G.nodes()}
         pp[nodeIndex] = 1.0
         pr = rx.pagerank(G, alpha=0.70, personalization=pp, max_iter=100)
@@ -835,15 +835,12 @@ class Model:
         if len(cot) == 0:
             return np.array([])
         
-        # Build bipartite graph with deterministic ordering
+        # Build bipartite graph (keep deterministic structure)
         BG = rx.PyGraph()
         hubs = [f'h{vi}' for vi in sorted(cot)]
         hub_indices = BG.add_nodes_from(hubs)
         
-        # Efficient edge collection with list comprehension
         edges = [(f'h{vi}', vj) for vi in sorted(cot) for vj in sorted(G.neighbors(vi))]
-        
-        # Set comprehension (no intermediate list)
         authorities = sorted({e[1] for e in edges})
         auth_indices = BG.add_nodes_from(authorities)
         
@@ -861,30 +858,53 @@ class Model:
             except:
                 return np.array([])
                 
-            # Filter and return in one operation
+            # Filter candidates
             filtered = {n: c for n, c in centrality.items() 
                        if (isinstance(n, int) and n not in cot and n != nodeIndex 
                            and n not in G.neighbors(nodeIndex))}
             
             if filtered:
-                return np.array([n for n, _ in sorted(filtered.items(), 
-                                                    key=lambda x: (-x[1], x[0]))[:topk]])
+                # CRITICAL CHANGE: Add randomness to final selection
+                candidates = list(filtered.items())
+                
+                # Take top candidates (preserve quality)
+                candidates.sort(key=lambda x: -x[1])
+                n_candidates = min(len(candidates), topk * 2)  # 2x oversampling
+                top_candidates = candidates[:n_candidates]
+                
+                # Random selection from top candidates (add stochasticity)
+                if len(top_candidates) <= topk:
+                    return np.array([n for n, _ in top_candidates])
+                else:
+                    # Weighted random sampling from top candidates
+                    weights = np.array([c for _, c in top_candidates])
+                    weights = weights / weights.sum()  # Normalize
+                    
+                    selected_indices = np.random.choice(
+                        len(top_candidates), 
+                        size=min(topk, len(top_candidates)), 
+                        replace=False, 
+                        p=weights
+                    )
+                    return np.array([top_candidates[i][0] for i in selected_indices])
         
         return np.array([])
 
           
 
     def wtf_rewire(self, nodeIndex):
-        """Rewire based on cached personalized recommendations"""
-        # Get cached recommendations (managed by call_wtf)
+        """Rewire with randomized recommendation order"""
         recommendations = getattr(self, 'wtf_cache', {}).get(nodeIndex, [])
         
         if len(recommendations) == 0:
             return False
         
-        # Find first non-neighbor recommendation
+        # Shuffle recommendations to add path variety
+        rec_list = list(recommendations)
+        np.random.shuffle(rec_list)  # Randomize order of trying recommendations
+        
         neighbours = list(self.graph.adj[nodeIndex].keys())
-        for rec in recommendations:
+        for rec in rec_list:
             if rec not in neighbours:
                 rewired = self.rewire(nodeIndex, rec)
                 
@@ -893,9 +913,8 @@ class Model:
                     self.graph.remove_edge(nodeIndex, breaklinkNeighbourIndex)
                     self.affected_nodes += [nodeIndex, rec, breaklinkNeighbourIndex]
                     
-                    # Force refresh for affected nodes on next interaction
+                    # Force refresh for affected nodes
                     if hasattr(self, 'node_interaction_count'):
-                        # Use self.wtf_cache_threshold instead of hard-coded 7
                         for node in [nodeIndex, rec, breaklinkNeighbourIndex]:
                             if node in self.node_interaction_count:
                                 self.node_interaction_count[node] = self.wtf_cache_threshold
