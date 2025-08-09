@@ -8,3 +8,6 @@ Analysis/embeddings.emb
 Analysis/graph.edgelist
 Analysis/Old_other
 Auxillary/__pycache__
+Analysis/wtf_out.csv
+Analysis/wtf_out_slow.csv
+Analysis/wtf_out_low.csv
