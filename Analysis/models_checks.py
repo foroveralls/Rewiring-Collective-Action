@@ -819,137 +819,119 @@ class Model:
           
 
     def _get_personalized_recommendations(self, nodeIndex, topk=5):
-        """Get personalized recommendations with controlled randomness"""
+        """Get personalized recommendations using PageRank + SALSA"""
         G = rx.networkx_converter(self.graph)
         
-        # PageRank (keep deterministic for quality)
         pp = {node: 0.0 for node in G.nodes()}
         pp[nodeIndex] = 1.0
-        pr = rx.pagerank(G, alpha=0.70, personalization=pp, max_iter=100)
         
-        pr_values = np.array(list(pr.values()))
-        pr_indices = np.argsort(pr_values)[::-1]
-        pr_indices = pr_indices[pr_indices != nodeIndex][:topk]
-        cot = pr_indices
+        try:
+            pr = rx.pagerank(G, alpha=0.70, personalization=pp, max_iter=100)
+        except:
+            return np.array([])
+        
+        current_neighbors = set(G.neighbors(nodeIndex))
+        pr_candidates = [(node, score) for node, score in pr.items() 
+                        if node != nodeIndex and node not in current_neighbors]
+        
+        if len(pr_candidates) == 0:
+            return np.array([])
+        
+        pr_candidates.sort(key=lambda x: -x[1])
+        cot = [node for node, _ in pr_candidates[:topk]]
         
         if len(cot) == 0:
             return np.array([])
         
-        # Build bipartite graph (keep deterministic structure)
         BG = rx.PyGraph()
-        hubs = [f'h{vi}' for vi in sorted(cot)]
-        hub_indices = BG.add_nodes_from(hubs)
+        hubs = [f'h{vi}' for vi in cot]
+        BG.add_nodes_from(hubs)
         
-        edges = [(f'h{vi}', vj) for vi in sorted(cot) for vj in sorted(G.neighbors(vi))]
-        authorities = sorted({e[1] for e in edges})
-        auth_indices = BG.add_nodes_from(authorities)
+        edges = []
+        authorities = set()
+        for vi in cot:
+            neighbors = list(G.neighbors(vi))
+            for vj in neighbors:
+                if vj != nodeIndex and vj not in current_neighbors:
+                    edges.append((f'h{vi}', vj))
+                    authorities.add(vj)
         
-        hub_index_map = {h: idx for idx, h in enumerate(hubs)}
-        auth_index_map = {a: idx for idx, a in enumerate(authorities)}
+        if len(authorities) == 0:
+            return np.array(cot[:topk])
         
-        edge_list = [(hub_index_map[f'h{vi}'], auth_index_map[vj]) 
-                     for vi, vj in edges 
-                     if f'h{vi}' in hub_index_map and vj in auth_index_map]
+        BG.add_nodes_from(list(authorities))
         
-        if edge_list:
-            BG.add_edges_from(edge_list)
+        hub_map = {name: i for i, name in enumerate(hubs)}
+        auth_map = {name: i + len(hubs) for i, name in enumerate(authorities)}
+        
+        edge_indices = []
+        for hub_name, auth_name in edges:
+            if hub_name in hub_map and auth_name in auth_map:
+                edge_indices.append((hub_map[hub_name], auth_map[auth_name]))
+        
+        if edge_indices:
+            BG.add_edges_from_no_data(edge_indices)
+            
             try:
                 centrality = rx.eigenvector_centrality(BG, max_iter=100)
-            except:
-                return np.array([])
                 
-            # Filter candidates
-            filtered = {n: c for n, c in centrality.items() 
-                       if (isinstance(n, int) and n not in cot and n != nodeIndex 
-                           and n not in G.neighbors(nodeIndex))}
-            
-            if filtered:
-                # CRITICAL CHANGE: Add randomness to final selection
-                candidates = list(filtered.items())
+                auth_scores = {}
+                for auth_name, auth_idx in auth_map.items():
+                    if auth_idx in centrality:
+                        auth_scores[auth_name] = centrality[auth_idx]
                 
-                # Take top candidates (preserve quality)
-                candidates.sort(key=lambda x: -x[1])
-                n_candidates = min(len(candidates), topk * 2)  # 2x oversampling
-                top_candidates = candidates[:n_candidates]
-                
-                # Random selection from top candidates (add stochasticity)
-                if len(top_candidates) <= topk:
-                    return np.array([n for n, _ in top_candidates])
-                else:
-                    # Weighted random sampling from top candidates
-                    weights = np.array([c for _, c in top_candidates])
-                    weights = weights / weights.sum()  # Normalize
+                if auth_scores:
+                    top_auths = sorted(auth_scores.items(), key=lambda x: -x[1])
+                    return np.array([node for node, _ in top_auths[:topk]])
                     
-                    selected_indices = np.random.choice(
-                        len(top_candidates), 
-                        size=min(topk, len(top_candidates)), 
-                        replace=False, 
-                        p=weights
-                    )
-                    return np.array([top_candidates[i][0] for i in selected_indices])
+            except:
+                pass
         
-        return np.array([])
+        return np.array(cot[:topk])
 
           
 
     def wtf_rewire(self, nodeIndex):
-        """Rewire with randomized recommendation order"""
+        """Rewire using cached recommendations"""
         recommendations = getattr(self, 'wtf_cache', {}).get(nodeIndex, [])
         
         if len(recommendations) == 0:
             return False
         
-        # Shuffle recommendations to add path variety
-        rec_list = list(recommendations)
-        np.random.shuffle(rec_list)  # Randomize order of trying recommendations
-        
         neighbours = list(self.graph.adj[nodeIndex].keys())
-        for rec in rec_list:
+        for rec in recommendations:
             if rec not in neighbours:
-                rewired = self.rewire(nodeIndex, rec)
-                
-                if rewired and random.random() < breaklinkprob and len(neighbours) > 0:
-                    breaklinkNeighbourIndex = neighbours[random.randint(0, len(neighbours)-1)]
-                    self.graph.remove_edge(nodeIndex, breaklinkNeighbourIndex)
-                    self.affected_nodes += [nodeIndex, rec, breaklinkNeighbourIndex]
+                if random.random() < self.local_args["establishlinkprob"]:
+                    weight = self.getFriendshipWeight()
+                    self.graph.add_edge(nodeIndex, rec, weight=weight)
                     
-                    # Force refresh for affected nodes
-                    if hasattr(self, 'node_interaction_count'):
-                        for node in [nodeIndex, rec, breaklinkNeighbourIndex]:
-                            if node in self.node_interaction_count:
-                                self.node_interaction_count[node] = self.wtf_cache_threshold
+                    if random.random() < self.local_args["breaklinkprob"] and len(neighbours) > 0:
+                        breaklinkNeighbourIndex = neighbours[random.randint(0, len(neighbours)-1)]
+                        self.graph.remove_edge(nodeIndex, breaklinkNeighbourIndex)
                     
-                return rewired
+                    return True
         
         return False
             
     def call_wtf(self, nodeIndex):
-        """WTF with realistic per-node caching strategy"""
-        # Initialize cache tracking
+        """WTF with per-node caching strategy"""
         if not hasattr(self, 'wtf_cache'):
             self.wtf_cache = {}
             self.node_interaction_count = {}
-            self.debug_refresh_count = 0
-            self.debug_total_calls = 0
         
-        self.debug_total_calls += 1
-        
-        # Check if node needs fresh recommendations
         node_interactions = self.node_interaction_count.get(nodeIndex, 0)
-        cache_threshold = self.wtf_cache_threshold 
+        cache_threshold = self.wtf_cache_threshold
         
         needs_refresh = (nodeIndex not in self.wtf_cache or 
                         node_interactions >= cache_threshold)
         
         if needs_refresh:
-            self.wtf_cache[nodeIndex] = self._get_personalized_recommendations(nodeIndex)
-            self.node_interaction_count[nodeIndex] = 0
-            self.debug_refresh_count += 1
+            new_recs = self._get_personalized_recommendations(nodeIndex)
+            if len(new_recs) > 0:
+                self.wtf_cache[nodeIndex] = new_recs
+                self.node_interaction_count[nodeIndex] = 0
         
-        # Attempt rewiring with cached recommendations
         self.wtf_rewire(nodeIndex)
-        
-        # Track this interaction AFTER rewiring
         self.node_interaction_count[nodeIndex] = self.node_interaction_count.get(nodeIndex, 0) + 1
 
 
