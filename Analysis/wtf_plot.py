@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 # Read data
-df = pd.read_csv("wtf_out_low.csv")
+df = pd.read_csv("wtf_out.csv")
 
 # Get unique algorithms
 algorithms = sorted(df['algorithm'].unique())
