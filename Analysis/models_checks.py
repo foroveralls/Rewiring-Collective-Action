@@ -857,8 +857,10 @@ class Model:
                     authorities.add(vj)
         
         if len(authorities) == 0:
-            return np.array(cot[:topk])
-        
+            # Return next-best PageRank candidates not used in SALSA
+            remaining_pr = [node for node, _ in pr_candidates[topk:topk*3]]
+            return np.array(remaining_pr[:topk])
+            
         BG.add_nodes_from(list(authorities))
         
         hub_map = {name: i for i, name in enumerate(hubs)}
