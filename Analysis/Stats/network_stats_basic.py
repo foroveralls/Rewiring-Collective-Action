@@ -109,10 +109,11 @@ def main():
         results.append(metrics)
     
     #synthetic, has a modulartity of approx 0.20
-    # G = DPAH(n=300, f_m=0.5, d=0.02, h_MM=0.5, h_mm=0.5, plo_M=2.0, plo_m=2.0, seed = 42)
+    G_dpah = DPAH(n=800, f_m=0.5, d=0.02, h_MM=0.5, h_mm=0.5, plo_M=2.0, plo_m=2.0, seed = 42)
     
-    # G.generate()
-    # results.append(analyze_network(G, "DPAH_graph"))
+    G_dpah.generate()
+    G = nx.Graph(G_dpah)  # Convert to standard NetworkX graph
+    results.append(analyze_network(G, "DPAH_graph"))
     
     df = pd.DataFrame(results)
     df.to_csv("network_properties.csv", index=False)
