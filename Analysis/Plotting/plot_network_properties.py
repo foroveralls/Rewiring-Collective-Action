@@ -353,20 +353,30 @@ def configure_axis_style(ax, show_ylabel=True, show_xlabel=True):
         labelleft=False, labelright=False
     )
 
-def plot_network_properties(df, output_file=None):
+def plot_network_properties(df, topology_filter=None, output_file=None):
     """
-    Create a grid plot of network properties over time.
+    Create a grid plot of network properties over time for a specific topology.
     
     Parameters:
     -----------
     df : pd.DataFrame
         DataFrame with network properties data
+    topology_filter : str, optional
+        Filter data for specific topology (e.g., 'cl', 'DPAH', 'FB', 'Twitter')
     output_file : str, optional
         Output file path for saving the plot
     """
     if df.empty:
         print("No data to plot")
         return None
+    
+    # Filter by topology if specified
+    if topology_filter:
+        df = df[df['network_type'] == topology_filter]
+        if df.empty:
+            print(f"No data found for topology: {topology_filter}")
+            return None
+        print(f"Filtered data for topology: {topology_filter}")
     
     # Properties to plot
     properties = ['clustering', 'modularity', 'assortativity', 'gini_degree']
@@ -381,65 +391,61 @@ def plot_network_properties(df, output_file=None):
     network_types = sorted(df['network_type'].unique())
     scenarios = sorted(df['scenario_grouped'].unique())
     
+    print(f"Available scenarios: {scenarios}")
+    print(f"Network types: {network_types}")
+    
     # Create color mapping
     scenario_color_map = {}
     for scenario in scenarios:
         base_scenario = scenario.lower()
         scenario_color_map[scenario] = PLOT_COLORS.get(base_scenario, '#FE6900')
     
-    # Set up the plot
+    # Set up the plot - single column since we're focusing on one topology
     n_props = len(properties)
-    n_networks = len(network_types)
     
-    fig = plt.figure(figsize=(17.8*cm, 15*cm))
-    gs = GridSpec(n_props, n_networks, figure=fig, 
-                 top=0.85, bottom=0.15, hspace=0.3, wspace=0.25, left=0.1, right=0.95)
+    fig = plt.figure(figsize=(12*cm, 16*cm))
+    gs = GridSpec(n_props, 1, figure=fig, 
+                 top=0.88, bottom=0.12, hspace=0.35, left=0.15, right=0.95)
     
-    # Plot each property for each network type
+    # Plot each property  
     for prop_idx, prop in enumerate(properties):
-        for net_idx, network_type in enumerate(network_types):
-            ax = fig.add_subplot(gs[prop_idx, net_idx])
+        ax = fig.add_subplot(gs[prop_idx, 0])
+        
+        # Use all data (already filtered by topology if specified)
+        net_data = df
+        
+        # Plot each scenario
+        for scenario in scenarios:
+            scenario_data = net_data[net_data['scenario_grouped'] == scenario]
             
-            # Filter data for this network type
-            net_data = df[df['network_type'] == network_type]
-            
-            # Plot each scenario
-            for scenario in scenarios:
-                scenario_data = net_data[net_data['scenario_grouped'] == scenario]
+            if not scenario_data.empty:
+                # Group by timestep and calculate mean
+                grouped = scenario_data.groupby('timestep')[prop].agg(['mean', 'std']).reset_index()
                 
-                if not scenario_data.empty:
-                    # Group by timestep and calculate mean
-                    grouped = scenario_data.groupby('timestep')[prop].agg(['mean', 'std']).reset_index()
+                if not grouped.empty:
+                    ax.plot(grouped['timestep'], grouped['mean'], 
+                           color=scenario_color_map[scenario],
+                           linewidth=line_params["data_line_width"],
+                           label=scenario)
                     
-                    if not grouped.empty:
-                        ax.plot(grouped['timestep'], grouped['mean'], 
-                               color=scenario_color_map[scenario],
-                               linewidth=line_params["data_line_width"],
-                               label=scenario)
-                        
-                        # Add error bars if we have multiple runs
-                        if 'std' in grouped.columns and not grouped['std'].isna().all():
-                            ax.fill_between(grouped['timestep'], 
-                                          grouped['mean'] - grouped['std'],
-                                          grouped['mean'] + grouped['std'],
-                                          color=scenario_color_map[scenario],
-                                          alpha=0.2)
-            
-            # Configure axis
-            is_bottom_row = prop_idx == n_props - 1
-            is_left_col = net_idx == 0
-            
-            configure_axis_style(ax, show_ylabel=is_left_col, show_xlabel=is_bottom_row)
-            
-            # Set labels and title
-            if prop_idx == 0:  # Top row
-                ax.set_title(NETWORK_DISPLAY_NAMES.get(network_type, network_type))
-            
-            if is_left_col:  # Left column
-                ax.set_ylabel(property_labels[prop])
-            
-            if is_bottom_row:  # Bottom row
-                ax.set_xlabel('Timestep')
+                    # Add error bars if we have multiple runs
+                    if 'std' in grouped.columns and not grouped['std'].isna().all():
+                        ax.fill_between(grouped['timestep'], 
+                                      grouped['mean'] - grouped['std'],
+                                      grouped['mean'] + grouped['std'],
+                                      color=scenario_color_map[scenario],
+                                      alpha=0.2)
+        
+        # Configure axis
+        is_bottom_row = prop_idx == n_props - 1
+        
+        configure_axis_style(ax, show_ylabel=True, show_xlabel=is_bottom_row)
+        
+        # Set labels
+        ax.set_ylabel(property_labels[prop])
+        
+        if is_bottom_row:  # Bottom row
+            ax.set_xlabel('Timestep')
             
             # Set reasonable y-limits based on property
             if prop == 'clustering':
@@ -487,7 +493,10 @@ def plot_network_properties(df, output_file=None):
         legend_ax.legend(handles=color_elements, ncol=4, loc='center', 
                         frameon=True, bbox_to_anchor=(0.5, 0.5))
     
-    plt.suptitle('Network Properties Evolution', y=0.95)
+    # Set title based on topology
+    topology_name = network_types[0] if network_types else "All Networks"
+    display_name = NETWORK_DISPLAY_NAMES.get(topology_name, topology_name)
+    plt.suptitle(f'Network Properties Evolution - {display_name}', y=0.95)
     
     if output_file:
         # Create directory if it doesn't exist
@@ -497,8 +506,15 @@ def plot_network_properties(df, output_file=None):
     
     return fig
 
-def main():
-    """Main function to load data and create plots"""
+def main(topology_filter=None):
+    """Main function to load data and create plots
+    
+    Parameters:
+    -----------
+    topology_filter : str, optional
+        Specific topology to plot (e.g., 'cl', 'DPAH', 'FB', 'Twitter').
+        If None, creates plots for all available topologies.
+    """
     set_plot_style()
     
     print("Loading snapshot data...")
@@ -518,20 +534,38 @@ def main():
         return
     
     print(f"Processed {len(df)} data points")
-    print(f"Network types: {df['network_type'].unique()}")
-    print(f"Algorithms: {df['algorithm'].unique()}")
+    print(f"Available network types: {df['network_type'].unique()}")
+    print(f"Available algorithms: {df['algorithm'].unique()}")
     
-    # Create output filename
+    # Determine which topologies to plot
+    if topology_filter:
+        topologies_to_plot = [topology_filter]
+        print(f"Plotting for topology: {topology_filter}")
+    else:
+        topologies_to_plot = df['network_type'].unique()
+        print(f"Plotting for all topologies: {topologies_to_plot}")
+    
+    # Create plots for each topology
     today = date.today()
-    output_file = f"../../Figs/Networks/network_properties_evolution_{today}.pdf"
-    
-    print("Creating plot...")
-    fig = plot_network_properties(df, output_file=output_file)
-    
-    if fig:
-        plt.show()
+    for topology in topologies_to_plot:
+        print(f"\nCreating plot for topology: {topology}")
+        output_file = f"../../Figs/Networks/network_properties_evolution_{topology}_{today}.pdf"
+        
+        fig = plot_network_properties(df, topology_filter=topology, output_file=output_file)
+        if fig is not None:
+            print(f"✓ Plot created for {topology}")
+        else:
+            print(f"✗ Failed to create plot for {topology}")
     
     return df
 
 if __name__ == "__main__":
-    df = main()
+    import sys
+    
+    # Allow topology to be specified as command line argument
+    topology_filter = None
+    if len(sys.argv) > 1:
+        topology_filter = sys.argv[1]
+        print(f"Command line topology filter: {topology_filter}")
+    
+    df = main(topology_filter=topology_filter)
