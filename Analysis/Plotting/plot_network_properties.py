@@ -490,6 +490,8 @@ def plot_network_properties(df, output_file=None):
     plt.suptitle('Network Properties Evolution', y=0.95)
     
     if output_file:
+        # Create directory if it doesn't exist
+        os.makedirs(os.path.dirname(output_file), exist_ok=True)
         plt.savefig(output_file, dpi=300, bbox_inches='tight')
         print(f"Plot saved to {output_file}")
     
