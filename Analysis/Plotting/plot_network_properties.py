@@ -3,8 +3,12 @@ Plot network property evolution over time using snapshot data.
 Tracks clustering coefficient, modularity, assortativity, and Gini coefficient of degree distribution.
 """
 
-import seaborn as sns
+import sys
 import os
+# Add parent directory to path for imports (needed for models_checks module)
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+import seaborn as sns
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -231,32 +235,84 @@ def process_snapshots_to_properties(snapshot_data):
     """
     all_data = []
     
+    print(f"Processing {len(snapshot_data)} scenarios...")
+    
     for scenario, runs in snapshot_data.items():
+        print(f"\nProcessing scenario: {scenario}")
+        print(f"  Number of runs: {len(runs) if isinstance(runs, list) else 1}")
+        
         # Parse scenario information
         parts = scenario.split('_')
         network_type = parts[0] if parts else 'unknown'
         algorithm = parts[1] if len(parts) > 1 else 'none'
         rewiring_mode = parts[2] if len(parts) > 2 else 'none'
         
-        for run_idx, run_data in enumerate(runs):
+        # Handle both list of runs and single run data
+        runs_to_process = runs if isinstance(runs, list) else [runs]
+        
+        for run_idx, run_data in enumerate(runs_to_process):
+            print(f"  Processing run {run_idx}, type: {type(run_data)}")
+            
+            # Check different possible data structures
             if isinstance(run_data, dict):
-                # run_data should be a dict with timesteps as keys and graphs as values
-                for timestep, graph in run_data.items():
-                    if hasattr(graph, 'nodes'):  # Check if it's a valid graph
-                        properties = calculate_network_properties(graph)
-                        
-                        # Add metadata
-                        properties.update({
-                            'timestep': timestep,
-                            'run': run_idx,
-                            'scenario': scenario,
-                            'network_type': network_type,
-                            'algorithm': algorithm,
-                            'rewiring_mode': rewiring_mode,
-                            'scenario_grouped': f"{algorithm}_{rewiring_mode}"
-                        })
-                        
-                        all_data.append(properties)
+                # Could be snapshots dict or metadata dict
+                if 'snapshots' in run_data:
+                    # Structure: {'snapshots': {timestep: graph, ...}, 'metadata': {...}}
+                    snapshots = run_data['snapshots']
+                    print(f"    Found snapshots dict with {len(snapshots)} timesteps")
+                    
+                    for timestep, graph in snapshots.items():
+                        if hasattr(graph, 'nodes'):  # Check if it's a valid graph
+                            properties = calculate_network_properties(graph)
+                            
+                            # Add metadata
+                            properties.update({
+                                'timestep': timestep,
+                                'run': run_idx,
+                                'scenario': scenario,
+                                'network_type': network_type,
+                                'algorithm': algorithm,
+                                'rewiring_mode': rewiring_mode,
+                                'scenario_grouped': f"{algorithm}_{rewiring_mode}"
+                            })
+                            
+                            all_data.append(properties)
+                        else:
+                            print(f"    Warning: timestep {timestep} does not contain a valid graph")
+                
+                else:
+                    # run_data might directly be snapshots dict {timestep: graph, ...}
+                    print(f"    Checking if run_data is direct snapshots dict with keys: {list(run_data.keys())[:5]}...")
+                    
+                    # Check if values look like graphs or timesteps
+                    sample_key = next(iter(run_data.keys())) if run_data else None
+                    if sample_key is not None:
+                        sample_value = run_data[sample_key]
+                        if hasattr(sample_value, 'nodes'):  # Direct timestep: graph mapping
+                            print(f"    Processing as direct timestep-graph mapping")
+                            for timestep, graph in run_data.items():
+                                if hasattr(graph, 'nodes'):
+                                    properties = calculate_network_properties(graph)
+                                    
+                                    # Add metadata
+                                    properties.update({
+                                        'timestep': timestep,
+                                        'run': run_idx,
+                                        'scenario': scenario,
+                                        'network_type': network_type,
+                                        'algorithm': algorithm,
+                                        'rewiring_mode': rewiring_mode,
+                                        'scenario_grouped': f"{algorithm}_{rewiring_mode}"
+                                    })
+                                    
+                                    all_data.append(properties)
+                        else:
+                            print(f"    Warning: Unknown data structure in run_data")
+                            print(f"    Sample key: {sample_key}, Sample value type: {type(sample_value)}")
+            else:
+                print(f"    Warning: run_data is not a dict, type: {type(run_data)}")
+    
+    print(f"\nTotal data points processed: {len(all_data)}")
     
     if not all_data:
         print("No valid data processed from snapshots")
