@@ -268,8 +268,23 @@ def process_snapshots_to_properties(snapshot_data):
                         # Enhanced debugging for first few timesteps
                         if timestep in sample_timesteps:
                             print(f"    Timestep {timestep}: type={type(graph)}, hasattr nodes={hasattr(graph, 'nodes')}")
-                            if hasattr(graph, '__dict__'):
-                                print(f"      Attributes: {list(graph.__dict__.keys())[:5]}")
+                            if isinstance(graph, dict):
+                                print(f"      Dictionary keys: {list(graph.keys())}")
+                                # Look for common graph storage patterns in dict
+                                if 'graph' in graph:
+                                    print(f"        graph key type: {type(graph['graph'])}")
+                                    if hasattr(graph['graph'], 'nodes'):
+                                        print(f"        Found NetworkX graph in 'graph' key with {len(graph['graph'].nodes())} nodes")
+                                if 'G' in graph:
+                                    print(f"        G key type: {type(graph['G'])}")
+                                    if hasattr(graph['G'], 'nodes'):
+                                        print(f"        Found NetworkX graph in 'G' key with {len(graph['G'].nodes())} nodes")
+                                if 'network' in graph:
+                                    print(f"        network key type: {type(graph['network'])}")
+                                    if hasattr(graph['network'], 'nodes'):
+                                        print(f"        Found NetworkX graph in 'network' key with {len(graph['network'].nodes())} nodes")
+                            elif hasattr(graph, '__dict__'):
+                                print(f"      Object attributes: {list(graph.__dict__.keys())[:5]}")
                             if hasattr(graph, 'graph') and hasattr(graph.graph, 'nodes'):
                                 print(f"      Found graph.graph with nodes: {len(graph.graph.nodes())}")
                                 graph = graph.graph  # Use nested graph
@@ -282,6 +297,14 @@ def process_snapshots_to_properties(snapshot_data):
                             actual_graph = graph.graph
                         elif hasattr(graph, 'G') and hasattr(graph.G, 'nodes'):  # Another common wrapper
                             actual_graph = graph.G
+                        elif isinstance(graph, dict):  # Dictionary storage
+                            # Check common dictionary keys for graph storage
+                            if 'graph' in graph and hasattr(graph['graph'], 'nodes'):
+                                actual_graph = graph['graph']
+                            elif 'G' in graph and hasattr(graph['G'], 'nodes'):
+                                actual_graph = graph['G'] 
+                            elif 'network' in graph and hasattr(graph['network'], 'nodes'):
+                                actual_graph = graph['network']
                         
                         if actual_graph is not None:
                             properties = calculate_network_properties(actual_graph)
@@ -315,10 +338,14 @@ def process_snapshots_to_properties(snapshot_data):
                         has_direct_graph = hasattr(sample_value, 'nodes')
                         has_wrapped_graph = hasattr(sample_value, 'graph') and hasattr(sample_value.graph, 'nodes')
                         has_G_graph = hasattr(sample_value, 'G') and hasattr(sample_value.G, 'nodes')
+                        has_dict_graph = (isinstance(sample_value, dict) and 
+                                        ('graph' in sample_value and hasattr(sample_value.get('graph'), 'nodes')) or
+                                        ('G' in sample_value and hasattr(sample_value.get('G'), 'nodes')) or
+                                        ('network' in sample_value and hasattr(sample_value.get('network'), 'nodes')))
                         
-                        if has_direct_graph or has_wrapped_graph or has_G_graph:  # Direct timestep: graph mapping
+                        if has_direct_graph or has_wrapped_graph or has_G_graph or has_dict_graph:  # Direct timestep: graph mapping
                             print(f"    Processing as direct timestep-graph mapping")
-                            print(f"    Sample value type: {type(sample_value)}, direct_graph: {has_direct_graph}, wrapped_graph: {has_wrapped_graph}, G_graph: {has_G_graph}")
+                            print(f"    Sample value type: {type(sample_value)}, direct_graph: {has_direct_graph}, wrapped_graph: {has_wrapped_graph}, G_graph: {has_G_graph}, dict_graph: {has_dict_graph}")
                             
                             for timestep, graph in run_data.items():
                                 # Try multiple ways to access the graph
@@ -329,6 +356,14 @@ def process_snapshots_to_properties(snapshot_data):
                                     actual_graph = graph.graph
                                 elif hasattr(graph, 'G') and hasattr(graph.G, 'nodes'):  # Another common wrapper
                                     actual_graph = graph.G
+                                elif isinstance(graph, dict):  # Dictionary storage
+                                    # Check common dictionary keys for graph storage
+                                    if 'graph' in graph and hasattr(graph['graph'], 'nodes'):
+                                        actual_graph = graph['graph']
+                                    elif 'G' in graph and hasattr(graph['G'], 'nodes'):
+                                        actual_graph = graph['G'] 
+                                    elif 'network' in graph and hasattr(graph['network'], 'nodes'):
+                                        actual_graph = graph['network']
                                 
                                 if actual_graph is not None:
                                     properties = calculate_network_properties(actual_graph)
