@@ -261,9 +261,30 @@ def process_snapshots_to_properties(snapshot_data):
                     snapshots = run_data['snapshots']
                     print(f"    Found snapshots dict with {len(snapshots)} timesteps")
                     
+                    # Debug first few timesteps to understand the structure
+                    sample_timesteps = list(snapshots.keys())[:3]
+                    
                     for timestep, graph in snapshots.items():
-                        if hasattr(graph, 'nodes'):  # Check if it's a valid graph
-                            properties = calculate_network_properties(graph)
+                        # Enhanced debugging for first few timesteps
+                        if timestep in sample_timesteps:
+                            print(f"    Timestep {timestep}: type={type(graph)}, hasattr nodes={hasattr(graph, 'nodes')}")
+                            if hasattr(graph, '__dict__'):
+                                print(f"      Attributes: {list(graph.__dict__.keys())[:5]}")
+                            if hasattr(graph, 'graph') and hasattr(graph.graph, 'nodes'):
+                                print(f"      Found graph.graph with nodes: {len(graph.graph.nodes())}")
+                                graph = graph.graph  # Use nested graph
+                        
+                        # Try multiple ways to access the graph
+                        actual_graph = None
+                        if hasattr(graph, 'nodes'):  # NetworkX graph
+                            actual_graph = graph
+                        elif hasattr(graph, 'graph') and hasattr(graph.graph, 'nodes'):  # Wrapped graph
+                            actual_graph = graph.graph
+                        elif hasattr(graph, 'G') and hasattr(graph.G, 'nodes'):  # Another common wrapper
+                            actual_graph = graph.G
+                        
+                        if actual_graph is not None:
+                            properties = calculate_network_properties(actual_graph)
                             
                             # Add metadata
                             properties.update({
@@ -278,7 +299,9 @@ def process_snapshots_to_properties(snapshot_data):
                             
                             all_data.append(properties)
                         else:
-                            print(f"    Warning: timestep {timestep} does not contain a valid graph")
+                            # Only show warning for sample timesteps to avoid spam
+                            if timestep in sample_timesteps:
+                                print(f"    Warning: timestep {timestep} does not contain a valid graph (type: {type(graph)})")
                 
                 else:
                     # run_data might directly be snapshots dict {timestep: graph, ...}
@@ -288,11 +311,27 @@ def process_snapshots_to_properties(snapshot_data):
                     sample_key = next(iter(run_data.keys())) if run_data else None
                     if sample_key is not None:
                         sample_value = run_data[sample_key]
-                        if hasattr(sample_value, 'nodes'):  # Direct timestep: graph mapping
+                        # Enhanced graph detection
+                        has_direct_graph = hasattr(sample_value, 'nodes')
+                        has_wrapped_graph = hasattr(sample_value, 'graph') and hasattr(sample_value.graph, 'nodes')
+                        has_G_graph = hasattr(sample_value, 'G') and hasattr(sample_value.G, 'nodes')
+                        
+                        if has_direct_graph or has_wrapped_graph or has_G_graph:  # Direct timestep: graph mapping
                             print(f"    Processing as direct timestep-graph mapping")
+                            print(f"    Sample value type: {type(sample_value)}, direct_graph: {has_direct_graph}, wrapped_graph: {has_wrapped_graph}, G_graph: {has_G_graph}")
+                            
                             for timestep, graph in run_data.items():
-                                if hasattr(graph, 'nodes'):
-                                    properties = calculate_network_properties(graph)
+                                # Try multiple ways to access the graph
+                                actual_graph = None
+                                if hasattr(graph, 'nodes'):  # NetworkX graph
+                                    actual_graph = graph
+                                elif hasattr(graph, 'graph') and hasattr(graph.graph, 'nodes'):  # Wrapped graph
+                                    actual_graph = graph.graph
+                                elif hasattr(graph, 'G') and hasattr(graph.G, 'nodes'):  # Another common wrapper
+                                    actual_graph = graph.G
+                                
+                                if actual_graph is not None:
+                                    properties = calculate_network_properties(actual_graph)
                                     
                                     # Add metadata
                                     properties.update({
