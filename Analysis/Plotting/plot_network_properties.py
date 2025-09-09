@@ -9,6 +9,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import pickle
+import gzip
 import glob
 from datetime import date
 from matplotlib.lines import Line2D
@@ -159,7 +160,14 @@ def load_snapshot_data(data_dir="../../Output"):
     --------
     dict : Dictionary with scenario keys and snapshot data
     """
-    snapshot_files = glob.glob(os.path.join(data_dir, "*_snapshots.pkl"))
+    # Look for both .gz and regular .pkl files, prioritizing .gz files
+    # Handle different naming patterns: *_snapshots.pkl.gz and all_snapshots*.pkl.gz
+    snapshot_files = glob.glob(os.path.join(data_dir, "*_snapshots.pkl.gz"))
+    snapshot_files.extend(glob.glob(os.path.join(data_dir, "all_snapshots*.pkl.gz")))
+    
+    if not snapshot_files:
+        snapshot_files = glob.glob(os.path.join(data_dir, "*_snapshots.pkl"))
+        snapshot_files.extend(glob.glob(os.path.join(data_dir, "all_snapshots*.pkl")))
     
     if not snapshot_files:
         print(f"No snapshot files found in {data_dir}")
@@ -169,20 +177,38 @@ def load_snapshot_data(data_dir="../../Output"):
     
     for file_path in snapshot_files:
         filename = os.path.basename(file_path)
-        # Extract scenario info from filename
-        parts = filename.replace('_snapshots.pkl', '').split('_')
         
         try:
-            with open(file_path, 'rb') as f:
-                data = pickle.load(f)
+            # Handle both .gz and regular .pkl files
+            if file_path.endswith('.gz'):
+                with gzip.open(file_path, 'rb') as f:
+                    data = pickle.load(f)
+            else:
+                with open(file_path, 'rb') as f:
+                    data = pickle.load(f)
+            
+            # Handle different file structures
+            if filename.startswith('all_snapshots'):
+                # all_snapshots files contain a dictionary with scenario keys
+                # Structure: {scenario_key: data, ...}
+                if isinstance(data, dict):
+                    for scenario_key, scenario_data in data.items():
+                        if scenario_key not in snapshot_data:
+                            snapshot_data[scenario_key] = []
+                        snapshot_data[scenario_key].append(scenario_data)
+            else:
+                # Individual snapshot files
+                # Extract scenario info from filename (handle both .gz and regular .pkl)
+                filename_clean = filename.replace('.gz', '').replace('_snapshots.pkl', '')
+                parts = filename_clean.split('_')
                 
-            # Create scenario key from filename
-            scenario_key = '_'.join(parts[:-1])  # Remove last part (usually run number)
-            
-            if scenario_key not in snapshot_data:
-                snapshot_data[scenario_key] = []
-            
-            snapshot_data[scenario_key].append(data)
+                # Create scenario key from filename
+                scenario_key = '_'.join(parts[:-1])  # Remove last part (usually run number)
+                
+                if scenario_key not in snapshot_data:
+                    snapshot_data[scenario_key] = []
+                
+                snapshot_data[scenario_key].append(data)
             
         except Exception as e:
             print(f"Error loading {file_path}: {e}")
