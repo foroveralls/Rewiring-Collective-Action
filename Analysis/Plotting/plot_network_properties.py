@@ -253,138 +253,49 @@ def process_snapshots_to_properties(snapshot_data):
         for run_idx, run_data in enumerate(runs_to_process):
             print(f"  Processing run {run_idx}, type: {type(run_data)}")
             
-            # Check different possible data structures
+            # Handle different data structures based on models_checks.py logic
             if isinstance(run_data, dict):
-                # Could be snapshots dict or metadata dict
+                # Check if this is the metadata wrapper structure
                 if 'snapshots' in run_data:
                     # Structure: {'snapshots': {timestep: graph, ...}, 'metadata': {...}}
                     snapshots = run_data['snapshots']
-                    print(f"    Found snapshots dict with {len(snapshots)} timesteps")
-                    
-                    # Debug first few timesteps to understand the structure
-                    sample_timesteps = list(snapshots.keys())[:3]
-                    
-                    for timestep, graph in snapshots.items():
-                        # Enhanced debugging for first few timesteps
-                        if timestep in sample_timesteps:
-                            print(f"    Timestep {timestep}: type={type(graph)}, hasattr nodes={hasattr(graph, 'nodes')}")
-                            if isinstance(graph, dict):
-                                print(f"      Dictionary keys: {list(graph.keys())}")
-                                # Look for common graph storage patterns in dict
-                                if 'graph' in graph:
-                                    print(f"        graph key type: {type(graph['graph'])}")
-                                    if hasattr(graph['graph'], 'nodes'):
-                                        print(f"        Found NetworkX graph in 'graph' key with {len(graph['graph'].nodes())} nodes")
-                                if 'G' in graph:
-                                    print(f"        G key type: {type(graph['G'])}")
-                                    if hasattr(graph['G'], 'nodes'):
-                                        print(f"        Found NetworkX graph in 'G' key with {len(graph['G'].nodes())} nodes")
-                                if 'network' in graph:
-                                    print(f"        network key type: {type(graph['network'])}")
-                                    if hasattr(graph['network'], 'nodes'):
-                                        print(f"        Found NetworkX graph in 'network' key with {len(graph['network'].nodes())} nodes")
-                            elif hasattr(graph, '__dict__'):
-                                print(f"      Object attributes: {list(graph.__dict__.keys())[:5]}")
-                            if hasattr(graph, 'graph') and hasattr(graph.graph, 'nodes'):
-                                print(f"      Found graph.graph with nodes: {len(graph.graph.nodes())}")
-                                graph = graph.graph  # Use nested graph
+                    print(f"    Found metadata wrapper with {len(snapshots)} timesteps")
+                else:
+                    # Direct snapshots dict: {timestep: graph, ...} 
+                    # This is the structure from models_checks.py: self.snapshots[i] = deepcopy(self.graph)
+                    snapshots = run_data
+                    print(f"    Found direct snapshots dict with {len(snapshots)} timesteps")
+                
+                # Debug first timestep to confirm structure
+                if snapshots:
+                    first_timestep = list(snapshots.keys())[0]
+                    first_graph = snapshots[first_timestep]
+                    print(f"    First timestep {first_timestep}: type={type(first_graph)}, hasattr nodes={hasattr(first_graph, 'nodes')}")
+                
+                for timestep, graph in snapshots.items():
+                    # Based on models_checks.py: self.snapshots[i] = deepcopy(self.graph)
+                    # The graph should be a direct NetworkX graph
+                    if hasattr(graph, 'nodes'):
+                        properties = calculate_network_properties(graph)
                         
-                        # Try multiple ways to access the graph
-                        actual_graph = None
-                        if hasattr(graph, 'nodes'):  # NetworkX graph
-                            actual_graph = graph
-                        elif hasattr(graph, 'graph') and hasattr(graph.graph, 'nodes'):  # Wrapped graph
-                            actual_graph = graph.graph
-                        elif hasattr(graph, 'G') and hasattr(graph.G, 'nodes'):  # Another common wrapper
-                            actual_graph = graph.G
-                        elif isinstance(graph, dict):  # Dictionary storage
-                            # Check common dictionary keys for graph storage
-                            if 'graph' in graph and hasattr(graph['graph'], 'nodes'):
-                                actual_graph = graph['graph']
-                            elif 'G' in graph and hasattr(graph['G'], 'nodes'):
-                                actual_graph = graph['G'] 
-                            elif 'network' in graph and hasattr(graph['network'], 'nodes'):
-                                actual_graph = graph['network']
-                        
-                        if actual_graph is not None:
-                            properties = calculate_network_properties(actual_graph)
-                            
-                            # Add metadata
-                            properties.update({
-                                'timestep': timestep,
-                                'run': run_idx,
-                                'scenario': scenario,
-                                'network_type': network_type,
-                                'algorithm': algorithm,
-                                'rewiring_mode': rewiring_mode,
+                        # Add metadata
+                        properties.update({
+                            'timestep': timestep,
+                            'run': run_idx,
+                            'scenario': scenario,
+                            'network_type': network_type,
+                            'algorithm': algorithm,
+                            'rewiring_mode': rewiring_mode,
                                 'scenario_grouped': f"{algorithm}_{rewiring_mode}"
                             })
                             
                             all_data.append(properties)
                         else:
-                            # Only show warning for sample timesteps to avoid spam
-                            if timestep in sample_timesteps:
-                                print(f"    Warning: timestep {timestep} does not contain a valid graph (type: {type(graph)})")
+                            print(f"    Warning: timestep {timestep} does not contain a valid NetworkX graph (type: {type(graph)})")
                 
-                else:
-                    # run_data might directly be snapshots dict {timestep: graph, ...}
-                    print(f"    Checking if run_data is direct snapshots dict with keys: {list(run_data.keys())[:5]}...")
-                    
-                    # Check if values look like graphs or timesteps
-                    sample_key = next(iter(run_data.keys())) if run_data else None
-                    if sample_key is not None:
-                        sample_value = run_data[sample_key]
-                        # Enhanced graph detection
-                        has_direct_graph = hasattr(sample_value, 'nodes')
-                        has_wrapped_graph = hasattr(sample_value, 'graph') and hasattr(sample_value.graph, 'nodes')
-                        has_G_graph = hasattr(sample_value, 'G') and hasattr(sample_value.G, 'nodes')
-                        has_dict_graph = (isinstance(sample_value, dict) and 
-                                        ('graph' in sample_value and hasattr(sample_value.get('graph'), 'nodes')) or
-                                        ('G' in sample_value and hasattr(sample_value.get('G'), 'nodes')) or
-                                        ('network' in sample_value and hasattr(sample_value.get('network'), 'nodes')))
-                        
-                        if has_direct_graph or has_wrapped_graph or has_G_graph or has_dict_graph:  # Direct timestep: graph mapping
-                            print(f"    Processing as direct timestep-graph mapping")
-                            print(f"    Sample value type: {type(sample_value)}, direct_graph: {has_direct_graph}, wrapped_graph: {has_wrapped_graph}, G_graph: {has_G_graph}, dict_graph: {has_dict_graph}")
-                            
-                            for timestep, graph in run_data.items():
-                                # Try multiple ways to access the graph
-                                actual_graph = None
-                                if hasattr(graph, 'nodes'):  # NetworkX graph
-                                    actual_graph = graph
-                                elif hasattr(graph, 'graph') and hasattr(graph.graph, 'nodes'):  # Wrapped graph
-                                    actual_graph = graph.graph
-                                elif hasattr(graph, 'G') and hasattr(graph.G, 'nodes'):  # Another common wrapper
-                                    actual_graph = graph.G
-                                elif isinstance(graph, dict):  # Dictionary storage
-                                    # Check common dictionary keys for graph storage
-                                    if 'graph' in graph and hasattr(graph['graph'], 'nodes'):
-                                        actual_graph = graph['graph']
-                                    elif 'G' in graph and hasattr(graph['G'], 'nodes'):
-                                        actual_graph = graph['G'] 
-                                    elif 'network' in graph and hasattr(graph['network'], 'nodes'):
-                                        actual_graph = graph['network']
-                                
-                                if actual_graph is not None:
-                                    properties = calculate_network_properties(actual_graph)
-                                    
-                                    # Add metadata
-                                    properties.update({
-                                        'timestep': timestep,
-                                        'run': run_idx,
-                                        'scenario': scenario,
-                                        'network_type': network_type,
-                                        'algorithm': algorithm,
-                                        'rewiring_mode': rewiring_mode,
-                                        'scenario_grouped': f"{algorithm}_{rewiring_mode}"
-                                    })
-                                    
-                                    all_data.append(properties)
-                        else:
-                            print(f"    Warning: Unknown data structure in run_data")
-                            print(f"    Sample key: {sample_key}, Sample value type: {type(sample_value)}")
             else:
-                print(f"    Warning: run_data is not a dict, type: {type(run_data)}")
+                print(f"    Unexpected run_data type: {type(run_data)}")
+                continue
     
     print(f"\nTotal data points processed: {len(all_data)}")
     
