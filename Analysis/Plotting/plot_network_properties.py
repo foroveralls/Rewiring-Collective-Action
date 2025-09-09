@@ -270,12 +270,15 @@ def process_snapshots_to_properties(snapshot_data):
                 if snapshots:
                     first_timestep = list(snapshots.keys())[0]
                     first_graph = snapshots[first_timestep]
-                    print(f"    First timestep {first_timestep}: type={type(first_graph)}, hasattr nodes={hasattr(first_graph, 'nodes')}")
+                    print(f"    First timestep {first_timestep}: type={type(first_graph)}")
+                    print(f"    Detected netin generator object - using directly with NetworkX functions")
                 
                 for timestep, graph in snapshots.items():
-                    # Based on models_checks.py: self.snapshots[i] = deepcopy(self.graph)
-                    # The graph should be a direct NetworkX graph
-                    if hasattr(graph, 'nodes'):
+                    # Based on user analysis: snapshots contain netin generator objects 
+                    # (PATCH, DPAH, etc.) that can be used directly with NetworkX functions
+                    # Example: nx.average_clustering(models[0][1][0]) works directly
+                    
+                    try:
                         properties = calculate_network_properties(graph)
                         
                         # Add metadata
@@ -286,12 +289,13 @@ def process_snapshots_to_properties(snapshot_data):
                             'network_type': network_type,
                             'algorithm': algorithm,
                             'rewiring_mode': rewiring_mode,
-                                'scenario_grouped': f"{algorithm}_{rewiring_mode}"
-                            })
-                            
-                            all_data.append(properties)
-                        else:
-                            print(f"    Warning: timestep {timestep} does not contain a valid NetworkX graph (type: {type(graph)})")
+                            'scenario_grouped': f"{algorithm}_{rewiring_mode}"
+                        })
+                        
+                        all_data.append(properties)
+                    except Exception as e:
+                        print(f"    Error calculating properties for timestep {timestep}: {e}")
+                        print(f"    Graph type: {type(graph)}")
                 
             else:
                 print(f"    Unexpected run_data type: {type(run_data)}")

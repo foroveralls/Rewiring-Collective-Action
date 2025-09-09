@@ -1546,16 +1546,16 @@ def test_run():
     plt.figure()
     model_array = []
     #f"{twitter}.gpickle"
-    for i in range(1):
+    for i in range(2):
         print(i)
         args.update({"type": "cl", "plot": True, "top_file": None, "timesteps": 15000, "rewiringAlgorithm": "node2vec",
-                      "rewiringMode": "None", "nwsize":300})
+                      "rewiringMode": "None", "nwsize":300, "save_snapshots": True})
         #nwsize has to equal empirical network size 
         model = simulate(2, args)
-        init_states.append(model.states[0])
-        states = model.states
-        final_states.append(states[-1])
-        plt.plot(states)
+        #init_states.append(model.states[0])
+        #states = model.states
+        #final_states.append(states[-1])
+        #plt.plot(states)
         model_array.append(model)
     
         
@@ -1677,10 +1677,10 @@ def test_wtf_update_rates():
     
 if  __name__ ==  '__main__': 
     start = time.time()
-    #models = test_run()
+    models = test_run()
     #test_consistency()
     #test_tmax_dependency()
-    test_wtf_update_rates()
+    #test_wtf_update_rates()
     end = time.time()
     mins = (end - start) / 60
     sec = (end - start) % 60

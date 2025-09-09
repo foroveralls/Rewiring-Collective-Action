@@ -51,6 +51,23 @@ Scripts ending in `*parameter_sweep*` or `*_sweep.py` handle sensitivity analyse
 - Empirical networks stored in `Pre_processing/networks_processed/`
 - Uses node2vec for network embeddings when needed
 
+### Snapshot Data Structure
+**IMPORTANT**: When `save_snapshots=True`, model snapshots are saved as netin generator objects (DPAH, PATCH, etc.), not pure NetworkX graphs. These objects can be used directly with NetworkX functions:
+
+```python
+# Snapshots structure: {timestep: netin_generator_object, ...}
+# Example access:
+models[0][1]  # Returns dict like {0: <netin.generators.patch.PATCH>, 3750: <netin.generators.patch.PATCH>, ...}
+
+# Calculate network properties directly:
+nx.average_clustering(models[0][1][0])  # Works directly on netin objects
+nx.degree_centrality(models[0][1][3750])  # Also works for other timesteps
+```
+
+- Snapshots are only saved for even-numbered simulation runs (i % 2 == 0) to optimize memory usage
+- Each snapshot contains netin objects at key timesteps: [0, steps//4, steps//2, 3*steps//4, steps-1]
+- NetworkX analysis functions work directly on these netin generator objects without conversion
+
 ## Common Development Commands
 
 ```bash
