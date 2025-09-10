@@ -80,8 +80,11 @@ def calculate_network_properties(graph):
     
     Parameters:
     -----------
-    graph : networkx.Graph
-        The network snapshot
+    graph : networkx.Graph or dict or netin object
+        The network snapshot - can be:
+        - Single netin generator object (PATCH, DPAH, etc.)
+        - Dictionary of {timestep: netin_object}
+        - NetworkX graph
         
     Returns:
     --------
@@ -89,27 +92,50 @@ def calculate_network_properties(graph):
     """
     properties = {}
     
+    # Handle case where graph is a dictionary of timesteps
+    if isinstance(graph, dict):
+        # If it's a dictionary, use the first available timestep
+        if not graph:
+            # Empty dictionary
+            return {
+                'clustering': np.nan,
+                'modularity': np.nan,
+                'assortativity': np.nan,
+                'gini_degree': np.nan
+            }
+        
+        # Get first timestep's graph object
+        first_timestep = list(graph.keys())[0]
+        actual_graph = graph[first_timestep]
+        print(f"        Using graph from timestep {first_timestep} (type: {type(actual_graph)})")
+    else:
+        # Single graph object (netin or NetworkX)
+        actual_graph = graph
+    
     try:
         # Clustering coefficient
-        properties['clustering'] = nx.average_clustering(graph)
-    except:
+        properties['clustering'] = nx.average_clustering(actual_graph)
+    except Exception as e:
+        print(f"        Clustering calculation failed: {e}")
         properties['clustering'] = np.nan
     
     try:
         # Modularity using Louvain community detection
-        communities = nx_community.louvain_communities(graph)
-        properties['modularity'] = nx_community.modularity(graph, communities)
-    except:
+        communities = nx_community.louvain_communities(actual_graph)
+        properties['modularity'] = nx_community.modularity(actual_graph, communities)
+    except Exception as e:
+        print(f"        Modularity calculation failed: {e}")
         properties['modularity'] = np.nan
     
     try:
         # Assortativity (degree assortativity)
-        properties['assortativity'] = nx.degree_assortativity_coefficient(graph)
-    except:
+        properties['assortativity'] = nx.degree_assortativity_coefficient(actual_graph)
+    except Exception as e:
+        print(f"        Assortativity calculation failed: {e}")
         properties['assortativity'] = np.nan
     
     # Placeholder for Gini coefficient - will be implemented later with NetIn
-    properties['gini_degree'] = calculate_gini_degree(graph)
+    properties['gini_degree'] = calculate_gini_degree(actual_graph)
     
     return properties
 
@@ -120,17 +146,27 @@ def calculate_gini_degree(graph):
     
     Parameters:
     -----------
-    graph : networkx.Graph
+    graph : networkx.Graph or dict or netin object
         The network snapshot
         
     Returns:
     --------
     float : Gini coefficient of degree distribution (placeholder returns NaN)
     """
+    # Handle case where graph is a dictionary of timesteps
+    if isinstance(graph, dict):
+        if not graph:
+            return np.nan
+        # Get first timestep's graph object
+        first_timestep = list(graph.keys())[0]
+        actual_graph = graph[first_timestep]
+    else:
+        actual_graph = graph
+    
     # TODO: Implement with NetIn package
     # For now, calculate a basic Gini coefficient manually as placeholder
     try:
-        degrees = [d for n, d in graph.degree()]
+        degrees = [d for n, d in actual_graph.degree()]
         if len(degrees) == 0:
             return np.nan
         
@@ -148,7 +184,8 @@ def calculate_gini_degree(graph):
             
         gini = sum_diff / (2 * n * n * mean_degree)
         return gini
-    except:
+    except Exception as e:
+        print(f"        Gini calculation failed: {e}")
         return np.nan
 
 def load_snapshot_data(data_dir="../../Output"):
