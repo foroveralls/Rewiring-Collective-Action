@@ -112,6 +112,11 @@ def calculate_network_properties(graph):
         # Single graph object (netin or NetworkX)
         actual_graph = graph
     
+    # Convert netin object to NetworkX graph if needed for compatibility
+    if hasattr(actual_graph, 'generate') or 'netin.generators' in str(type(actual_graph)):
+        print(f"        Converting netin object to NetworkX graph")
+        actual_graph = nx.Graph(actual_graph)
+    
     try:
         # Clustering coefficient
         properties['clustering'] = nx.average_clustering(actual_graph)
