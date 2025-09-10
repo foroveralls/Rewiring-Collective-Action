@@ -356,6 +356,7 @@ def configure_axis_style(ax, show_ylabel=True, show_xlabel=True):
 def plot_network_properties(df, topology_filter=None, output_file=None):
     """
     Create a grid plot of network properties over time for a specific topology.
+    Grid layout: metrics (rows) × algorithms (columns) for easy algorithm comparison
     
     Parameters:
     -----------
@@ -382,70 +383,113 @@ def plot_network_properties(df, topology_filter=None, output_file=None):
     properties = ['clustering', 'modularity', 'assortativity', 'gini_degree']
     property_labels = {
         'clustering': 'Clustering Coefficient',
-        'modularity': 'Modularity',
+        'modularity': 'Modularity', 
         'assortativity': 'Degree Assortativity',
         'gini_degree': 'Gini Coefficient (Degree)'
     }
     
-    # Get unique network types and scenarios
-    network_types = sorted(df['network_type'].unique())
+    # Get unique algorithms and create readable labels
     scenarios = sorted(df['scenario_grouped'].unique())
     
-    print(f"Available scenarios: {scenarios}")
-    print(f"Network types: {network_types}")
+    # Create algorithm display names and ordering
+    algorithm_labels = {}
+    algorithm_order = []
     
-    # Create color mapping
-    scenario_color_map = {}
     for scenario in scenarios:
         base_scenario = scenario.lower()
-        scenario_color_map[scenario] = PLOT_COLORS.get(base_scenario, '#FE6900')
+        if base_scenario == 'none_none':
+            label = 'Static'
+            algorithm_labels[scenario] = label
+            algorithm_order.append((scenario, label))
+        elif base_scenario == 'random_none':
+            label = 'Random'
+            algorithm_labels[scenario] = label
+            algorithm_order.append((scenario, label))
+        elif 'biased' in base_scenario:
+            if 'same' in base_scenario:
+                label = 'Local (Similar)'
+            else:
+                label = 'Local (Opposite)'
+            algorithm_labels[scenario] = label
+            algorithm_order.append((scenario, label))
+        elif 'bridge' in base_scenario:
+            if 'same' in base_scenario:
+                label = 'Bridge (Similar)'
+            else:
+                label = 'Bridge (Opposite)'
+            algorithm_labels[scenario] = label
+            algorithm_order.append((scenario, label))
+        elif base_scenario == 'wtf_none':
+            label = 'WTF'
+            algorithm_labels[scenario] = label
+            algorithm_order.append((scenario, label))
+        elif base_scenario == 'node2vec_none':
+            label = 'Node2Vec'
+            algorithm_labels[scenario] = label
+            algorithm_order.append((scenario, label))
     
-    # Set up the plot - single column since we're focusing on one topology
-    n_props = len(properties)
+    # Sort algorithms for consistent ordering
+    algorithm_order.sort(key=lambda x: x[1])
     
-    fig = plt.figure(figsize=(12*cm, 16*cm))
-    gs = GridSpec(n_props, 1, figure=fig, 
-                 top=0.88, bottom=0.12, hspace=0.35, left=0.15, right=0.95)
+    print(f"Available scenarios: {[label for _, label in algorithm_order]}")
     
-    # Plot each property  
+    n_algorithms = len(algorithm_order)
+    n_properties = len(properties)
+    
+    if n_algorithms == 0:
+        print("No algorithms found in data")
+        return None
+    
+    # Set up the grid: metrics (rows) × algorithms (columns)
+    fig = plt.figure(figsize=(4*n_algorithms*cm, 16*cm))
+    gs = GridSpec(n_properties, n_algorithms, figure=fig,
+                 top=0.92, bottom=0.08, hspace=0.3, wspace=0.2,
+                 left=0.08, right=0.98)
+    
+    # Plot grid: each metric gets a row, each algorithm gets a column
     for prop_idx, prop in enumerate(properties):
-        ax = fig.add_subplot(gs[prop_idx, 0])
-        
-        # Use all data (already filtered by topology if specified)
-        net_data = df
-        
-        # Plot each scenario
-        for scenario in scenarios:
-            scenario_data = net_data[net_data['scenario_grouped'] == scenario]
+        for alg_idx, (scenario, alg_label) in enumerate(algorithm_order):
+            ax = fig.add_subplot(gs[prop_idx, alg_idx])
             
-            if not scenario_data.empty:
-                # Group by timestep and calculate mean
-                grouped = scenario_data.groupby('timestep')[prop].agg(['mean', 'std']).reset_index()
+            algorithm_data = df[df['scenario_grouped'] == scenario]
+            
+            # Get color for this algorithm
+            base_scenario = scenario.lower()
+            color = PLOT_COLORS.get(base_scenario, '#FE6900')
+            
+            if not algorithm_data.empty:
+                # Group by timestep and calculate mean/std
+                grouped = algorithm_data.groupby('timestep')[prop].agg(['mean', 'std', 'count']).reset_index()
                 
-                if not grouped.empty:
+                if not grouped.empty and not grouped['mean'].isna().all():
+                    # Plot mean line
                     ax.plot(grouped['timestep'], grouped['mean'], 
-                           color=scenario_color_map[scenario],
-                           linewidth=line_params["data_line_width"],
-                           label=scenario)
+                           color=color,
+                           linewidth=line_params["data_line_width"])
                     
-                    # Add error bars if we have multiple runs
-                    if 'std' in grouped.columns and not grouped['std'].isna().all():
+                    # Add error bars/confidence intervals if we have multiple runs
+                    if not grouped['std'].isna().all() and (grouped['count'] > 1).any():
                         ax.fill_between(grouped['timestep'], 
                                       grouped['mean'] - grouped['std'],
                                       grouped['mean'] + grouped['std'],
-                                      color=scenario_color_map[scenario],
+                                      color=color,
                                       alpha=0.2)
-        
-        # Configure axis
-        is_bottom_row = prop_idx == n_props - 1
-        
-        configure_axis_style(ax, show_ylabel=True, show_xlabel=is_bottom_row)
-        
-        # Set labels
-        ax.set_ylabel(property_labels[prop])
-        
-        if is_bottom_row:  # Bottom row
-            ax.set_xlabel('Timestep')
+            
+            # Configure axis styling
+            is_bottom_row = prop_idx == n_properties - 1
+            is_left_col = alg_idx == 0
+            
+            configure_axis_style(ax, show_ylabel=is_left_col, show_xlabel=is_bottom_row)
+            
+            # Set labels
+            if is_left_col:
+                ax.set_ylabel(property_labels[prop], fontsize=FONT_SIZE, fontweight='bold')
+            
+            if prop_idx == 0:  # Top row
+                ax.set_title(alg_label, fontsize=FONT_SIZE, fontweight='bold')
+                
+            if is_bottom_row:  # Bottom row
+                ax.set_xlabel('Timestep')
             
             # Set reasonable y-limits based on property
             if prop == 'clustering':
@@ -457,46 +501,12 @@ def plot_network_properties(df, topology_filter=None, output_file=None):
             elif prop == 'gini_degree':
                 ax.set_ylim(0, 1)
     
-    # Add legend
-    legend_ax = fig.add_axes([0.15, 0.88, 0.7, 0.05])
-    legend_ax.axis('off')
-    
-    color_elements = []
-    for scenario in scenarios:
-        base_scenario = scenario.lower()
-        if base_scenario in PLOT_COLORS:
-            # Get readable label
-            if base_scenario == 'none_none':
-                label = 'static'
-            elif base_scenario == 'random_none':
-                label = 'random'
-            elif 'biased' in base_scenario:
-                if 'same' in base_scenario:
-                    label = 'local (similar)'
-                else:
-                    label = 'local (opposite)'
-            elif 'bridge' in base_scenario:
-                if 'same' in base_scenario:
-                    label = 'bridge (similar)'
-                else:
-                    label = 'bridge (opposite)'
-            elif base_scenario == 'wtf_none':
-                label = 'wtf'
-            elif base_scenario == 'node2vec_none':
-                label = 'node2vec'
-            else:
-                label = scenario
-            
-            color_elements.append(Line2D([], [], color=PLOT_COLORS[base_scenario], label=label))
-    
-    if color_elements:
-        legend_ax.legend(handles=color_elements, ncol=4, loc='center', 
-                        frameon=True, bbox_to_anchor=(0.5, 0.5))
-    
-    # Set title based on topology
+    # Set overall title
+    network_types = sorted(df['network_type'].unique())
     topology_name = network_types[0] if network_types else "All Networks"
     display_name = NETWORK_DISPLAY_NAMES.get(topology_name, topology_name)
-    plt.suptitle(f'Network Properties Evolution - {display_name}', y=0.95)
+    plt.suptitle(f'Network Properties Evolution - {display_name}', 
+                 y=0.96, fontsize=FONT_SIZE+1, fontweight='bold')
     
     if output_file:
         # Create directory if it doesn't exist
