@@ -78,70 +78,98 @@ def calculate_network_properties(graph):
     """Calculate network properties for a given graph snapshot."""
     properties = {}
     
-    # The graph should be a single netin object at this point
-    # Convert to NetworkX if needed
-    if hasattr(graph, 'generate') or 'netin.generators' in str(type(graph)):
-        actual_graph = nx.Graph(graph)
-    else:
-        actual_graph = graph
-    
     try:
-        properties['clustering'] = nx.average_clustering(actual_graph)
+        # Handle netin objects - they should work directly with NetworkX functions
+        # but let's add debugging
+        print(f"        Processing graph type: {type(graph)}")
+        
+        # Try to get basic info first
+        try:
+            n_nodes = graph.number_of_nodes() if hasattr(graph, 'number_of_nodes') else len(graph.nodes)
+            n_edges = graph.number_of_edges() if hasattr(graph, 'number_of_edges') else len(graph.edges)
+            print(f"        Graph has {n_nodes} nodes, {n_edges} edges")
+        except Exception as e:
+            print(f"        Could not get basic graph info: {e}")
+            
+        # Convert to standard NetworkX if needed
+        if hasattr(graph, 'generate') or 'netin.generators' in str(type(graph)):
+            print(f"        Converting netin object to NetworkX")
+            # Try different conversion methods
+            try:
+                actual_graph = nx.Graph(graph)
+            except:
+                # If direct conversion fails, try extracting nodes and edges manually
+                actual_graph = nx.Graph()
+                actual_graph.add_nodes_from(graph.nodes())
+                actual_graph.add_edges_from(graph.edges())
+        else:
+            actual_graph = graph
+            
+        # Verify the conversion worked
+        try:
+            n_nodes_conv = actual_graph.number_of_nodes()
+            n_edges_conv = actual_graph.number_of_edges()
+            print(f"        Converted graph: {n_nodes_conv} nodes, {n_edges_conv} edges")
+        except Exception as e:
+            print(f"        Conversion verification failed: {e}")
+            
     except Exception as e:
+        print(f"        Graph conversion error: {e}")
+        return {'clustering': np.nan, 'modularity': np.nan, 'assortativity': np.nan, 'gini_degree': np.nan}
+    
+    # Calculate clustering coefficient
+    try:
+        if actual_graph.number_of_nodes() > 0:
+            properties['clustering'] = nx.average_clustering(actual_graph)
+            print(f"        Clustering: {properties['clustering']:.3f}")
+        else:
+            properties['clustering'] = np.nan
+    except Exception as e:
+        print(f"        Clustering calculation failed: {e}")
         properties['clustering'] = np.nan
     
+    # Calculate modularity 
     try:
-        communities = nx_community.louvain_communities(actual_graph)
-        properties['modularity'] = nx_community.modularity(actual_graph, communities)
+        if actual_graph.number_of_nodes() > 1 and actual_graph.number_of_edges() > 0:
+            communities = nx_community.louvain_communities(actual_graph)
+            properties['modularity'] = nx_community.modularity(actual_graph, communities)
+            print(f"        Modularity: {properties['modularity']:.3f}")
+        else:
+            properties['modularity'] = np.nan
     except Exception as e:
+        print(f"        Modularity calculation failed: {e}")
         properties['modularity'] = np.nan
     
+    # Calculate assortativity
     try:
-        properties['assortativity'] = nx.degree_assortativity_coefficient(actual_graph)
+        if actual_graph.number_of_nodes() > 1 and actual_graph.number_of_edges() > 0:
+            properties['assortativity'] = nx.degree_assortativity_coefficient(actual_graph)
+            print(f"        Assortativity: {properties['assortativity']:.3f}")
+        else:
+            properties['assortativity'] = np.nan
     except Exception as e:
+        print(f"        Assortativity calculation failed: {e}")
         properties['assortativity'] = np.nan
     
+    # Calculate Gini coefficient
     properties['gini_degree'] = calculate_gini_degree(actual_graph)
+    print(f"        Gini: {properties['gini_degree']:.3f}")
     
     return properties
 
-
 def calculate_gini_degree(graph):
-    """
-    Placeholder for Gini coefficient calculation.
-    This will be implemented with NetIn package later.
-    
-    Parameters:
-    -----------
-    graph : networkx.Graph or dict or netin object
-        The network snapshot
-        
-    Returns:
-    --------
-    float : Gini coefficient of degree distribution (placeholder returns NaN)
-    """
-    # Handle case where graph is a dictionary of timesteps
-    if isinstance(graph, dict):
-        if not graph:
-            return np.nan
-        # Get first timestep's graph object
-        first_timestep = list(graph.keys())[0]
-        actual_graph = graph[first_timestep]
-    else:
-        actual_graph = graph
-    
-    # TODO: Implement with NetIn package
-    # For now, calculate a basic Gini coefficient manually as placeholder
+    """Calculate Gini coefficient of degree distribution."""
     try:
-        degrees = [d for n, d in actual_graph.degree()]
+        degrees = [d for n, d in graph.degree()]
         if len(degrees) == 0:
             return np.nan
         
-        # Sort degrees
         degrees = sorted(degrees)
         n = len(degrees)
         
-        # Calculate Gini coefficient
+        if n <= 1:
+            return 0.0
+            
         sum_diff = sum(abs(degrees[i] - degrees[j]) 
                       for i in range(n) for j in range(n))
         mean_degree = np.mean(degrees)
@@ -232,35 +260,38 @@ def process_snapshots_to_properties(snapshot_data):
     
     for scenario, runs in snapshot_data.items():
         print(f"\nProcessing scenario: {scenario}")
-        print(f"  Number of runs: {len(runs) if isinstance(runs, list) else 1}")
         
-        # Fix scenario parsing - format is typically: algorithm_mode_topology
+        # Fix scenario parsing
         parts = scenario.split('_')
         if len(parts) >= 3:
             algorithm = parts[0]
             rewiring_mode = parts[1] 
-            network_type = parts[2]  # Last part is topology
+            network_type = parts[2]
         else:
-            # Fallback for malformed scenario names
             algorithm = parts[0] if parts else 'unknown'
             rewiring_mode = parts[1] if len(parts) > 1 else 'none'
             network_type = parts[-1] if len(parts) > 2 else 'unknown'
         
         runs_to_process = runs if isinstance(runs, list) else [runs]
+        print(f"  Number of runs: {len(runs_to_process)}")
         
         for run_idx, run_data in enumerate(runs_to_process):
-            print(f"  Processing run {run_idx}, type: {type(run_data)}")
+            print(f"  Processing run {run_idx}")
             
             if isinstance(run_data, dict):
                 if 'snapshots' in run_data:
                     snapshots = run_data['snapshots']
-                    print(f"    Found metadata wrapper with {len(snapshots)} timesteps")
                 else:
                     snapshots = run_data
-                    print(f"    Found direct snapshots dict with {len(snapshots)} timesteps")
+                    
+                print(f"    Found {len(snapshots)} timesteps: {sorted(snapshots.keys())}")
                 
+                # Now snapshots is {timestep: graph_object, ...}
+                # Each graph_object is the actual netin object we want to analyze
                 for timestep, graph in snapshots.items():
+                    print(f"    Processing timestep {timestep}")
                     try:
+                        # Here graph should be the actual netin object, not a dictionary
                         properties = calculate_network_properties(graph)
                         
                         properties.update({
@@ -275,18 +306,13 @@ def process_snapshots_to_properties(snapshot_data):
                         
                         all_data.append(properties)
                     except Exception as e:
-                        print(f"    Error calculating properties for timestep {timestep}: {e}")
+                        print(f"    Error processing timestep {timestep}: {e}")
                         continue
             else:
                 print(f"    Unexpected run_data type: {type(run_data)}")
                 continue
     
     print(f"\nTotal data points processed: {len(all_data)}")
-    
-    if not all_data:
-        print("No valid data processed from snapshots")
-        return pd.DataFrame()
-    
     return pd.DataFrame(all_data)
 
 def configure_axis_style(ax, show_ylabel=True, show_xlabel=True):
