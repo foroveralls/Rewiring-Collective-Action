@@ -75,74 +75,36 @@ def set_plot_style():
     })
 
 def calculate_network_properties(graph):
-    """
-    Calculate network properties for a given graph snapshot.
-    
-    Parameters:
-    -----------
-    graph : networkx.Graph or dict or netin object
-        The network snapshot - can be:
-        - Single netin generator object (PATCH, DPAH, etc.)
-        - Dictionary of {timestep: netin_object}
-        - NetworkX graph
-        
-    Returns:
-    --------
-    dict : Dictionary containing calculated properties
-    """
+    """Calculate network properties for a given graph snapshot."""
     properties = {}
     
-    # Handle case where graph is a dictionary of timesteps
-    if isinstance(graph, dict):
-        # If it's a dictionary, use the first available timestep
-        if not graph:
-            # Empty dictionary
-            return {
-                'clustering': np.nan,
-                'modularity': np.nan,
-                'assortativity': np.nan,
-                'gini_degree': np.nan
-            }
-        
-        # Get first timestep's graph object
-        first_timestep = list(graph.keys())[0]
-        actual_graph = graph[first_timestep]
-        print(f"        Using graph from timestep {first_timestep} (type: {type(actual_graph)})")
+    # The graph should be a single netin object at this point
+    # Convert to NetworkX if needed
+    if hasattr(graph, 'generate') or 'netin.generators' in str(type(graph)):
+        actual_graph = nx.Graph(graph)
     else:
-        # Single graph object (netin or NetworkX)
         actual_graph = graph
     
-    # Convert netin object to NetworkX graph if needed for compatibility
-    if hasattr(actual_graph, 'generate') or 'netin.generators' in str(type(actual_graph)):
-        print(f"        Converting netin object to NetworkX graph")
-        actual_graph = nx.Graph(actual_graph)
-    
     try:
-        # Clustering coefficient
         properties['clustering'] = nx.average_clustering(actual_graph)
     except Exception as e:
-        print(f"        Clustering calculation failed: {e}")
         properties['clustering'] = np.nan
     
     try:
-        # Modularity using Louvain community detection
         communities = nx_community.louvain_communities(actual_graph)
         properties['modularity'] = nx_community.modularity(actual_graph, communities)
     except Exception as e:
-        print(f"        Modularity calculation failed: {e}")
         properties['modularity'] = np.nan
     
     try:
-        # Assortativity (degree assortativity)
         properties['assortativity'] = nx.degree_assortativity_coefficient(actual_graph)
     except Exception as e:
-        print(f"        Assortativity calculation failed: {e}")
         properties['assortativity'] = np.nan
     
-    # Placeholder for Gini coefficient - will be implemented later with NetIn
     properties['gini_degree'] = calculate_gini_degree(actual_graph)
     
     return properties
+
 
 def calculate_gini_degree(graph):
     """
@@ -263,18 +225,7 @@ def load_snapshot_data(data_dir="../../Output"):
     return snapshot_data
 
 def process_snapshots_to_properties(snapshot_data):
-    """
-    Process snapshot data to calculate network properties over time.
-    
-    Parameters:
-    -----------
-    snapshot_data : dict
-        Dictionary with scenario keys and snapshot data
-        
-    Returns:
-    --------
-    pd.DataFrame : DataFrame with network properties over time
-    """
+    """Process snapshot data to calculate network properties over time."""
     all_data = []
     
     print(f"Processing {len(snapshot_data)} scenarios...")
@@ -283,47 +234,35 @@ def process_snapshots_to_properties(snapshot_data):
         print(f"\nProcessing scenario: {scenario}")
         print(f"  Number of runs: {len(runs) if isinstance(runs, list) else 1}")
         
-        # Parse scenario information
+        # Fix scenario parsing - format is typically: algorithm_mode_topology
         parts = scenario.split('_')
-        network_type = parts[0] if parts else 'unknown'
-        algorithm = parts[1] if len(parts) > 1 else 'none'
-        rewiring_mode = parts[2] if len(parts) > 2 else 'none'
+        if len(parts) >= 3:
+            algorithm = parts[0]
+            rewiring_mode = parts[1] 
+            network_type = parts[2]  # Last part is topology
+        else:
+            # Fallback for malformed scenario names
+            algorithm = parts[0] if parts else 'unknown'
+            rewiring_mode = parts[1] if len(parts) > 1 else 'none'
+            network_type = parts[-1] if len(parts) > 2 else 'unknown'
         
-        # Handle both list of runs and single run data
         runs_to_process = runs if isinstance(runs, list) else [runs]
         
         for run_idx, run_data in enumerate(runs_to_process):
             print(f"  Processing run {run_idx}, type: {type(run_data)}")
             
-            # Handle different data structures based on models_checks.py logic
             if isinstance(run_data, dict):
-                # Check if this is the metadata wrapper structure
                 if 'snapshots' in run_data:
-                    # Structure: {'snapshots': {timestep: graph, ...}, 'metadata': {...}}
                     snapshots = run_data['snapshots']
                     print(f"    Found metadata wrapper with {len(snapshots)} timesteps")
                 else:
-                    # Direct snapshots dict: {timestep: graph, ...} 
-                    # This is the structure from models_checks.py: self.snapshots[i] = deepcopy(self.graph)
                     snapshots = run_data
                     print(f"    Found direct snapshots dict with {len(snapshots)} timesteps")
                 
-                # Debug first timestep to confirm structure
-                if snapshots:
-                    first_timestep = list(snapshots.keys())[0]
-                    first_graph = snapshots[first_timestep]
-                    print(f"    First timestep {first_timestep}: type={type(first_graph)}")
-                    print(f"    Detected netin generator object - using directly with NetworkX functions")
-                
                 for timestep, graph in snapshots.items():
-                    # Based on user analysis: snapshots contain netin generator objects 
-                    # (PATCH, DPAH, etc.) that can be used directly with NetworkX functions
-                    # Example: nx.average_clustering(models[0][1][0]) works directly
-                    
                     try:
                         properties = calculate_network_properties(graph)
                         
-                        # Add metadata
                         properties.update({
                             'timestep': timestep,
                             'run': run_idx,
@@ -337,8 +276,7 @@ def process_snapshots_to_properties(snapshot_data):
                         all_data.append(properties)
                     except Exception as e:
                         print(f"    Error calculating properties for timestep {timestep}: {e}")
-                        print(f"    Graph type: {type(graph)}")
-                
+                        continue
             else:
                 print(f"    Unexpected run_data type: {type(run_data)}")
                 continue
