@@ -296,6 +296,7 @@ def process_snapshots_to_properties(snapshot_data):
                             properties.update({
                                 'timestep': timestep,
                                 'run': run_idx,
+                                'model_run': model_run,
                                 'scenario': scenario,
                                 'network_type': network_type,
                                 'algorithm': algorithm,
@@ -455,20 +456,22 @@ def plot_network_properties(df, topology_filter=None, output_file=None):
             color = PLOT_COLORS.get(base_scenario, '#FE6900')
             
             if not algorithm_data.empty:
-                # Group by timestep and calculate mean/std
-                grouped = algorithm_data.groupby('timestep')[prop].agg(['mean', 'std', 'count']).reset_index()
+                # Group by timestep and calculate mean/std across all simulation runs
+                grouped = algorithm_data.groupby(['timestep'])[prop].agg(['mean', 'std', 'count']).reset_index()
                 
                 if not grouped.empty and not grouped['mean'].isna().all():
-                    # Plot mean line
+                    # Plot mean line (averaged across all 90 simulations)
                     ax.plot(grouped['timestep'], grouped['mean'], 
                            color=color,
                            linewidth=line_params["data_line_width"])
                     
-                    # Add error bars/confidence intervals if we have multiple runs
+                    # Add error bars showing variation across simulation runs
                     if not grouped['std'].isna().all() and (grouped['count'] > 1).any():
+                        # Use standard error for error bars
+                        stderr = grouped['std'] / np.sqrt(grouped['count'])
                         ax.fill_between(grouped['timestep'], 
-                                      grouped['mean'] - grouped['std'],
-                                      grouped['mean'] + grouped['std'],
+                                      grouped['mean'] - stderr,
+                                      grouped['mean'] + stderr,
                                       color=color,
                                       alpha=0.2)
             
