@@ -286,33 +286,26 @@ def process_snapshots_to_properties(snapshot_data):
                     
                 print(f"    Found {len(snapshots)} timesteps: {sorted(snapshots.keys())}")
                 
-                # Now snapshots is {timestep: graph_object, ...}
-                # Each graph_object is the actual netin object we want to analyze
-                for timestep, graph in snapshots.items():
-                    print(f"    Processing timestep {timestep}")
-                    try:
-                        # Here graph should be the actual netin object, not a dictionary
-                        properties = calculate_network_properties(graph)
-                        
-                        properties.update({
-                            'timestep': timestep,
-                            'run': run_idx,
-                            'scenario': scenario,
-                            'network_type': network_type,
-                            'algorithm': algorithm,
-                            'rewiring_mode': rewiring_mode,
-                            'scenario_grouped': f"{algorithm}_{rewiring_mode}"
-                        })
-                        
-                        all_data.append(properties)
-                    except Exception as e:
-                        print(f"    Error processing timestep {timestep}: {e}")
-                        continue
-            else:
-                print(f"    Unexpected run_data type: {type(run_data)}")
-                continue
-    
-    print(f"\nTotal data points processed: {len(all_data)}")
+                # snapshots is {model_run: {timestep: graph_object, ...}, ...}
+                graph_list = list(snapshots.items())
+                for model_run, graph_dict in graph_list:
+                    for timestep, graph in graph_dict.items():
+                        try:
+                            properties = calculate_network_properties(graph)
+                            
+                            properties.update({
+                                'timestep': timestep,
+                                'run': run_idx,
+                                'scenario': scenario,
+                                'network_type': network_type,
+                                'algorithm': algorithm,
+                                'rewiring_mode': rewiring_mode,
+                                'scenario_grouped': f"{algorithm}_{rewiring_mode}"
+                            })
+                            
+                            all_data.append(properties)
+                        except:
+                            continue
     return pd.DataFrame(all_data)
 
 def configure_axis_style(ax, show_ylabel=True, show_xlabel=True):
@@ -383,7 +376,6 @@ def plot_network_properties(df, topology_filter=None, output_file=None):
         if df.empty:
             print(f"No data found for topology: {topology_filter}")
             return None
-        print(f"Filtered data for topology: {topology_filter}")
     
     # Properties to plot
     properties = ['clustering', 'modularity', 'assortativity', 'gini_degree']
@@ -437,7 +429,6 @@ def plot_network_properties(df, topology_filter=None, output_file=None):
     # Sort algorithms for consistent ordering
     algorithm_order.sort(key=lambda x: x[1])
     
-    print(f"Available scenarios: {[label for _, label in algorithm_order]}")
     
     n_algorithms = len(algorithm_order)
     n_properties = len(properties)
@@ -518,7 +509,7 @@ def plot_network_properties(df, topology_filter=None, output_file=None):
         # Create directory if it doesn't exist
         os.makedirs(os.path.dirname(output_file), exist_ok=True)
         plt.savefig(output_file, dpi=300, bbox_inches='tight')
-        print(f"Plot saved to {output_file}")
+        print(f"Saved: {output_file}")
     
     return fig
 
@@ -550,28 +541,18 @@ def main(topology_filter=None):
         return
     
     print(f"Processed {len(df)} data points")
-    print(f"Available network types: {df['network_type'].unique()}")
-    print(f"Available algorithms: {df['algorithm'].unique()}")
     
     # Determine which topologies to plot
     if topology_filter:
         topologies_to_plot = [topology_filter]
-        print(f"Plotting for topology: {topology_filter}")
     else:
         topologies_to_plot = df['network_type'].unique()
-        print(f"Plotting for all topologies: {topologies_to_plot}")
     
     # Create plots for each topology
     today = date.today()
     for topology in topologies_to_plot:
-        print(f"\nCreating plot for topology: {topology}")
         output_file = f"../../Figs/Networks/network_properties_evolution_{topology}_{today}.pdf"
-        
         fig = plot_network_properties(df, topology_filter=topology, output_file=output_file)
-        if fig is not None:
-            print(f"✓ Plot created for {topology}")
-        else:
-            print(f"✗ Failed to create plot for {topology}")
     
     return df
 
@@ -582,6 +563,5 @@ if __name__ == "__main__":
     topology_filter = None
     if len(sys.argv) > 1:
         topology_filter = sys.argv[1]
-        print(f"Command line topology filter: {topology_filter}")
     
     df = main(topology_filter=topology_filter)
