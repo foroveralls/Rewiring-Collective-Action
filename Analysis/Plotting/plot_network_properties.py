@@ -151,9 +151,27 @@ def calculate_network_properties(graph):
         print(f"        Assortativity calculation failed: {e}")
         properties['assortativity'] = np.nan
     
-    # Calculate Gini coefficient
+    # Calculate Gini coefficient for total degree
     properties['gini_degree'] = calculate_gini_degree(actual_graph)
-    print(f"        Gini: {properties['gini_degree']:.3f}")
+    print(f"        Gini (total degree): {properties['gini_degree']:.3f}")
+    
+    # Calculate Gini coefficient for in-degree using netin method if available
+    try:
+        if hasattr(graph, 'get_gini_in_ranking'):
+            properties['gini_in_degree'] = graph.get_gini_in_ranking()
+            print(f"        Gini (in-degree): {properties['gini_in_degree']:.3f}")
+        else:
+            # Fallback: calculate manually for directed graphs
+            if actual_graph.is_directed():
+                in_degrees = [d for n, d in actual_graph.in_degree()]
+                properties['gini_in_degree'] = calculate_gini_from_degrees(in_degrees)
+                print(f"        Gini (in-degree, fallback): {properties['gini_in_degree']:.3f}")
+            else:
+                # For undirected graphs, in-degree = total degree
+                properties['gini_in_degree'] = properties['gini_degree']
+    except Exception as e:
+        print(f"        Gini in-degree calculation failed: {e}")
+        properties['gini_in_degree'] = np.nan
     
     return properties
 
@@ -161,6 +179,14 @@ def calculate_gini_degree(graph):
     """Calculate Gini coefficient of degree distribution."""
     try:
         degrees = [d for n, d in graph.degree()]
+        return calculate_gini_from_degrees(degrees)
+    except Exception as e:
+        print(f"        Gini calculation failed: {e}")
+        return np.nan
+
+def calculate_gini_from_degrees(degrees):
+    """Calculate Gini coefficient from a list of degrees."""
+    try:
         if len(degrees) == 0:
             return np.nan
         
@@ -379,12 +405,13 @@ def plot_network_properties(df, topology_filter=None, output_file=None):
             return None
     
     # Properties to plot
-    properties = ['clustering', 'modularity', 'assortativity', 'gini_degree']
+    properties = ['clustering', 'modularity', 'assortativity', 'gini_degree', 'gini_in_degree']
     property_labels = {
         'clustering': 'Clustering Coefficient',
         'modularity': 'Modularity', 
         'assortativity': 'Degree Assortativity',
-        'gini_degree': 'Gini Coefficient (Degree)'
+        'gini_degree': 'Gini Coefficient (Total Degree)',
+        'gini_in_degree': 'Gini Coefficient (In-Degree)'
     }
     
     # Get unique algorithms and create readable labels
@@ -489,7 +516,12 @@ def plot_network_properties(df, topology_filter=None, output_file=None):
                 ax.set_title(alg_label, fontsize=FONT_SIZE, fontweight='bold')
                 
             if is_bottom_row:  # Bottom row
-                ax.set_xlabel('Timestep')
+                ax.set_xlabel('Time, t')
+                # Apply scientific notation formatting like plots_lines.py
+                sci_formatter = ScalarFormatter(useMathText=True)
+                sci_formatter.set_scientific(True)
+                sci_formatter.set_powerlimits((-2, 1))
+                ax.xaxis.set_major_formatter(sci_formatter)
             
             # Set reasonable y-limits based on property
             if prop == 'clustering':
@@ -500,13 +532,10 @@ def plot_network_properties(df, topology_filter=None, output_file=None):
                 ax.set_ylim(-1, 1)
             elif prop == 'gini_degree':
                 ax.set_ylim(0, 1)
+            elif prop == 'gini_in_degree':
+                ax.set_ylim(0, 1)
     
-    # Set overall title
-    network_types = sorted(df['network_type'].unique())
-    topology_name = network_types[0] if network_types else "All Networks"
-    display_name = NETWORK_DISPLAY_NAMES.get(topology_name, topology_name)
-    plt.suptitle(f'Network Properties Evolution - {display_name}', 
-                 y=0.96, fontsize=FONT_SIZE+1, fontweight='bold')
+    # Remove overall title
     
     if output_file:
         # Create directory if it doesn't exist
