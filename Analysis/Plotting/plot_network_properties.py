@@ -410,8 +410,8 @@ def plot_network_properties(df, topology_filter=None, output_file=None):
         'clustering': 'Clustering Coefficient',
         'modularity': 'Modularity', 
         'assortativity': 'Degree Assortativity',
-        'gini_degree': 'Gini Coefficient (Total Degree)',
-        'gini_in_degree': 'Gini Coefficient (In-Degree)'
+        'gini_degree': 'Gini (total)',
+        'gini_in_degree': 'Gini (in-degree)'
     }
     
     # Get unique algorithms and create readable labels
