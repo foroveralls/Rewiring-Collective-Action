@@ -1039,14 +1039,14 @@ class Model:
             if save_snapshots and i in key_timesteps:
                 self.snapshots[i] = deepcopy(self.graph)
                 
-            # avgFriends = self.updateAvgNbAgreeingFriends(nodeIndex)
-            #avgFriends = self.findNbAgreeingFriends(nodeIndex)
-            #draw_model(self) #this should draw the model in every timestep! 
-            # self.avgNbAgreeingList.append(avgFriends)
             
 
         (avgs, sds, sizes) = findAvgStateInClusters(self, self.partition)
         self.clusteravg.append(avgs)
+
+        # Generate evolution plot if both plot and save_snapshots are True
+        if save_snapshots and self.local_args["plot"]:
+            self.plot_network_evolution()
 
         return self.ratio
 
@@ -1322,6 +1322,75 @@ class Model:
         plt.tight_layout()
         plt.savefig(f'../Figs/Networks/graph_{title}_{self.local_args["type"]}_{self.local_args["rewiringAlgorithm"]}_{self.local_args["rewiringAlgorithm"]}.png', bbox_inches='tight', dpi = 300)
         plt.show()
+    
+    def plot_network_evolution(self, snapshots=None, colormap='coolwarm'):
+        """
+        Plot network evolution over time showing snapshots from key timesteps in a single row.
+        
+        Parameters:
+        snapshots (dict): Dictionary of timestep -> graph snapshots. If None, uses self.snapshots
+        colormap (str): The name of the colormap to use for node coloring
+        """
+        if snapshots is None:
+            snapshots = getattr(self, 'snapshots', {})
+        
+        if not snapshots:
+            print("No snapshots available. Make sure save_snapshots=True when running simulation.")
+            return
+        
+        # Get sorted timesteps
+        timesteps = sorted(snapshots.keys())
+        n_plots = len(timesteps)
+        
+        # Create subplots in a single row
+        fig, axes = plt.subplots(1, n_plots, figsize=(4*n_plots, 4))
+        if n_plots == 1:
+            axes = [axes]  # Ensure axes is always a list
+        
+        for idx, timestep in enumerate(timesteps):
+            graph = snapshots[timestep]
+            ax = axes[idx]
+            
+            # Get layout - use spring layout for consistency
+            if self.local_args["type"] in ["FB", "Twitter"]:
+                pos = None  # Will use default positioning for empirical networks
+            else:
+                pos = nx.spring_layout(graph, k=0.3, iterations=50)
+            
+            # Extract opinions from agents
+            opinions = {node: graph.nodes[node]['agent'].state for node in graph.nodes}
+            
+            # Normalize opinions to [-1, 1] for colormap
+            norm = Normalize(vmin=-1, vmax=1)
+            cmap = plt.cm.get_cmap(colormap).reversed()
+            colors = [cmap(norm(opinions[node])) for node in graph.nodes]
+            
+            # Draw the network
+            if pos is None:
+                nx.draw(graph, ax=ax, node_color=colors, with_labels=False, 
+                       edge_color='gray', edgecolors='black', node_size=90, alpha=0.9)
+            else:
+                nx.draw(graph, pos=pos, ax=ax, node_color=colors, with_labels=False,
+                       edge_color='gray', edgecolors='black', node_size=90, alpha=0.9)
+            
+            # Set title with timestep
+            ax.set_title(f't = {timestep}')
+            
+            # Add black border around each subplot
+            for spine in ax.spines.values():
+                spine.set_edgecolor('black')
+                spine.set_linewidth(1)
+        
+        # Add a single colorbar for all subplots
+        sm = ScalarMappable(cmap=cmap, norm=norm)
+        sm.set_array([])
+        cbar = fig.colorbar(sm, ax=axes, shrink=0.6)
+        cbar.set_label('Opinion Value')
+        
+        plt.tight_layout()
+        plt.savefig(f'../Figs/Networks/evolution_{self.local_args["type"]}_{self.local_args["rewiringAlgorithm"]}.png', 
+                    bbox_inches='tight', dpi=300)
+        plt.show()
         
 #%% Network topologies 
 
@@ -1546,10 +1615,10 @@ def test_run():
     plt.figure()
     model_array = []
     #f"{twitter}.gpickle"
-    for i in range(2):
+    for i in range(1):
         print(i)
-        args.update({"type": "cl", "plot": True, "top_file": None, "timesteps": 15000, "rewiringAlgorithm": "node2vec",
-                      "rewiringMode": "None", "nwsize":300, "save_snapshots": True})
+        args.update({"type": "DPAH", "plot": True, "top_file": None, "timesteps": 15000, "rewiringAlgorithm": "node2vec",
+                      "rewiringMode": "None", "nwsize":100, "save_snapshots": True})
         #nwsize has to equal empirical network size 
         model = simulate(2, args)
         #init_states.append(model.states[0])
@@ -1558,7 +1627,6 @@ def test_run():
         #plt.plot(states)
         model_array.append(model)
     
-        
     plt.ylim(-1, 1)
     plt.title(f'{args["rewiringAlgorithm"]}')
     plt.axline((0, np.mean(final_states)), slope= 0, color ="black")
@@ -1636,7 +1704,7 @@ def test_wtf_update_rates():
     # Static baseline
     base_args = getargs()
     static_args = {**base_args, "type": "DPAH", "nwsize": 300, "timesteps": timesteps, 
-                   "rewiringAlgorithm": "None", "rewiringMode": "None", "plot": False}
+                   "rewiringAlgorithm": "None", "rewiringMode": "None", "plot": True}
     
     print("Running static baseline...")
     for i in range(n_runs):

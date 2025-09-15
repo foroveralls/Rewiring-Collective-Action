@@ -11,7 +11,6 @@ from matplotlib.cm import ScalarMappable
 import random
 
 sys.path.append('../../')
-import run
 sys.path.append('..')
 import models_checks
 
@@ -188,7 +187,7 @@ def main():
     n_runs = int(input("Runs (default 1): ") or "1")
     
     params = {
-        "rewiringAlgorithm": "biased", "rewiringMode": "diff", 
+        "rewiringAlgorithm": "WTF", "rewiringMode": None, 
         "polarisingNode_f": 0.10, "timesteps": 15000, "plot": False,
         **config
     }
