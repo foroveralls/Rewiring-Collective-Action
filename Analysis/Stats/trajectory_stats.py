@@ -478,11 +478,11 @@ def calculate_summaries(comparative_metrics):
     
     # 7. Calculate baseline values for reference
     baseline_values = []
-    for topology in metrics_df['topology'].unique():
-        static_data = metrics_df[(metrics_df['topology'] == topology) & 
-                               (metrics_df['friendly_name'] == 'static')]
-        random_data = metrics_df[(metrics_df['topology'] == topology) & 
-                               (metrics_df['friendly_name'] == 'random')]
+    for topology in comparative_metrics['topology'].unique():
+        static_data = comparative_metrics[(comparative_metrics['topology'] == topology) & 
+                                        (comparative_metrics['friendly_name'] == 'static')]
+        random_data = comparative_metrics[(comparative_metrics['topology'] == topology) & 
+                                        (comparative_metrics['friendly_name'] == 'random')]
         
         if not static_data.empty:
             baseline_values.append({
