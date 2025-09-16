@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Publication-quality robustness analysis plot: Basin stability vs Robustness (1/σ)
+Publication-quality sensitivity analysis plot: Basin stability vs Sensitivity (σ)
 Simple scatter plot using convergence_vs_cooperation.py styling.
 """
 
@@ -29,9 +29,9 @@ def setup_style():
         'axes.labelsize': FONT_SIZE, 'axes.titlesize': FONT_SIZE
     })
 
-def plot_robustness_analysis(metrics_df, output_path, robustness_metric='backfirer_robustness'):
+def plot_sensitivity_analysis(metrics_df, output_path, sensitivity_metric='backfirer_sensitivity'):
     """
-    Create simple robustness vs basin stability scatter plot
+    Create simple sensitivity vs basin stability scatter plot
     """
     setup_style()
     fig, ax = plt.subplots(figsize=(8.7*cm, 8*cm))
@@ -39,8 +39,8 @@ def plot_robustness_analysis(metrics_df, output_path, robustness_metric='backfir
     # Filter valid data (exclude cases with no cooperation)
     valid_mask = (
         (metrics_df['cooperative_volume_percent'] > 0) &
-        (metrics_df[robustness_metric] > 0) &
-        np.isfinite(metrics_df[robustness_metric]) &
+        (metrics_df[sensitivity_metric] >= 0) &
+        np.isfinite(metrics_df[sensitivity_metric]) &
         np.isfinite(metrics_df['cooperative_volume_percent'])
     )
     valid_data = metrics_df[valid_mask].copy()
@@ -58,19 +58,21 @@ def plot_robustness_analysis(metrics_df, output_path, robustness_metric='backfir
         marker = topology_markers.get(row['topology'], 'o')
         size = 40 if marker == '.' else 30
         
-        ax.scatter(row['cooperative_volume_percent'], row[robustness_metric], 
+        ax.scatter(row['cooperative_volume_percent'], row[sensitivity_metric], 
                   c=color, marker=marker, s=size, alpha=0.7, 
                   edgecolors='black', linewidth=0.5)
     
     # Styling
     ax.set_xlabel('Basin Stability (%)')
-    robustness_label = 'Backfirer Robustness' if 'backfirer' in robustness_metric else 'Stubbornness Robustness'
-    ax.set_ylabel(f'{robustness_label} (1/σ)')
+    if 'backfirer' in sensitivity_metric:
+        ax.set_ylabel('Backfirer Sensitivity ($S_\\rho$)')
+    else:
+        ax.set_ylabel('Stubbornness Sensitivity ($S_w$)')
     ax.grid(True, alpha=0.3, linewidth=0.4)
     
     # Set axis limits with some padding
     x_min, x_max = valid_data['cooperative_volume_percent'].min(), valid_data['cooperative_volume_percent'].max()
-    y_min, y_max = valid_data[robustness_metric].min(), valid_data[robustness_metric].max()
+    y_min, y_max = valid_data[sensitivity_metric].min(), valid_data[sensitivity_metric].max()
     
     x_range = x_max - x_min
     y_range = y_max - y_min
@@ -129,25 +131,25 @@ def main():
         return
     
     # Create output directory
-    output_dir = "../../Figs/Robustness"
+    output_dir = "../../Figs/Sensitivity"
     os.makedirs(output_dir, exist_ok=True)
     
     # Generate plots for both robustness metrics
     today = date.today().strftime("%Y%m%d")
     
-    print("Generating robustness analysis plots...")
+    print("Generating sensitivity analysis plots...")
     
-    # Backfirer robustness plot
-    if 'backfirer_robustness' in metrics_df.columns:
-        backfirer_output = f"{output_dir}/robustness_basin_stability_backfirer_{today}.pdf"
-        plot_robustness_analysis(metrics_df, backfirer_output, 'backfirer_robustness')
-        print(f"Backfirer robustness plot saved: {backfirer_output}")
+    # Backfirer sensitivity plot
+    if 'backfirer_sensitivity' in metrics_df.columns:
+        backfirer_output = f"{output_dir}/sensitivity_basin_stability_backfirer_{today}.pdf"
+        plot_sensitivity_analysis(metrics_df, backfirer_output, 'backfirer_sensitivity')
+        print(f"Backfirer sensitivity plot saved: {backfirer_output}")
     
-    # Stubbornness robustness plot
-    if 'stubbornness_robustness' in metrics_df.columns:
-        stubbornness_output = f"{output_dir}/robustness_basin_stability_stubbornness_{today}.pdf"
-        plot_robustness_analysis(metrics_df, stubbornness_output, 'stubbornness_robustness')
-        print(f"Stubbornness robustness plot saved: {stubbornness_output}")
+    # Stubbornness sensitivity plot
+    if 'stubbornness_sensitivity' in metrics_df.columns:
+        stubbornness_output = f"{output_dir}/sensitivity_basin_stability_stubbornness_{today}.pdf"
+        plot_sensitivity_analysis(metrics_df, stubbornness_output, 'stubbornness_sensitivity')
+        print(f"Stubbornness sensitivity plot saved: {stubbornness_output}")
     
     return metrics_df
 
