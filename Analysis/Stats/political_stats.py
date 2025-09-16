@@ -106,23 +106,24 @@ def analyze_cooperativity_landscape(df, param_name='political_climate'):
     return strategy_df, topology_df, combo_df
 
 def find_data_file():
-    """Find a heatmap sweep file to analyze."""
-    file_list = [f for f in os.listdir("../../Output") if f.endswith(".csv") and "heatmap_sweep" in f]
+    """Find a political climate heatmap sweep file to analyze."""
+    # Look for political climate files specifically
+    file_list = [f for f in os.listdir("../../Output") if f.endswith(".csv") and "politicalClimate" in f]
     
     if not file_list:
-        print("No heatmap sweep files found.")
-        return None
+        print("No political climate files found. Looking for any heatmap sweep files...")
+        file_list = [f for f in os.listdir("../../Output") if f.endswith(".csv") and "heatmap_sweep" in f]
+        if not file_list:
+            print("No heatmap sweep files found.")
+            return None
     
     for i, file in enumerate(file_list):
         print(f"{i}: {file}")
     
-    try:
-        file_idx = int(input("Enter index of file to analyze: "))
-        if 0 <= file_idx < len(file_list):
-            return os.path.join("../../Output", file_list[file_idx])
-        print("Invalid index. Using most recent file.")
-    except ValueError:
-        print("Invalid input. Using most recent file.")
+    # Auto-select the first file (should be political climate)
+    file_idx = 0
+    print(f"Auto-selecting file {file_idx}: {file_list[file_idx]}")
+    return os.path.join("../../Output", file_list[file_idx])
     
     file_list.sort(key=lambda f: os.path.getmtime(os.path.join("../../Output", f)), reverse=True)
     return os.path.join("../../Output", file_list[0])
@@ -183,7 +184,7 @@ def main():
         print(f"Undirected avg positive ratio: {undirected['positive_ratio'].mean():.3f}")
     
     # Save results
-    output_dir = "../../Output"
+    output_dir = "../../Output/Stats"
     os.makedirs(output_dir, exist_ok=True)
     today = date.today().strftime("%Y%m%d")
     output_path = os.path.join(output_dir, f'cooperativity_landscape_analysis_{today}.csv')
