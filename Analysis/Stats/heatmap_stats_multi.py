@@ -58,25 +58,31 @@ def calculate_metrics(df):
         coop_backfirer_fractions = cooperative_data['polarisingNode_f'].values
         coop_stubbornness = cooperative_data['stubbornness'].values
         
-        # Stubbornness robustness analysis
-        stub_coop_by_level = []
+        # Stubbornness robustness analysis - using final cooperation values
+        stub_final_coop_by_level = []
         if 'stubbornness' in group.columns:
             for stub_level in group['stubbornness'].unique():
                 stub_data = group[group['stubbornness'] == stub_level]
-                stub_coop_ratio = (stub_data['state'] > 0).mean()
-                stub_coop_by_level.append(stub_coop_ratio)
+                # Use actual final cooperation values, not ratios
+                stub_final_coop_by_level.extend(stub_data['state'].values)
         
-        stub_robustness = np.std(stub_coop_by_level) if len(stub_coop_by_level) > 1 else 0.0
+        # Calculate robustness as standard deviation of final cooperation values
+        stub_robustness_raw = np.std(stub_final_coop_by_level) if len(stub_final_coop_by_level) > 1 else 0.0
+        # Transform to 1/R for intuitive interpretation (higher = more robust)
+        stub_robustness = 1.0 / (stub_robustness_raw + 1e-10) if stub_robustness_raw > 0 else 0.0
         
-        # Backfirer robustness analysis  
-        backf_coop_by_level = []
+        # Backfirer robustness analysis - using final cooperation values
+        backf_final_coop_by_level = []
         if 'polarisingNode_f' in group.columns:
             for backf_level in group['polarisingNode_f'].unique():
                 backf_data = group[group['polarisingNode_f'] == backf_level]
-                backf_coop_ratio = (backf_data['state'] > 0).mean()
-                backf_coop_by_level.append(backf_coop_ratio)
+                # Use actual final cooperation values, not ratios
+                backf_final_coop_by_level.extend(backf_data['state'].values)
         
-        backf_robustness = np.std(backf_coop_by_level) if len(backf_coop_by_level) > 1 else 0.0
+        # Calculate robustness as standard deviation of final cooperation values
+        backf_robustness_raw = np.std(backf_final_coop_by_level) if len(backf_final_coop_by_level) > 1 else 0.0
+        # Transform to 1/R for intuitive interpretation (higher = more robust)
+        backf_robustness = 1.0 / (backf_robustness_raw + 1e-10) if backf_robustness_raw > 0 else 0.0
         
         metrics = {
             'topology': topology,
@@ -105,9 +111,9 @@ def calculate_metrics(df):
             'min_stubbornness_coop': np.min(coop_stubbornness) if len(coop_stubbornness) > 0 else 0.0,
             'mean_stubbornness_coop': np.mean(coop_stubbornness) if len(coop_stubbornness) > 0 else 0.0,
             
-            # Robustness metrics (lower = more robust)
-            'stubbornness_robustness': stub_robustness,  # Std of coop ratios across stubbornness levels
-            'backfirer_robustness': backf_robustness,    # Std of coop ratios across backfirer levels
+            # Robustness metrics (higher = more robust, using 1/std(final_cooperation))
+            'stubbornness_robustness': stub_robustness,  # 1/std of final cooperation across stubbornness levels
+            'backfirer_robustness': backf_robustness,    # 1/std of final cooperation across backfirer levels
             
             # Polarization metrics
             'high_polarization_percent': (n_high_polarization / total_combinations) * 100,
@@ -125,7 +131,7 @@ def calculate_metrics(df):
     return pd.DataFrame(all_metrics)
 
 def calculate_variant_comparison(metrics_df):
-    """Compare opposite vs similar variants"""
+    """Compare opposite vs similar vs WTF vs N2V variants"""
     comparison_data = []
     
     for topology in TARGET_TOPOLOGIES:
@@ -133,6 +139,8 @@ def calculate_variant_comparison(metrics_df):
         
         opposite_data = topo_data[topo_data['variant_type'] == 'opposite']
         similar_data = topo_data[topo_data['variant_type'] == 'similar']
+        wtf_data = topo_data[topo_data['friendly_name'] == 'wtf']
+        n2v_data = topo_data[topo_data['friendly_name'] == 'node2vec']
         
         if len(opposite_data) > 0 and len(similar_data) > 0:
             comparison = {
@@ -166,7 +174,31 @@ def calculate_variant_comparison(metrics_df):
                 
                 # Stubbornness ranges for cooperative states
                 'opposite_stub_range': f"[{opposite_data['min_stubbornness_coop'].min():.2f}-{opposite_data['max_stubbornness_coop'].max():.2f}]",
-                'similar_stub_range': f"[{similar_data['min_stubbornness_coop'].min():.2f}-{similar_data['max_stubbornness_coop'].max():.2f}]"
+                'similar_stub_range': f"[{similar_data['min_stubbornness_coop'].min():.2f}-{similar_data['max_stubbornness_coop'].max():.2f}]",
+                
+                # WTF metrics
+                'wtf_mean_coop': wtf_data['mean_cooperation'].mean() if len(wtf_data) > 0 else np.nan,
+                'wtf_coop_only_mean': wtf_data['mean_cooperation_coop_only'].mean() if len(wtf_data) > 0 else np.nan,
+                'wtf_max_backfirer': wtf_data['max_backfirer_fraction'].max() if len(wtf_data) > 0 else np.nan,
+                'wtf_backfirer_range': f"[{wtf_data['min_backfirer_fraction'].min():.2f}-{wtf_data['max_backfirer_fraction'].max():.2f}]" if len(wtf_data) > 0 else "N/A",
+                'wtf_stub_robustness': wtf_data['stubbornness_robustness'].mean() if len(wtf_data) > 0 else np.nan,
+                'wtf_backf_robustness': wtf_data['backfirer_robustness'].mean() if len(wtf_data) > 0 else np.nan,
+                'wtf_coop_volume': wtf_data['cooperative_volume_percent'].sum() if len(wtf_data) > 0 else np.nan,
+                'wtf_high_pol_percent': wtf_data['high_polarization_percent'].mean() if len(wtf_data) > 0 else np.nan,
+                'wtf_mean_polarization': wtf_data['mean_polarization'].mean() if len(wtf_data) > 0 else np.nan,
+                'wtf_stub_range': f"[{wtf_data['min_stubbornness_coop'].min():.2f}-{wtf_data['max_stubbornness_coop'].max():.2f}]" if len(wtf_data) > 0 else "N/A",
+                
+                # Node2Vec metrics
+                'n2v_mean_coop': n2v_data['mean_cooperation'].mean() if len(n2v_data) > 0 else np.nan,
+                'n2v_coop_only_mean': n2v_data['mean_cooperation_coop_only'].mean() if len(n2v_data) > 0 else np.nan,
+                'n2v_max_backfirer': n2v_data['max_backfirer_fraction'].max() if len(n2v_data) > 0 else np.nan,
+                'n2v_backfirer_range': f"[{n2v_data['min_backfirer_fraction'].min():.2f}-{n2v_data['max_backfirer_fraction'].max():.2f}]" if len(n2v_data) > 0 else "N/A",
+                'n2v_stub_robustness': n2v_data['stubbornness_robustness'].mean() if len(n2v_data) > 0 else np.nan,
+                'n2v_backf_robustness': n2v_data['backfirer_robustness'].mean() if len(n2v_data) > 0 else np.nan,
+                'n2v_coop_volume': n2v_data['cooperative_volume_percent'].sum() if len(n2v_data) > 0 else np.nan,
+                'n2v_high_pol_percent': n2v_data['high_polarization_percent'].mean() if len(n2v_data) > 0 else np.nan,
+                'n2v_mean_polarization': n2v_data['mean_polarization'].mean() if len(n2v_data) > 0 else np.nan,
+                'n2v_stub_range': f"[{n2v_data['min_stubbornness_coop'].min():.2f}-{n2v_data['max_stubbornness_coop'].max():.2f}]" if len(n2v_data) > 0 else "N/A"
             }
             comparison_data.append(comparison)
     
@@ -224,7 +256,7 @@ def save_comprehensive_analysis(metrics_df, variant_comparison, topology_summary
     with open(comprehensive_path, 'w') as f:
         f.write("=== DETAILED METRICS ===\n")
         metrics_df.to_csv(f, index=False)
-        f.write('\n\n=== VARIANT COMPARISON (OPPOSITE vs SIMILAR) ===\n')
+        f.write('\n\n=== VARIANT COMPARISON (OPPOSITE vs SIMILAR vs WTF vs N2V) ===\n')
         variant_comparison.round(3).to_csv(f, index=False)
         f.write('\n\n=== TOPOLOGY SUMMARY (WTF EXCLUDED) ===\n')
         topology_summary.to_csv(f)
@@ -234,8 +266,8 @@ def save_comprehensive_analysis(metrics_df, variant_comparison, topology_summary
         # Add key statistics for paper
         f.write('\n\n=== KEY STATISTICS FOR PAPER ===\n')
         
-        # Robustness comparison
-        f.write("ROBUSTNESS ANALYSIS:\n")
+        # Robustness comparison (note: higher values = more robust)
+        f.write("ROBUSTNESS ANALYSIS (1/σ transformation - higher = more robust):\n")
         for _, row in variant_comparison.iterrows():
             topo = row['topology']
             f.write(f"\n{topo} Network:\n")
@@ -289,7 +321,8 @@ def main():
     for i, file in enumerate(file_list):
         print(f"{i}: {file}")
     
-    file_index = int(input("Enter the index of the file you want to analyze: "))
+    file_index = 0  # Auto-select first file
+    print(f"Auto-selecting file {file_index}: {file_list[file_index]}")
     data_path = os.path.join("../../Output", file_list[file_index])
     
     # Load and prepare data

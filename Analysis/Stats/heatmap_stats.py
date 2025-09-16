@@ -111,7 +111,7 @@ def calculate_summary_metrics(metrics_df):
 def save_metrics(metrics_df, topology_summary, strategy_summary, output_dir='../../Output'):
     """Save all metrics to a single file with clear sections."""
     today = date.today().strftime("%Y%m%d")
-    output_path = os.path.join(output_dir, f'heatmap_metrics_{today}_old.csv')
+    output_path = os.path.join(output_dir, f'/Stats/heatmap_metrics_{today}_old.csv')
     
     # Round numerical columns
     numeric_cols = metrics_df.select_dtypes(include=[np.number]).columns
@@ -146,7 +146,8 @@ def main():
     for i, file in enumerate(file_list):
         print(f"{i}: {file}")
     
-    file_index = int(input("Enter the index of the file you want to analyze: "))
+    file_index = 0  # Auto-select first file
+    print(f"Auto-selecting file {file_index}: {file_list[file_index]}")
     data_path = os.path.join("../../Output", file_list[file_index])
     
     # Load and prepare data

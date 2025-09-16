@@ -476,16 +476,93 @@ def calculate_summaries(comparative_metrics):
                 'bridge_time': bridge_stats['time_to_majority_mean']
             }
     
+    # 7. Calculate baseline values for reference
+    baseline_values = []
+    for topology in metrics_df['topology'].unique():
+        static_data = metrics_df[(metrics_df['topology'] == topology) & 
+                               (metrics_df['friendly_name'] == 'static')]
+        random_data = metrics_df[(metrics_df['topology'] == topology) & 
+                               (metrics_df['friendly_name'] == 'random')]
+        
+        if not static_data.empty:
+            baseline_values.append({
+                'metric_type': 'baseline_values',
+                'baseline_type': 'static',
+                'topology': topology,
+                'convergence_rate_mean': static_data['convergence_rate'].mean(),
+                'convergence_rate_median': static_data['convergence_rate'].median(),
+                'final_cooperativity_mean': static_data['final_cooperativity'].mean(),
+                'final_cooperativity_median': static_data['final_cooperativity'].median(),
+                'final_polarization_mean': static_data['final_polarization'].mean(),
+                'final_polarization_median': static_data['final_polarization'].median(),
+                'time_to_majority_mean': static_data['time_to_majority'].mean(),
+                'time_to_majority_median': static_data['time_to_majority'].median()
+            })
+            
+        if not random_data.empty:
+            baseline_values.append({
+                'metric_type': 'baseline_values',
+                'baseline_type': 'random',
+                'topology': topology,
+                'convergence_rate_mean': random_data['convergence_rate'].mean(),
+                'convergence_rate_median': random_data['convergence_rate'].median(),
+                'final_cooperativity_mean': random_data['final_cooperativity'].mean(),
+                'final_cooperativity_median': random_data['final_cooperativity'].median(),
+                'final_polarization_mean': random_data['final_polarization'].mean(),
+                'final_polarization_median': random_data['final_polarization'].median(),
+                'time_to_majority_mean': random_data['time_to_majority'].mean(),
+                'time_to_majority_median': random_data['time_to_majority'].median()
+            })
+    
+    # 8. Algorithm performance summary for manuscript
+    performance_summary = []
+    
+    # Calculate fraction of algorithms better than baselines
+    frac_better_static_rate = (algo_stats['better_than_static_rate_mean'] > 0.5).sum() / len(algo_stats)
+    frac_better_static_coop = (algo_stats['better_than_static_coop_mean'] > 0.5).sum() / len(algo_stats)
+    frac_better_random_rate = (algo_stats['better_than_random_rate_mean'] > 0.5).sum() / len(algo_stats)
+    frac_better_random_coop = (algo_stats['better_than_random_coop_mean'] > 0.5).sum() / len(algo_stats)
+    
+    # Speed comparison for "one third faster"
+    similar_algos = algo_stats[algo_stats['friendly_name'].str.contains('similar', na=False)]
+    opposite_algos = algo_stats[algo_stats['friendly_name'].str.contains('opposite', na=False)]
+    
+    if not similar_algos.empty and not opposite_algos.empty:
+        similar_time_avg = similar_algos['time_to_majority_mean'].mean()
+        opposite_time_avg = opposite_algos['time_to_majority_mean'].mean()
+        time_improvement_pct = ((similar_time_avg - opposite_time_avg) / similar_time_avg) * 100
+    else:
+        time_improvement_pct = float('nan')
+    
+    # Max cooperation values
+    max_cooperation_overall = algo_stats['final_cooperativity_mean'].max()
+    max_cooperation_opposite = opposite_algos['final_cooperativity_mean'].max() if not opposite_algos.empty else float('nan')
+    
+    performance_summary.append({
+        'metric_type': 'performance_summary',
+        'fraction_better_static_rate': frac_better_static_rate,
+        'fraction_better_static_coop': frac_better_static_coop,
+        'fraction_better_random_rate': frac_better_random_rate,
+        'fraction_better_random_coop': frac_better_random_coop,
+        'opposite_time_improvement_pct': time_improvement_pct,
+        'max_cooperation_overall': max_cooperation_overall,
+        'max_cooperation_opposite': max_cooperation_opposite,
+        'similar_avg_time': similar_time_avg if not similar_algos.empty else float('nan'),
+        'opposite_avg_time': opposite_time_avg if not opposite_algos.empty else float('nan')
+    })
+
     # Return all summaries
     return {
         'run_stats': pd.DataFrame([run_stats]),
         'algorithm_stats': algo_stats,
         'algorithm_counts': pd.DataFrame([algo_counts]),
         'network_stats': network_stats,
+        'baseline_values': pd.DataFrame(baseline_values) if baseline_values else pd.DataFrame([{'metric_type': 'baseline_values'}]),
         'similar_vs_opposite_base': pd.DataFrame(similar_vs_opposite_base) if similar_vs_opposite_base else pd.DataFrame([{'metric_type': 'similar_vs_opposite_base'}]),
         'similar_vs_opposite': pd.DataFrame([similar_vs_opposite]),
         'base_algorithm_stats': pd.DataFrame(base_algorithm_stats) if base_algorithm_stats else pd.DataFrame([{'metric_type': 'base_algorithm_statistics'}]),
-        'topological_comparison': pd.DataFrame([base_comparison]) if base_comparison else pd.DataFrame([{'metric_type': 'topological_constraint_comparison'}])
+        'topological_comparison': pd.DataFrame([base_comparison]) if base_comparison else pd.DataFrame([{'metric_type': 'topological_constraint_comparison'}]),
+        'performance_summary': pd.DataFrame(performance_summary)
     }
 
 
@@ -518,24 +595,34 @@ def export_combined_results(summaries, output_dir="../../Output/Stats"):
         summaries['algorithm_stats'].to_csv(f, index=False)
         f.write('\n\n\n')
         
-        # 5. Similar vs Opposite Base Comparison
+        # 5. Static and Random Baseline Values
+        f.write("### SECTION: Baseline Values\n")
+        summaries['baseline_values'].to_csv(f, index=False)
+        f.write('\n\n\n')
+        
+        # 6. Similar vs Opposite Base Comparison
         f.write("### SECTION: Similar vs Opposite By Base Algorithm\n")
         summaries['similar_vs_opposite_base'].to_csv(f, index=False)
         f.write('\n\n\n')
         
-        # 6. Similar vs Opposite Overall Comparison
+        # 7. Similar vs Opposite Overall Comparison
         f.write("### SECTION: Similar vs Opposite Overall Comparison\n")
         summaries['similar_vs_opposite'].to_csv(f, index=False)
         f.write('\n\n\n')
         
-        # 7. Base Algorithm Statistics (NEW)
+        # 8. Base Algorithm Statistics
         f.write("### SECTION: Base Algorithm Statistics\n")
         summaries['base_algorithm_stats'].to_csv(f, index=False)
         f.write('\n\n\n')
         
-        # 8. Topological Constraint Comparison (NEW)
+        # 9. Topological Constraint Comparison
         f.write("### SECTION: Topological Constraint Comparison\n")
         summaries['topological_comparison'].to_csv(f, index=False)
+        f.write('\n\n\n')
+        
+        # 10. Algorithm Performance Summary
+        f.write("### SECTION: Algorithm Performance Summary\n")
+        summaries['performance_summary'].to_csv(f, index=False)
     
     return output_path
 
@@ -554,11 +641,9 @@ def main():
     for i, file in enumerate(file_list):
         print(f"{i}: {file}")
     
-    # Get user selection
-    file_index = int(input(f"Enter the index of the file to analyze (0-{len(file_list)-1}): "))
-    if file_index < 0 or file_index >= len(file_list):
-        print("Invalid selection.")
-        return
+    # Auto-select the first (most recent) file
+    file_index = 0
+    print(f"Auto-selecting file {file_index}: {file_list[file_index]}")
         
     file_path = os.path.join(input_dir, file_list[file_index])
     
