@@ -379,9 +379,177 @@ def configure_axis_style(ax, show_ylabel=True, show_xlabel=True):
         labelleft=False, labelright=False
     )
 
-def plot_network_properties(df, topology_filter=None, output_file=None):
+def plot_network_properties_production(df, topology_filter=None, output_file=None):
     """
-    Create a grid plot of network properties over time for a specific topology.
+    Create a production-level grid plot with simplified metrics for final publication.
+    Removes assortativity and total Gini, shortens clustering coefficient label,
+    and combines topological constraints.
+    
+    Parameters:
+    -----------
+    df : pd.DataFrame
+        DataFrame with network properties data
+    topology_filter : str, optional
+        Filter data for specific topology (e.g., 'cl', 'DPAH', 'FB', 'Twitter')
+    output_file : str, optional
+        Output file path for saving the plot
+    """
+    if df.empty:
+        print("No data to plot")
+        return None
+    
+    # Filter by topology if specified
+    if topology_filter:
+        df = df[df['network_type'] == topology_filter]
+        if df.empty:
+            print(f"No data found for topology: {topology_filter}")
+            return None
+    
+    # Properties to plot (simplified for production)
+    properties = ['clustering', 'modularity', 'gini_in_degree']
+    property_labels = {
+        'clustering': 'Clustering',
+        'modularity': 'Modularity', 
+        'gini_in_degree': 'Gini (in-degree)'
+    }
+    
+    # Get unique algorithms and create readable labels
+    scenarios = sorted(df['scenario_grouped'].unique())
+    
+    # Create algorithm display names and ordering
+    algorithm_labels = {}
+    algorithm_order = []
+    
+    # Combine topological constraints (remove static, group bridge and local together)
+    for scenario in scenarios:
+        base_scenario = scenario.lower()
+        if base_scenario == 'none_none':
+            continue  # Remove static from production plots
+        elif base_scenario == 'random_none':
+            label = 'Random'
+            algorithm_labels[scenario] = label
+            algorithm_order.append((scenario, label))
+        elif 'biased' in base_scenario or 'bridge' in base_scenario:
+            # Group topological constraints together
+            if 'same' in base_scenario:
+                label = 'Topo. Constraints (Similar)'
+            else:
+                label = 'Topo. Constraints (Opposite)'
+            algorithm_labels[scenario] = label
+            algorithm_order.append((scenario, label))
+        elif base_scenario == 'wtf_none':
+            label = 'WTF'
+            algorithm_labels[scenario] = label
+            algorithm_order.append((scenario, label))
+        elif base_scenario == 'node2vec_none':
+            label = 'Node2Vec'
+            algorithm_labels[scenario] = label
+            algorithm_order.append((scenario, label))
+    
+    # Remove duplicates while preserving order
+    seen = set()
+    unique_algorithm_order = []
+    for scenario, label in algorithm_order:
+        if label not in seen:
+            seen.add(label)
+            unique_algorithm_order.append((scenario, label))
+    
+    n_algorithms = len(unique_algorithm_order)
+    n_properties = len(properties)
+    
+    if n_algorithms == 0:
+        print("No algorithms found in data")
+        return None
+    
+    # Set up the grid: metrics (rows) × algorithms (columns)
+    fig = plt.figure(figsize=(4*n_algorithms*cm, 12*cm))
+    gs = GridSpec(n_properties, n_algorithms, figure=fig,
+                 top=0.92, bottom=0.08, hspace=0.3, wspace=0.2,
+                 left=0.08, right=0.98)
+    
+    # Plot grid: each metric gets a row, each algorithm gets a column
+    for prop_idx, prop in enumerate(properties):
+        for alg_idx, (scenario, alg_label) in enumerate(unique_algorithm_order):
+            ax = fig.add_subplot(gs[prop_idx, alg_idx])
+            
+            # For grouped labels, combine data from multiple scenarios
+            if 'Topo. Constraints' in alg_label:
+                if 'Similar' in alg_label:
+                    relevant_scenarios = [s for s in scenarios if ('biased_same' in s.lower() or 'bridge_same' in s.lower())]
+                else:
+                    relevant_scenarios = [s for s in scenarios if ('biased_diff' in s.lower() or 'bridge_diff' in s.lower())]
+                algorithm_data = df[df['scenario_grouped'].isin(relevant_scenarios)]
+            else:
+                algorithm_data = df[df['scenario_grouped'] == scenario]
+            
+            # Get color for this algorithm
+            base_scenario = scenario.lower()
+            if 'biased' in base_scenario:
+                color = PLOT_COLORS.get('biased_same' if 'same' in base_scenario else 'biased_diff', '#009988')
+            else:
+                color = PLOT_COLORS.get(base_scenario, '#FE6900')
+            
+            if not algorithm_data.empty:
+                # Group by timestep and calculate mean/std across all simulation runs
+                grouped = algorithm_data.groupby(['timestep'])[prop].agg(['mean', 'std', 'count']).reset_index()
+                
+                if not grouped.empty and not grouped['mean'].isna().all():
+                    # Plot mean line (averaged across all simulations)
+                    ax.plot(grouped['timestep'], grouped['mean'], 
+                           color=color,
+                           linewidth=line_params["data_line_width"])
+                    
+                    # Add error bars showing variation across simulation runs
+                    if not grouped['std'].isna().all() and (grouped['count'] > 1).any():
+                        # Use standard error for error bars
+                        stderr = grouped['std'] / np.sqrt(grouped['count'])
+                        ax.fill_between(grouped['timestep'], 
+                                      grouped['mean'] - stderr,
+                                      grouped['mean'] + stderr,
+                                      color=color,
+                                      alpha=0.2)
+            
+            # Configure axis styling
+            is_bottom_row = prop_idx == n_properties - 1
+            is_left_col = alg_idx == 0
+            
+            configure_axis_style(ax, show_ylabel=is_left_col, show_xlabel=is_bottom_row)
+            
+            # Set labels
+            if is_left_col:
+                ax.set_ylabel(property_labels[prop], fontsize=FONT_SIZE, fontweight='bold')
+            
+            if prop_idx == 0:  # Top row
+                ax.set_title(alg_label, fontsize=FONT_SIZE, fontweight='bold')
+                
+            if is_bottom_row:  # Bottom row
+                ax.set_xlabel('Time, t')
+                # Apply scientific notation formatting like plots_lines.py
+                sci_formatter = ScalarFormatter(useMathText=True)
+                sci_formatter.set_scientific(True)
+                sci_formatter.set_powerlimits((-2, 1))
+                ax.xaxis.set_major_formatter(sci_formatter)
+            
+            # Set reasonable y-limits based on property
+            if prop == 'clustering':
+                ax.set_ylim(0, 1)
+            elif prop == 'modularity':
+                ax.set_ylim(0, 1)
+            elif prop == 'gini_in_degree':
+                ax.set_ylim(0, 1)
+    
+    if output_file:
+        # Create directory if it doesn't exist
+        os.makedirs(os.path.dirname(output_file), exist_ok=True)
+        plt.savefig(output_file, dpi=300, bbox_inches='tight')
+        print(f"Saved: {output_file}")
+    
+    return fig
+
+def plot_network_properties_supplementary(df, topology_filter=None, output_file=None):
+    """
+    Create a comprehensive grid plot of network properties over time for supplementary materials.
+    This is the original full version with all metrics.
     Grid layout: metrics (rows) × algorithms (columns) for easy algorithm comparison
     
     Parameters:
@@ -404,7 +572,7 @@ def plot_network_properties(df, topology_filter=None, output_file=None):
             print(f"No data found for topology: {topology_filter}")
             return None
     
-    # Properties to plot
+    # Properties to plot (comprehensive for supplementary)
     properties = ['clustering', 'modularity', 'assortativity', 'gini_degree', 'gini_in_degree']
     property_labels = {
         'clustering': 'Clustering Coefficient',
@@ -417,7 +585,7 @@ def plot_network_properties(df, topology_filter=None, output_file=None):
     # Get unique algorithms and create readable labels
     scenarios = sorted(df['scenario_grouped'].unique())
     
-    # Create algorithm display names and ordering
+    # Create algorithm display names and ordering (full version for supplementary)
     algorithm_labels = {}
     algorithm_order = []
     
@@ -456,7 +624,6 @@ def plot_network_properties(df, topology_filter=None, output_file=None):
     
     # Sort algorithms for consistent ordering
     algorithm_order.sort(key=lambda x: x[1])
-    
     
     n_algorithms = len(algorithm_order)
     n_properties = len(properties)
@@ -535,8 +702,6 @@ def plot_network_properties(df, topology_filter=None, output_file=None):
             elif prop == 'gini_in_degree':
                 ax.set_ylim(0, 1)
     
-    # Remove overall title
-    
     if output_file:
         # Create directory if it doesn't exist
         os.makedirs(os.path.dirname(output_file), exist_ok=True)
@@ -545,7 +710,14 @@ def plot_network_properties(df, topology_filter=None, output_file=None):
     
     return fig
 
-def main(topology_filter=None):
+# Keep original function name for backward compatibility
+def plot_network_properties(df, topology_filter=None, output_file=None):
+    """
+    Wrapper function that calls the supplementary version for backward compatibility.
+    """
+    return plot_network_properties_supplementary(df, topology_filter, output_file)
+
+def main(topology_filter=None, production_plots=True, supplementary_plots=False):
     """Main function to load data and create plots
     
     Parameters:
@@ -553,6 +725,10 @@ def main(topology_filter=None):
     topology_filter : str, optional
         Specific topology to plot (e.g., 'cl', 'DPAH', 'FB', 'Twitter').
         If None, creates plots for all available topologies.
+    production_plots : bool, default True
+        Whether to create production-level plots with simplified metrics
+    supplementary_plots : bool, default False
+        Whether to create comprehensive supplementary plots with all metrics
     """
     set_plot_style()
     
@@ -583,17 +759,48 @@ def main(topology_filter=None):
     # Create plots for each topology
     today = date.today()
     for topology in topologies_to_plot:
-        output_file = f"../../Figs/Networks/network_properties_evolution_{topology}_{today}.pdf"
-        fig = plot_network_properties(df, topology_filter=topology, output_file=output_file)
+        # Create production-level plots if requested
+        if production_plots:
+            output_file = f"../../Figs/Networks/network_properties_production_{topology}_{today}.pdf"
+            fig = plot_network_properties_production(df, topology_filter=topology, output_file=output_file)
+            print(f"Created production plot for {topology}")
+        
+        # Create supplementary plots if requested  
+        if supplementary_plots:
+            output_file = f"../../Figs/Networks/network_properties_supplementary_{topology}_{today}.pdf"
+            fig = plot_network_properties_supplementary(df, topology_filter=topology, output_file=output_file)
+            print(f"Created supplementary plot for {topology}")
     
     return df
 
 if __name__ == "__main__":
     import sys
     
-    # Allow topology to be specified as command line argument
+    # Parse command line arguments
     topology_filter = None
-    if len(sys.argv) > 1:
-        topology_filter = sys.argv[1]
+    production_plots = True
+    supplementary_plots = False
     
-    df = main(topology_filter=topology_filter)
+    for arg in sys.argv[1:]:
+        if arg in ['cl', 'DPAH', 'FB', 'Twitter']:
+            topology_filter = arg
+        elif arg == '--supplementary':
+            supplementary_plots = True
+        elif arg == '--production-only':
+            production_plots = True
+            supplementary_plots = False
+        elif arg == '--both':
+            production_plots = True
+            supplementary_plots = True
+        elif arg == '--help':
+            print("Usage: python plot_network_properties.py [topology] [options]")
+            print("  topology: cl, DPAH, FB, or Twitter (optional)")
+            print("  --supplementary: also create supplementary plots with all metrics")
+            print("  --production-only: create only production plots (default)")
+            print("  --both: create both production and supplementary plots")
+            print("  --help: show this help message")
+            sys.exit(0)
+    
+    df = main(topology_filter=topology_filter, 
+              production_plots=production_plots, 
+              supplementary_plots=supplementary_plots)

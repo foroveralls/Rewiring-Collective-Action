@@ -58,27 +58,62 @@ def calculate_metrics(df):
         coop_backfirer_fractions = cooperative_data['polarisingNode_f'].values
         coop_stubbornness = cooperative_data['stubbornness'].values
         
-        # Stubbornness sensitivity analysis - using final cooperation values
-        stub_final_coop_by_level = []
+        # Stubbornness sensitivity analysis - Sobol-style main effect calculation
+        stub_mean_coop_by_level = []
         if 'stubbornness' in group.columns:
             for stub_level in group['stubbornness'].unique():
                 stub_data = group[group['stubbornness'] == stub_level]
-                # Use actual final cooperation values, not ratios
-                stub_final_coop_by_level.extend(stub_data['state'].values)
+                if len(stub_data) > 0:
+                    # Average cooperation across all backfirer levels for this stubbornness level
+                    stub_mean_coop_by_level.append(stub_data['state'].mean())
         
-        # Calculate sensitivity as standard deviation of final cooperation values (lower = less sensitive)
-        stub_sensitivity = np.std(stub_final_coop_by_level) if len(stub_final_coop_by_level) > 1 else 0.0
+        # Calculate sensitivity as standard deviation of mean cooperation per parameter level
+        stub_sensitivity = np.std(stub_mean_coop_by_level) if len(stub_mean_coop_by_level) > 1 else 0.0
         
-        # Backfirer sensitivity analysis - using final cooperation values
-        backf_final_coop_by_level = []
+        # Backfirer sensitivity analysis - Sobol-style main effect calculation  
+        backf_mean_coop_by_level = []
         if 'polarisingNode_f' in group.columns:
             for backf_level in group['polarisingNode_f'].unique():
                 backf_data = group[group['polarisingNode_f'] == backf_level]
-                # Use actual final cooperation values, not ratios
-                backf_final_coop_by_level.extend(backf_data['state'].values)
+                if len(backf_data) > 0:
+                    # Average cooperation across all stubbornness levels for this backfirer level
+                    backf_mean_coop_by_level.append(backf_data['state'].mean())
         
-        # Calculate sensitivity as standard deviation of final cooperation values (lower = less sensitive)
-        backf_sensitivity = np.std(backf_final_coop_by_level) if len(backf_final_coop_by_level) > 1 else 0.0
+        # Calculate sensitivity as standard deviation of mean cooperation per parameter level
+        backf_sensitivity = np.std(backf_mean_coop_by_level) if len(backf_mean_coop_by_level) > 1 else 0.0
+        
+        # Supplementary variance decomposition analysis
+        # Calculate within-level variance (noise) and between-level variance (signal)
+        
+        # Stubbornness variance decomposition
+        stub_within_variance = 0.0
+        stub_signal_to_noise = 0.0
+        if len(stub_mean_coop_by_level) > 1:
+            stub_level_variances = []
+            for stub_level in group['stubbornness'].unique():
+                stub_data = group[group['stubbornness'] == stub_level]['state'].values
+                if len(stub_data) > 1:
+                    stub_level_variances.append(np.var(stub_data, ddof=1))
+            
+            if stub_level_variances:
+                stub_within_variance = np.mean(stub_level_variances)  # Average within-level variance
+                stub_between_variance = np.var(stub_mean_coop_by_level, ddof=1)  # Between-level variance
+                stub_signal_to_noise = stub_between_variance / stub_within_variance if stub_within_variance > 0 else 0.0
+        
+        # Backfirer variance decomposition  
+        backf_within_variance = 0.0
+        backf_signal_to_noise = 0.0
+        if len(backf_mean_coop_by_level) > 1:
+            backf_level_variances = []
+            for backf_level in group['polarisingNode_f'].unique():
+                backf_data = group[group['polarisingNode_f'] == backf_level]['state'].values
+                if len(backf_data) > 1:
+                    backf_level_variances.append(np.var(backf_data, ddof=1))
+            
+            if backf_level_variances:
+                backf_within_variance = np.mean(backf_level_variances)  # Average within-level variance
+                backf_between_variance = np.var(backf_mean_coop_by_level, ddof=1)  # Between-level variance
+                backf_signal_to_noise = backf_between_variance / backf_within_variance if backf_within_variance > 0 else 0.0
         
         metrics = {
             'topology': topology,
@@ -107,9 +142,15 @@ def calculate_metrics(df):
             'min_stubbornness_coop': np.min(coop_stubbornness) if len(coop_stubbornness) > 0 else 0.0,
             'mean_stubbornness_coop': np.mean(coop_stubbornness) if len(coop_stubbornness) > 0 else 0.0,
             
-            # Sensitivity metrics (lower = less sensitive to parameter changes)
-            'stubbornness_sensitivity': stub_sensitivity,  # std of final cooperation across stubbornness levels
-            'backfirer_sensitivity': backf_sensitivity,    # std of final cooperation across backfirer levels
+            # Sensitivity metrics (Sobol main effects - higher = more sensitive to parameter changes)
+            'stubbornness_sensitivity': stub_sensitivity,  # std of mean cooperation across stubbornness levels
+            'backfirer_sensitivity': backf_sensitivity,    # std of mean cooperation across backfirer levels
+            
+            # Supplementary variance decomposition metrics
+            'stubbornness_within_variance': stub_within_variance,     # Average variance within parameter levels (noise)
+            'stubbornness_signal_to_noise': stub_signal_to_noise,     # Between-level variance / within-level variance
+            'backfirer_within_variance': backf_within_variance,       # Average variance within parameter levels (noise) 
+            'backfirer_signal_to_noise': backf_signal_to_noise,       # Between-level variance / within-level variance
             
             # Polarization metrics
             'high_polarization_percent': (n_high_polarization / total_combinations) * 100,
@@ -135,8 +176,8 @@ def calculate_variant_comparison(metrics_df):
         
         opposite_data = topo_data[topo_data['variant_type'] == 'opposite']
         similar_data = topo_data[topo_data['variant_type'] == 'similar']
-        wtf_data = topo_data[topo_data['friendly_name'] == 'wtf']
-        n2v_data = topo_data[topo_data['friendly_name'] == 'node2vec']
+        wtf_data = topo_data[topo_data['friendly_name'] == 'empirical wtf']
+        n2v_data = topo_data[topo_data['friendly_name'] == 'empirical node2vec']
         
         if len(opposite_data) > 0 and len(similar_data) > 0:
             comparison = {
@@ -262,8 +303,8 @@ def save_comprehensive_analysis(metrics_df, variant_comparison, topology_summary
         # Add key statistics for paper
         f.write('\n\n=== KEY STATISTICS FOR PAPER ===\n')
         
-        # Sensitivity comparison (note: lower values = less sensitive to parameter changes)
-        f.write("SENSITIVITY ANALYSIS (σ of final cooperation - lower = less sensitive):\n")
+        # Sensitivity comparison (note: higher values = more sensitive to parameter changes)
+        f.write("SENSITIVITY ANALYSIS (Sobol main effects - higher = more sensitive):\n")
         for _, row in variant_comparison.iterrows():
             topo = row['topology']
             f.write(f"\n{topo} Network:\n")
