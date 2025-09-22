@@ -17,7 +17,8 @@ FONT_SIZE = 8
 FRIENDLY_COLORS = {
     'static': '#EE7733', 'random': '#0077BB', 'local (similar)': '#33BBEE',
     'local (opposite)': '#009988', 'bridge (similar)': '#CC3311', 'bridge (opposite)': '#EE3377',
-    'wtf': '#BBBBBB', 'node2vec': '#44BB99'
+    'wtf': '#BBBBBB', 'node2vec': '#44BB99',
+    'empirical wtf': '#BBBBBB', 'empirical node2vec': '#44BB99'
 }
 
 def setup_style():
@@ -29,14 +30,15 @@ def setup_style():
         'axes.labelsize': FONT_SIZE, 'axes.titlesize': FONT_SIZE
     })
 
-def plot_sensitivity_analysis(metrics_df, output_path, sensitivity_metric='backfirer_sensitivity'):
+def plot_sensitivity_analysis_panel(metrics_df, output_path, sensitivity_metric='backfirer_sensitivity'):
     """
-    Create simple sensitivity vs basin stability scatter plot
+    Create 2x2 panel comparing different axis transformations
     """
     setup_style()
-    fig, ax = plt.subplots(figsize=(8.7*cm, 8*cm))
+    fig, axes = plt.subplots(2, 2, figsize=(16*cm, 14*cm))
+    fig.suptitle('Transformation Comparison', fontsize=FONT_SIZE, y=0.95)
     
-    # Filter valid data (exclude cases with no cooperation)
+    # Filter valid data
     valid_mask = (
         (metrics_df['cooperative_volume_percent'] > 0) &
         (metrics_df[sensitivity_metric] >= 0) &
@@ -52,55 +54,70 @@ def plot_sensitivity_analysis(metrics_df, output_path, sensitivity_metric='backf
     # Topology markers
     topology_markers = {'DPAH': 'x', 'cl': '+', 'Twitter': '*', 'FB': '.'}
     
-    # Plot all points
-    for idx, row in valid_data.iterrows():
-        color = FRIENDLY_COLORS.get(row['friendly_name'], 'black')
-        marker = topology_markers.get(row['topology'], 'o')
-        size = 40 if marker == '.' else 30
+    # Define transformations and transform data directly
+    transforms = [
+        ('linear', 'linear', 'Linear-Linear'),
+        ('log', 'linear', 'Log X - Linear Y'),
+        ('linear', 'log', 'Linear X - Log Y'), 
+        ('log', 'log', 'Log-Log')
+    ]
+    
+    for idx, (x_transform, y_transform, title) in enumerate(transforms):
+        ax = axes[idx//2, idx%2]
         
-        ax.scatter(row['cooperative_volume_percent'], row[sensitivity_metric], 
-                  c=color, marker=marker, s=size, alpha=0.7, 
-                  edgecolors='black', linewidth=0.5)
+        # Transform data directly
+        x_data = valid_data['cooperative_volume_percent'].copy()
+        y_data = valid_data[sensitivity_metric].copy()
+        
+        if x_transform == 'log':
+            x_data = np.log10(x_data)
+        if y_transform == 'log':
+            y_data = np.log10(y_data)
+        
+        # Plot all points with transformed data
+        for i, (_, row) in enumerate(valid_data.iterrows()):
+            color = FRIENDLY_COLORS.get(row['friendly_name'], 'black')
+            marker = topology_markers.get(row['topology'], 'o')
+            size = 25 if marker == '.' else 20
+            
+            ax.scatter(x_data.iloc[i], y_data.iloc[i], 
+                      c=color, marker=marker, s=size, alpha=0.7, 
+                      linewidth=0.3)
+        
+        # Set labels based on transformation
+        if x_transform == 'log':
+            ax.set_xlabel('log₁₀(Basin Stability %)', fontsize=FONT_SIZE-2)
+        else:
+            ax.set_xlabel('Basin Stability (%)', fontsize=FONT_SIZE-2)
+            
+        if y_transform == 'log':
+            if 'backfirer' in sensitivity_metric:
+                ax.set_ylabel('log₁₀(Backfirer Sens.)', fontsize=FONT_SIZE-2)
+            else:
+                ax.set_ylabel('log₁₀(Stubbornness Sens.)', fontsize=FONT_SIZE-2)
+        else:
+            if 'backfirer' in sensitivity_metric:
+                ax.set_ylabel('Backfirer Sens. ($S_\\rho$)', fontsize=FONT_SIZE-2)
+            else:
+                ax.set_ylabel('Stubbornness Sens. ($S_w$)', fontsize=FONT_SIZE-2)
+        
+        ax.set_title(title, fontsize=FONT_SIZE-1, pad=8)
+        ax.grid(True, alpha=0.3, linewidth=0.3)
+        ax.tick_params(labelsize=FONT_SIZE-3)
     
-    # Styling
-    ax.set_xlabel('Basin Stability (%)')
-    if 'backfirer' in sensitivity_metric:
-        ax.set_ylabel('Backfirer Sensitivity ($S_\\rho$)')
-    else:
-        ax.set_ylabel('Stubbornness Sensitivity ($S_w$)')
-    ax.grid(True, alpha=0.3, linewidth=0.4)
-    
-    # Set axis limits with some padding
-    x_min, x_max = valid_data['cooperative_volume_percent'].min(), valid_data['cooperative_volume_percent'].max()
-    y_min, y_max = valid_data[sensitivity_metric].min(), valid_data[sensitivity_metric].max()
-    
-    x_range = x_max - x_min
-    y_range = y_max - y_min
-    
-    ax.set_xlim(max(0, x_min - 0.05*x_range), x_max + 0.05*x_range)
-    ax.set_ylim(max(0, y_min - 0.05*y_range), y_max + 0.05*y_range)
-    
-    # Adjust subplot to make room for legends
-    plt.subplots_adjust(top=0.81, bottom=0.24)
-    
-    # Algorithm legend at bottom (horizontal)
+    # Single legend for all subplots
     algo_elements = [Line2D([0], [0], marker='s', color=color, linestyle='None',
-                           markersize=4, label=algo)
+                           markersize=3, label=algo)
                     for algo, color in FRIENDLY_COLORS.items() 
                     if algo in valid_data['friendly_name'].values]
-    algo_legend = ax.legend(handles=algo_elements, bbox_to_anchor=(0.5, -0.25), 
-                           loc='center', columnspacing=0.8, frameon=True, 
-                           fontsize=FONT_SIZE-2, ncol=4)
     
-    # Topology legend at top
-    topo_elements = [Line2D([0], [0], marker=marker, color='black', linestyle='None', 
-                           markersize=5, label=topo) 
-                    for topo, marker in topology_markers.items()
-                    if topo in valid_data['topology'].values]
-    fig.legend(handles=topo_elements, columnspacing=0.8, bbox_to_anchor=(0.53, 0.995), 
-              loc='center', frameon=True, fontsize=FONT_SIZE-2, ncol=4)
+    # Place legend outside the subplots
+    fig.legend(handles=algo_elements, bbox_to_anchor=(0.5, 0.02), 
+              loc='center', columnspacing=0.5, frameon=True, 
+              fontsize=FONT_SIZE-3, ncol=6)
     
     plt.tight_layout()
+    plt.subplots_adjust(bottom=0.12, top=0.9)
     plt.savefig(output_path, dpi=300, bbox_inches='tight')
     plt.show()
 
@@ -137,19 +154,19 @@ def main():
     # Generate plots for both robustness metrics
     today = date.today().strftime("%Y%m%d")
     
-    print("Generating sensitivity analysis plots...")
+    print("Generating sensitivity analysis panel plots...")
     
-    # Backfirer sensitivity plot
+    # Backfirer sensitivity panel plot
     if 'backfirer_sensitivity' in metrics_df.columns:
-        backfirer_output = f"{output_dir}/sensitivity_basin_stability_backfirer_{today}.pdf"
-        plot_sensitivity_analysis(metrics_df, backfirer_output, 'backfirer_sensitivity')
-        print(f"Backfirer sensitivity plot saved: {backfirer_output}")
+        backfirer_output = f"{output_dir}/sensitivity_panel_backfirer_{today}.pdf"
+        plot_sensitivity_analysis_panel(metrics_df, backfirer_output, 'backfirer_sensitivity')
+        print(f"Backfirer sensitivity panel plot saved: {backfirer_output}")
     
-    # Stubbornness sensitivity plot
+    # Stubbornness sensitivity panel plot
     if 'stubbornness_sensitivity' in metrics_df.columns:
-        stubbornness_output = f"{output_dir}/sensitivity_basin_stability_stubbornness_{today}.pdf"
-        plot_sensitivity_analysis(metrics_df, stubbornness_output, 'stubbornness_sensitivity')
-        print(f"Stubbornness sensitivity plot saved: {stubbornness_output}")
+        stubbornness_output = f"{output_dir}/sensitivity_panel_stubbornness_{today}.pdf"
+        plot_sensitivity_analysis_panel(metrics_df, stubbornness_output, 'stubbornness_sensitivity')
+        print(f"Stubbornness sensitivity panel plot saved: {stubbornness_output}")
     
     return metrics_df
 
