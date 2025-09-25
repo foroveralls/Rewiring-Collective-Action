@@ -176,8 +176,10 @@ def calculate_variant_comparison(metrics_df):
         
         opposite_data = topo_data[topo_data['variant_type'] == 'opposite']
         similar_data = topo_data[topo_data['variant_type'] == 'similar']
-        wtf_data = topo_data[topo_data['friendly_name'] == 'empirical wtf']
-        n2v_data = topo_data[topo_data['friendly_name'] == 'empirical node2vec']
+        wtf_data = topo_data[topo_data['friendly_name'] == 'wtf']
+        n2v_data = topo_data[topo_data['friendly_name'] == 'node2vec']
+        static_data = topo_data[topo_data['friendly_name'] == 'static']
+        random_data = topo_data[topo_data['friendly_name'] == 'random']
         
         if len(opposite_data) > 0 and len(similar_data) > 0:
             comparison = {
@@ -199,9 +201,9 @@ def calculate_variant_comparison(metrics_df):
                 'opposite_backf_sensitivity': opposite_data['backfirer_sensitivity'].mean(), 
                 'similar_backf_sensitivity': similar_data['backfirer_sensitivity'].mean(),
                 
-                # Volume metrics
-                'opposite_coop_volume': opposite_data['cooperative_volume_percent'].sum(),
-                'similar_coop_volume': similar_data['cooperative_volume_percent'].sum(),
+                # Volume metrics (calculate as percentage of total parameter combinations)
+                'opposite_coop_volume': (opposite_data['n_cooperative'].sum() / opposite_data['total_combinations'].sum()) * 100,
+                'similar_coop_volume': (similar_data['n_cooperative'].sum() / similar_data['total_combinations'].sum()) * 100,
                 
                 # Polarization metrics
                 'opposite_high_pol_percent': opposite_data['high_polarization_percent'].mean(),
@@ -220,7 +222,7 @@ def calculate_variant_comparison(metrics_df):
                 'wtf_backfirer_range': f"[{wtf_data['min_backfirer_fraction'].min():.2f}-{wtf_data['max_backfirer_fraction'].max():.2f}]" if len(wtf_data) > 0 else "N/A",
                 'wtf_stub_sensitivity': wtf_data['stubbornness_sensitivity'].mean() if len(wtf_data) > 0 else np.nan,
                 'wtf_backf_sensitivity': wtf_data['backfirer_sensitivity'].mean() if len(wtf_data) > 0 else np.nan,
-                'wtf_coop_volume': wtf_data['cooperative_volume_percent'].sum() if len(wtf_data) > 0 else np.nan,
+                'wtf_coop_volume': (wtf_data['n_cooperative'].sum() / wtf_data['total_combinations'].sum()) * 100 if len(wtf_data) > 0 else np.nan,
                 'wtf_high_pol_percent': wtf_data['high_polarization_percent'].mean() if len(wtf_data) > 0 else np.nan,
                 'wtf_mean_polarization': wtf_data['mean_polarization'].mean() if len(wtf_data) > 0 else np.nan,
                 'wtf_stub_range': f"[{wtf_data['min_stubbornness_coop'].min():.2f}-{wtf_data['max_stubbornness_coop'].max():.2f}]" if len(wtf_data) > 0 else "N/A",
@@ -232,10 +234,231 @@ def calculate_variant_comparison(metrics_df):
                 'n2v_backfirer_range': f"[{n2v_data['min_backfirer_fraction'].min():.2f}-{n2v_data['max_backfirer_fraction'].max():.2f}]" if len(n2v_data) > 0 else "N/A",
                 'n2v_stub_sensitivity': n2v_data['stubbornness_sensitivity'].mean() if len(n2v_data) > 0 else np.nan,
                 'n2v_backf_sensitivity': n2v_data['backfirer_sensitivity'].mean() if len(n2v_data) > 0 else np.nan,
-                'n2v_coop_volume': n2v_data['cooperative_volume_percent'].sum() if len(n2v_data) > 0 else np.nan,
+                'n2v_coop_volume': (n2v_data['n_cooperative'].sum() / n2v_data['total_combinations'].sum()) * 100 if len(n2v_data) > 0 else np.nan,
                 'n2v_high_pol_percent': n2v_data['high_polarization_percent'].mean() if len(n2v_data) > 0 else np.nan,
                 'n2v_mean_polarization': n2v_data['mean_polarization'].mean() if len(n2v_data) > 0 else np.nan,
-                'n2v_stub_range': f"[{n2v_data['min_stubbornness_coop'].min():.2f}-{n2v_data['max_stubbornness_coop'].max():.2f}]" if len(n2v_data) > 0 else "N/A"
+                'n2v_stub_range': f"[{n2v_data['min_stubbornness_coop'].min():.2f}-{n2v_data['max_stubbornness_coop'].max():.2f}]" if len(n2v_data) > 0 else "N/A",
+                
+                # Static metrics
+                'static_mean_coop': static_data['mean_cooperation'].mean() if len(static_data) > 0 else np.nan,
+                'static_coop_only_mean': static_data['mean_cooperation_coop_only'].mean() if len(static_data) > 0 else np.nan,
+                'static_max_backfirer': static_data['max_backfirer_fraction'].max() if len(static_data) > 0 else np.nan,
+                'static_backfirer_range': f"[{static_data['min_backfirer_fraction'].min():.2f}-{static_data['max_backfirer_fraction'].max():.2f}]" if len(static_data) > 0 else "N/A",
+                'static_stub_sensitivity': static_data['stubbornness_sensitivity'].mean() if len(static_data) > 0 else np.nan,
+                'static_backf_sensitivity': static_data['backfirer_sensitivity'].mean() if len(static_data) > 0 else np.nan,
+                'static_coop_volume': (static_data['n_cooperative'].sum() / static_data['total_combinations'].sum()) * 100 if len(static_data) > 0 else np.nan,
+                'static_high_pol_percent': static_data['high_polarization_percent'].mean() if len(static_data) > 0 else np.nan,
+                'static_mean_polarization': static_data['mean_polarization'].mean() if len(static_data) > 0 else np.nan,
+                'static_stub_range': f"[{static_data['min_stubbornness_coop'].min():.2f}-{static_data['max_stubbornness_coop'].max():.2f}]" if len(static_data) > 0 else "N/A",
+                
+                # Random metrics
+                'random_mean_coop': random_data['mean_cooperation'].mean() if len(random_data) > 0 else np.nan,
+                'random_coop_only_mean': random_data['mean_cooperation_coop_only'].mean() if len(random_data) > 0 else np.nan,
+                'random_max_backfirer': random_data['max_backfirer_fraction'].max() if len(random_data) > 0 else np.nan,
+                'random_backfirer_range': f"[{random_data['min_backfirer_fraction'].min():.2f}-{random_data['max_backfirer_fraction'].max():.2f}]" if len(random_data) > 0 else "N/A",
+                'random_stub_sensitivity': random_data['stubbornness_sensitivity'].mean() if len(random_data) > 0 else np.nan,
+                'random_backf_sensitivity': random_data['backfirer_sensitivity'].mean() if len(random_data) > 0 else np.nan,
+                'random_coop_volume': (random_data['n_cooperative'].sum() / random_data['total_combinations'].sum()) * 100 if len(random_data) > 0 else np.nan,
+                'random_high_pol_percent': random_data['high_polarization_percent'].mean() if len(random_data) > 0 else np.nan,
+                'random_mean_polarization': random_data['mean_polarization'].mean() if len(random_data) > 0 else np.nan,
+                'random_stub_range': f"[{random_data['min_stubbornness_coop'].min():.2f}-{random_data['max_stubbornness_coop'].max():.2f}]" if len(random_data) > 0 else "N/A"
+            }
+            comparison_data.append(comparison)
+    
+    return pd.DataFrame(comparison_data)
+
+def calculate_directed_networks_comparison(metrics_df):
+    """Head-to-head comparison on directed networks only (DPAH, Twitter) where WTF is applicable"""
+    # Directed networks where WTF can be applied
+    directed_topologies = ['DPAH', 'Twitter'] 
+    directed_data = metrics_df[metrics_df['topology'].isin(directed_topologies)].copy()
+    
+    print(f"\n=== DIRECTED NETWORKS HEAD-TO-HEAD COMPARISON ===")
+    print(f"Comparing all algorithms on directed networks only: {directed_topologies}")
+    print("This provides fair comparison since WTF only works on directed networks")
+    
+    # Group algorithms by type
+    opposite_data = directed_data[directed_data['variant_type'] == 'opposite']
+    similar_data = directed_data[directed_data['variant_type'] == 'similar']
+    wtf_data = directed_data[directed_data['friendly_name'] == 'wtf']
+    n2v_data = directed_data[directed_data['friendly_name'] == 'node2vec']
+    static_data = directed_data[directed_data['friendly_name'] == 'static']
+    random_data = directed_data[directed_data['friendly_name'] == 'random']
+    
+    directed_comparison = {
+        'opposite': {
+            'mean_cooperation': opposite_data['mean_cooperation'].mean(),
+            'mean_cooperation_coop_only': opposite_data['mean_cooperation_coop_only'].mean(),
+            'cooperative_volume': (opposite_data['n_cooperative'].sum() / opposite_data['total_combinations'].sum()) * 100,
+            'max_backfirer_fraction': opposite_data['max_backfirer_fraction'].max(),
+            'mean_backfirer_fraction': opposite_data['mean_backfirer_fraction'].mean(),
+            'backfirer_range': f"[{opposite_data['min_backfirer_fraction'].min():.2f}-{opposite_data['max_backfirer_fraction'].max():.2f}]",
+            'stubbornness_sensitivity': opposite_data['stubbornness_sensitivity'].mean(),
+            'backfirer_sensitivity': opposite_data['backfirer_sensitivity'].mean(),
+            'high_polarization_percent': opposite_data['high_polarization_percent'].mean(),
+            'mean_polarization': opposite_data['mean_polarization'].mean(),
+            'stubbornness_range': f"[{opposite_data['min_stubbornness_coop'].min():.2f}-{opposite_data['max_stubbornness_coop'].max():.2f}]"
+        },
+        'similar': {
+            'mean_cooperation': similar_data['mean_cooperation'].mean(),
+            'mean_cooperation_coop_only': similar_data['mean_cooperation_coop_only'].mean(),
+            'cooperative_volume': (similar_data['n_cooperative'].sum() / similar_data['total_combinations'].sum()) * 100,
+            'max_backfirer_fraction': similar_data['max_backfirer_fraction'].max(),
+            'mean_backfirer_fraction': similar_data['mean_backfirer_fraction'].mean(),
+            'backfirer_range': f"[{similar_data['min_backfirer_fraction'].min():.2f}-{similar_data['max_backfirer_fraction'].max():.2f}]",
+            'stubbornness_sensitivity': similar_data['stubbornness_sensitivity'].mean(),
+            'backfirer_sensitivity': similar_data['backfirer_sensitivity'].mean(),
+            'high_polarization_percent': similar_data['high_polarization_percent'].mean(),
+            'mean_polarization': similar_data['mean_polarization'].mean(),
+            'stubbornness_range': f"[{similar_data['min_stubbornness_coop'].min():.2f}-{similar_data['max_stubbornness_coop'].max():.2f}]"
+        },
+        'wtf': {
+            'mean_cooperation': wtf_data['mean_cooperation'].mean(),
+            'mean_cooperation_coop_only': wtf_data['mean_cooperation_coop_only'].mean(),
+            'cooperative_volume': (wtf_data['n_cooperative'].sum() / wtf_data['total_combinations'].sum()) * 100,
+            'max_backfirer_fraction': wtf_data['max_backfirer_fraction'].max(),
+            'mean_backfirer_fraction': wtf_data['mean_backfirer_fraction'].mean(),
+            'backfirer_range': f"[{wtf_data['min_backfirer_fraction'].min():.2f}-{wtf_data['max_backfirer_fraction'].max():.2f}]",
+            'stubbornness_sensitivity': wtf_data['stubbornness_sensitivity'].mean(),
+            'backfirer_sensitivity': wtf_data['backfirer_sensitivity'].mean(),
+            'high_polarization_percent': wtf_data['high_polarization_percent'].mean(),
+            'mean_polarization': wtf_data['mean_polarization'].mean(),
+            'stubbornness_range': f"[{wtf_data['min_stubbornness_coop'].min():.2f}-{wtf_data['max_stubbornness_coop'].max():.2f}]"
+        },
+        'n2v': {
+            'mean_cooperation': n2v_data['mean_cooperation'].mean(),
+            'mean_cooperation_coop_only': n2v_data['mean_cooperation_coop_only'].mean(),
+            'cooperative_volume': (n2v_data['n_cooperative'].sum() / n2v_data['total_combinations'].sum()) * 100,
+            'max_backfirer_fraction': n2v_data['max_backfirer_fraction'].max(),
+            'mean_backfirer_fraction': n2v_data['mean_backfirer_fraction'].mean(),
+            'backfirer_range': f"[{n2v_data['min_backfirer_fraction'].min():.2f}-{n2v_data['max_backfirer_fraction'].max():.2f}]",
+            'stubbornness_sensitivity': n2v_data['stubbornness_sensitivity'].mean(),
+            'backfirer_sensitivity': n2v_data['backfirer_sensitivity'].mean(),
+            'high_polarization_percent': n2v_data['high_polarization_percent'].mean(),
+            'mean_polarization': n2v_data['mean_polarization'].mean(),
+            'stubbornness_range': f"[{n2v_data['min_stubbornness_coop'].min():.2f}-{n2v_data['max_stubbornness_coop'].max():.2f}]"
+        },
+        'static': {
+            'mean_cooperation': static_data['mean_cooperation'].mean(),
+            'mean_cooperation_coop_only': static_data['mean_cooperation_coop_only'].mean(),
+            'cooperative_volume': (static_data['n_cooperative'].sum() / static_data['total_combinations'].sum()) * 100,
+            'max_backfirer_fraction': static_data['max_backfirer_fraction'].max(),
+            'mean_backfirer_fraction': static_data['mean_backfirer_fraction'].mean(),
+            'backfirer_range': f"[{static_data['min_backfirer_fraction'].min():.2f}-{static_data['max_backfirer_fraction'].max():.2f}]",
+            'stubbornness_sensitivity': static_data['stubbornness_sensitivity'].mean(),
+            'backfirer_sensitivity': static_data['backfirer_sensitivity'].mean(),
+            'high_polarization_percent': static_data['high_polarization_percent'].mean(),
+            'mean_polarization': static_data['mean_polarization'].mean(),
+            'stubbornness_range': f"[{static_data['min_stubbornness_coop'].min():.2f}-{static_data['max_stubbornness_coop'].max():.2f}]"
+        },
+        'random': {
+            'mean_cooperation': random_data['mean_cooperation'].mean(),
+            'mean_cooperation_coop_only': random_data['mean_cooperation_coop_only'].mean(),
+            'cooperative_volume': (random_data['n_cooperative'].sum() / random_data['total_combinations'].sum()) * 100,
+            'max_backfirer_fraction': random_data['max_backfirer_fraction'].max(),
+            'mean_backfirer_fraction': random_data['mean_backfirer_fraction'].mean(),
+            'backfirer_range': f"[{random_data['min_backfirer_fraction'].min():.2f}-{random_data['max_backfirer_fraction'].max():.2f}]",
+            'stubbornness_sensitivity': random_data['stubbornness_sensitivity'].mean(),
+            'backfirer_sensitivity': random_data['backfirer_sensitivity'].mean(),
+            'high_polarization_percent': random_data['high_polarization_percent'].mean(),
+            'mean_polarization': random_data['mean_polarization'].mean(),
+            'stubbornness_range': f"[{random_data['min_stubbornness_coop'].min():.2f}-{random_data['max_stubbornness_coop'].max():.2f}]"
+        }
+    }
+    
+    return directed_comparison
+
+def calculate_subvariant_comparison_similar(metrics_df):
+    """Head-to-head comparison: local(similar) vs bridge(similar)"""
+    comparison_data = []
+    
+    for topology in TARGET_TOPOLOGIES:
+        topo_data = metrics_df[metrics_df['topology'] == topology]
+        
+        local_similar_data = topo_data[topo_data['friendly_name'] == 'local (similar)']
+        bridge_similar_data = topo_data[topo_data['friendly_name'] == 'bridge (similar)']
+        
+        if len(local_similar_data) > 0 and len(bridge_similar_data) > 0:
+            comparison = {
+                'topology': topology,
+                'local_similar_mean_coop': local_similar_data['mean_cooperation'].mean(),
+                'bridge_similar_mean_coop': bridge_similar_data['mean_cooperation'].mean(),
+                'local_similar_coop_only_mean': local_similar_data['mean_cooperation_coop_only'].mean(),
+                'bridge_similar_coop_only_mean': bridge_similar_data['mean_cooperation_coop_only'].mean(),
+                
+                # Backfirer tolerance and ranges
+                'local_similar_max_backfirer': local_similar_data['max_backfirer_fraction'].max(),
+                'bridge_similar_max_backfirer': bridge_similar_data['max_backfirer_fraction'].max(),
+                'local_similar_backfirer_range': f"[{local_similar_data['min_backfirer_fraction'].min():.2f}-{local_similar_data['max_backfirer_fraction'].max():.2f}]",
+                'bridge_similar_backfirer_range': f"[{bridge_similar_data['min_backfirer_fraction'].min():.2f}-{bridge_similar_data['max_backfirer_fraction'].max():.2f}]",
+                
+                # Sensitivity metrics
+                'local_similar_stub_sensitivity': local_similar_data['stubbornness_sensitivity'].mean(),
+                'bridge_similar_stub_sensitivity': bridge_similar_data['stubbornness_sensitivity'].mean(),
+                'local_similar_backf_sensitivity': local_similar_data['backfirer_sensitivity'].mean(),
+                'bridge_similar_backf_sensitivity': bridge_similar_data['backfirer_sensitivity'].mean(),
+                
+                # Volume metrics
+                'local_similar_coop_volume': (local_similar_data['n_cooperative'].sum() / local_similar_data['total_combinations'].sum()) * 100,
+                'bridge_similar_coop_volume': (bridge_similar_data['n_cooperative'].sum() / bridge_similar_data['total_combinations'].sum()) * 100,
+                
+                # Polarization metrics
+                'local_similar_high_pol_percent': local_similar_data['high_polarization_percent'].mean(),
+                'bridge_similar_high_pol_percent': bridge_similar_data['high_polarization_percent'].mean(),
+                'local_similar_mean_polarization': local_similar_data['mean_polarization'].mean(),
+                'bridge_similar_mean_polarization': bridge_similar_data['mean_polarization'].mean(),
+                
+                # Stubbornness ranges
+                'local_similar_stub_range': f"[{local_similar_data['min_stubbornness_coop'].min():.2f}-{local_similar_data['max_stubbornness_coop'].max():.2f}]",
+                'bridge_similar_stub_range': f"[{bridge_similar_data['min_stubbornness_coop'].min():.2f}-{bridge_similar_data['max_stubbornness_coop'].max():.2f}]"
+            }
+            comparison_data.append(comparison)
+    
+    return pd.DataFrame(comparison_data)
+
+def calculate_subvariant_comparison_opposite(metrics_df):
+    """Head-to-head comparison: local(opposite) vs bridge(opposite)"""
+    comparison_data = []
+    
+    for topology in TARGET_TOPOLOGIES:
+        topo_data = metrics_df[metrics_df['topology'] == topology]
+        
+        local_opposite_data = topo_data[topo_data['friendly_name'] == 'local (opposite)']
+        bridge_opposite_data = topo_data[topo_data['friendly_name'] == 'bridge (opposite)']
+        
+        if len(local_opposite_data) > 0 and len(bridge_opposite_data) > 0:
+            comparison = {
+                'topology': topology,
+                'local_opposite_mean_coop': local_opposite_data['mean_cooperation'].mean(),
+                'bridge_opposite_mean_coop': bridge_opposite_data['mean_cooperation'].mean(),
+                'local_opposite_coop_only_mean': local_opposite_data['mean_cooperation_coop_only'].mean(),
+                'bridge_opposite_coop_only_mean': bridge_opposite_data['mean_cooperation_coop_only'].mean(),
+                
+                # Backfirer tolerance and ranges
+                'local_opposite_max_backfirer': local_opposite_data['max_backfirer_fraction'].max(),
+                'bridge_opposite_max_backfirer': bridge_opposite_data['max_backfirer_fraction'].max(),
+                'local_opposite_backfirer_range': f"[{local_opposite_data['min_backfirer_fraction'].min():.2f}-{local_opposite_data['max_backfirer_fraction'].max():.2f}]",
+                'bridge_opposite_backfirer_range': f"[{bridge_opposite_data['min_backfirer_fraction'].min():.2f}-{bridge_opposite_data['max_backfirer_fraction'].max():.2f}]",
+                
+                # Sensitivity metrics
+                'local_opposite_stub_sensitivity': local_opposite_data['stubbornness_sensitivity'].mean(),
+                'bridge_opposite_stub_sensitivity': bridge_opposite_data['stubbornness_sensitivity'].mean(),
+                'local_opposite_backf_sensitivity': local_opposite_data['backfirer_sensitivity'].mean(),
+                'bridge_opposite_backf_sensitivity': bridge_opposite_data['backfirer_sensitivity'].mean(),
+                
+                # Volume metrics
+                'local_opposite_coop_volume': (local_opposite_data['n_cooperative'].sum() / local_opposite_data['total_combinations'].sum()) * 100,
+                'bridge_opposite_coop_volume': (bridge_opposite_data['n_cooperative'].sum() / bridge_opposite_data['total_combinations'].sum()) * 100,
+                
+                # Polarization metrics
+                'local_opposite_high_pol_percent': local_opposite_data['high_polarization_percent'].mean(),
+                'bridge_opposite_high_pol_percent': bridge_opposite_data['high_polarization_percent'].mean(),
+                'local_opposite_mean_polarization': local_opposite_data['mean_polarization'].mean(),
+                'bridge_opposite_mean_polarization': bridge_opposite_data['mean_polarization'].mean(),
+                
+                # Stubbornness ranges
+                'local_opposite_stub_range': f"[{local_opposite_data['min_stubbornness_coop'].min():.2f}-{local_opposite_data['max_stubbornness_coop'].max():.2f}]",
+                'bridge_opposite_stub_range': f"[{bridge_opposite_data['min_stubbornness_coop'].min():.2f}-{bridge_opposite_data['max_stubbornness_coop'].max():.2f}]"
             }
             comparison_data.append(comparison)
     
@@ -248,10 +471,18 @@ def calculate_topology_summary(metrics_df, exclude_wtf=True):
     else:
         valid_metrics = metrics_df[metrics_df['max_backfirer_fraction'] > 0].copy()
     
+    # Calculate proper cooperative volume percentage for each topology
+    topology_volumes = []
+    for topology in valid_metrics['topology'].unique():
+        topo_data = valid_metrics[valid_metrics['topology'] == topology]
+        coop_volume_percent = (topo_data['n_cooperative'].sum() / topo_data['total_combinations'].sum()) * 100
+        topology_volumes.append({'topology': topology, 'cooperative_volume_percent': coop_volume_percent})
+    
+    volume_df = pd.DataFrame(topology_volumes).set_index('topology')
+    
     summary = valid_metrics.groupby('topology').agg({
         'mean_cooperation': 'mean',
         'mean_cooperation_coop_only': 'mean', 
-        'cooperative_volume_percent': 'sum',
         'max_backfirer_fraction': ['mean', 'max'],
         'mean_backfirer_fraction': 'mean',
         'stubbornness_sensitivity': 'mean',
@@ -260,12 +491,15 @@ def calculate_topology_summary(metrics_df, exclude_wtf=True):
         'mean_polarization': 'mean'
     }).round(3)
     
+    # Add the correctly calculated cooperative volume
+    summary['cooperative_volume_percent'] = volume_df['cooperative_volume_percent'].round(3)
+    
     # Flatten column names
     summary.columns = ['_'.join(col).strip() if col[1] else col[0] for col in summary.columns.values]
     
     return summary
 
-def save_comprehensive_analysis(metrics_df, variant_comparison, topology_summary, topology_summary_with_wtf, output_dir='../../Output/Stats/stubborness_backfirer'):
+def save_comprehensive_analysis(metrics_df, variant_comparison, directed_comparison, subvariant_similar_comparison, subvariant_opposite_comparison, topology_summary, topology_summary_with_wtf, output_dir='../../Output/Stats/stubborness_backfirer'):
     """Save all analyses to separate files"""
     today = date.today().strftime("%Y%m%d")
     
@@ -281,6 +515,13 @@ def save_comprehensive_analysis(metrics_df, variant_comparison, topology_summary
     comparison_path = os.path.join(output_dir, f'variant_comparison_{today}.csv')
     variant_comparison.round(3).to_csv(comparison_path, index=False)
     
+    # Save subvariant comparisons
+    subvariant_similar_path = os.path.join(output_dir, f'subvariant_similar_comparison_{today}.csv')
+    subvariant_similar_comparison.round(3).to_csv(subvariant_similar_path, index=False)
+    
+    subvariant_opposite_path = os.path.join(output_dir, f'subvariant_opposite_comparison_{today}.csv')
+    subvariant_opposite_comparison.round(3).to_csv(subvariant_opposite_path, index=False)
+    
     # Save topology summaries
     summary_path = os.path.join(output_dir, f'topology_summary_{today}.csv')
     topology_summary.to_csv(summary_path)
@@ -295,6 +536,10 @@ def save_comprehensive_analysis(metrics_df, variant_comparison, topology_summary
         metrics_df.to_csv(f, index=False)
         f.write('\n\n=== VARIANT COMPARISON (OPPOSITE vs SIMILAR vs WTF vs N2V) ===\n')
         variant_comparison.round(3).to_csv(f, index=False)
+        f.write('\n\n=== SUBVARIANT COMPARISON: LOCAL(SIMILAR) vs BRIDGE(SIMILAR) ===\n')
+        subvariant_similar_comparison.round(3).to_csv(f, index=False)
+        f.write('\n\n=== SUBVARIANT COMPARISON: LOCAL(OPPOSITE) vs BRIDGE(OPPOSITE) ===\n')
+        subvariant_opposite_comparison.round(3).to_csv(f, index=False)
         f.write('\n\n=== TOPOLOGY SUMMARY (WTF EXCLUDED) ===\n')
         topology_summary.to_csv(f)
         f.write('\n\n=== TOPOLOGY SUMMARY (WTF INCLUDED) ===\n')
@@ -344,8 +589,206 @@ def save_comprehensive_analysis(metrics_df, variant_comparison, topology_summary
         mean_pol_opposite = metrics_df[metrics_df['variant_type'] == 'opposite']['mean_polarization'].mean()
         mean_pol_similar = metrics_df[metrics_df['variant_type'] == 'similar']['mean_polarization'].mean()
         f.write(f"Mean polarization levels - Opposite: {mean_pol_opposite:.3f}, Similar: {mean_pol_similar:.3f}\n")
+        
+        # Add comprehensive overall variant comparison
+        f.write('\n\n=== COMPREHENSIVE OVERALL VARIANT COMPARISON (ALL TOPOLOGIES) ===\n')
+        
+        # Calculate overall variant metrics across all topologies
+        opposite_all = metrics_df[metrics_df['variant_type'] == 'opposite']
+        similar_all = metrics_df[metrics_df['variant_type'] == 'similar']
+        wtf_all = metrics_df[metrics_df['friendly_name'] == 'wtf']
+        n2v_all = metrics_df[metrics_df['friendly_name'] == 'node2vec']
+        static_all = metrics_df[metrics_df['friendly_name'] == 'static']
+        random_all = metrics_df[metrics_df['friendly_name'] == 'random']
+        
+        overall_comparison = {
+            'opposite': {
+                'mean_cooperation': opposite_all['mean_cooperation'].mean(),
+                'mean_cooperation_coop_only': opposite_all['mean_cooperation_coop_only'].mean(),
+                'cooperative_volume': (opposite_all['n_cooperative'].sum() / opposite_all['total_combinations'].sum()) * 100,
+                'max_backfirer_fraction': opposite_all['max_backfirer_fraction'].max(),
+                'mean_backfirer_fraction': opposite_all['mean_backfirer_fraction'].mean(),
+                'backfirer_range': f"[{opposite_all['min_backfirer_fraction'].min():.2f}-{opposite_all['max_backfirer_fraction'].max():.2f}]",
+                'stubbornness_sensitivity': opposite_all['stubbornness_sensitivity'].mean(),
+                'backfirer_sensitivity': opposite_all['backfirer_sensitivity'].mean(),
+                'high_polarization_percent': opposite_all['high_polarization_percent'].mean(),
+                'mean_polarization': opposite_all['mean_polarization'].mean(),
+                'stubbornness_range': f"[{opposite_all['min_stubbornness_coop'].min():.2f}-{opposite_all['max_stubbornness_coop'].max():.2f}]"
+            },
+            'similar': {
+                'mean_cooperation': similar_all['mean_cooperation'].mean(),
+                'mean_cooperation_coop_only': similar_all['mean_cooperation_coop_only'].mean(),
+                'cooperative_volume': (similar_all['n_cooperative'].sum() / similar_all['total_combinations'].sum()) * 100,
+                'max_backfirer_fraction': similar_all['max_backfirer_fraction'].max(),
+                'mean_backfirer_fraction': similar_all['mean_backfirer_fraction'].mean(),
+                'backfirer_range': f"[{similar_all['min_backfirer_fraction'].min():.2f}-{similar_all['max_backfirer_fraction'].max():.2f}]",
+                'stubbornness_sensitivity': similar_all['stubbornness_sensitivity'].mean(),
+                'backfirer_sensitivity': similar_all['backfirer_sensitivity'].mean(),
+                'high_polarization_percent': similar_all['high_polarization_percent'].mean(),
+                'mean_polarization': similar_all['mean_polarization'].mean(),
+                'stubbornness_range': f"[{similar_all['min_stubbornness_coop'].min():.2f}-{similar_all['max_stubbornness_coop'].max():.2f}]"
+            }
+        }
+        
+        # Add all other algorithms if they exist
+        if len(wtf_all) > 0:
+            overall_comparison['wtf'] = {
+                'mean_cooperation': wtf_all['mean_cooperation'].mean(),
+                'mean_cooperation_coop_only': wtf_all['mean_cooperation_coop_only'].mean(),
+                'cooperative_volume': (wtf_all['n_cooperative'].sum() / wtf_all['total_combinations'].sum()) * 100,
+                'max_backfirer_fraction': wtf_all['max_backfirer_fraction'].max(),
+                'mean_backfirer_fraction': wtf_all['mean_backfirer_fraction'].mean(),
+                'backfirer_range': f"[{wtf_all['min_backfirer_fraction'].min():.2f}-{wtf_all['max_backfirer_fraction'].max():.2f}]",
+                'stubbornness_sensitivity': wtf_all['stubbornness_sensitivity'].mean(),
+                'backfirer_sensitivity': wtf_all['backfirer_sensitivity'].mean(),
+                'high_polarization_percent': wtf_all['high_polarization_percent'].mean(),
+                'mean_polarization': wtf_all['mean_polarization'].mean(),
+                'stubbornness_range': f"[{wtf_all['min_stubbornness_coop'].min():.2f}-{wtf_all['max_stubbornness_coop'].max():.2f}]"
+            }
+        
+        if len(n2v_all) > 0:
+            overall_comparison['n2v'] = {
+                'mean_cooperation': n2v_all['mean_cooperation'].mean(),
+                'mean_cooperation_coop_only': n2v_all['mean_cooperation_coop_only'].mean(),
+                'cooperative_volume': (n2v_all['n_cooperative'].sum() / n2v_all['total_combinations'].sum()) * 100,
+                'max_backfirer_fraction': n2v_all['max_backfirer_fraction'].max(),
+                'mean_backfirer_fraction': n2v_all['mean_backfirer_fraction'].mean(),
+                'backfirer_range': f"[{n2v_all['min_backfirer_fraction'].min():.2f}-{n2v_all['max_backfirer_fraction'].max():.2f}]",
+                'stubbornness_sensitivity': n2v_all['stubbornness_sensitivity'].mean(),
+                'backfirer_sensitivity': n2v_all['backfirer_sensitivity'].mean(),
+                'high_polarization_percent': n2v_all['high_polarization_percent'].mean(),
+                'mean_polarization': n2v_all['mean_polarization'].mean(),
+                'stubbornness_range': f"[{n2v_all['min_stubbornness_coop'].min():.2f}-{n2v_all['max_stubbornness_coop'].max():.2f}]"
+            }
+        
+        if len(static_all) > 0:
+            overall_comparison['static'] = {
+                'mean_cooperation': static_all['mean_cooperation'].mean(),
+                'mean_cooperation_coop_only': static_all['mean_cooperation_coop_only'].mean(),
+                'cooperative_volume': (static_all['n_cooperative'].sum() / static_all['total_combinations'].sum()) * 100,
+                'max_backfirer_fraction': static_all['max_backfirer_fraction'].max(),
+                'mean_backfirer_fraction': static_all['mean_backfirer_fraction'].mean(),
+                'backfirer_range': f"[{static_all['min_backfirer_fraction'].min():.2f}-{static_all['max_backfirer_fraction'].max():.2f}]",
+                'stubbornness_sensitivity': static_all['stubbornness_sensitivity'].mean(),
+                'backfirer_sensitivity': static_all['backfirer_sensitivity'].mean(),
+                'high_polarization_percent': static_all['high_polarization_percent'].mean(),
+                'mean_polarization': static_all['mean_polarization'].mean(),
+                'stubbornness_range': f"[{static_all['min_stubbornness_coop'].min():.2f}-{static_all['max_stubbornness_coop'].max():.2f}]"
+            }
+        
+        if len(random_all) > 0:
+            overall_comparison['random'] = {
+                'mean_cooperation': random_all['mean_cooperation'].mean(),
+                'mean_cooperation_coop_only': random_all['mean_cooperation_coop_only'].mean(),
+                'cooperative_volume': (random_all['n_cooperative'].sum() / random_all['total_combinations'].sum()) * 100,
+                'max_backfirer_fraction': random_all['max_backfirer_fraction'].max(),
+                'mean_backfirer_fraction': random_all['mean_backfirer_fraction'].mean(),
+                'backfirer_range': f"[{random_all['min_backfirer_fraction'].min():.2f}-{random_all['max_backfirer_fraction'].max():.2f}]",
+                'stubbornness_sensitivity': random_all['stubbornness_sensitivity'].mean(),
+                'backfirer_sensitivity': random_all['backfirer_sensitivity'].mean(),
+                'high_polarization_percent': random_all['high_polarization_percent'].mean(),
+                'mean_polarization': random_all['mean_polarization'].mean(),
+                'stubbornness_range': f"[{random_all['min_stubbornness_coop'].min():.2f}-{random_all['max_stubbornness_coop'].max():.2f}]"
+            }
+        
+        # Create a proper DataFrame for the overall comparison and save as CSV
+        overall_comparison_rows = []
+        
+        metrics_to_write = [
+            ('Mean Cooperation', 'mean_cooperation'),
+            ('Mean Coop (Coop Only)', 'mean_cooperation_coop_only'),
+            ('Cooperative Volume %', 'cooperative_volume'),
+            ('Max Backfirer Fraction', 'max_backfirer_fraction'),
+            ('Mean Backfirer Fraction', 'mean_backfirer_fraction'),
+            ('Backfirer Range', 'backfirer_range'),
+            ('Stubbornness Sensitivity', 'stubbornness_sensitivity'),
+            ('Backfirer Sensitivity', 'backfirer_sensitivity'),
+            ('High Polarization %', 'high_polarization_percent'),
+            ('Mean Polarization', 'mean_polarization'),
+            ('Stubbornness Range', 'stubbornness_range')
+        ]
+        
+        for metric_name, metric_key in metrics_to_write:
+            row = {
+                'Metric': metric_name,
+                'Opposite': overall_comparison['opposite'][metric_key],
+                'Similar': overall_comparison['similar'][metric_key]
+            }
+            
+            if len(wtf_all) > 0:
+                row['WTF'] = overall_comparison['wtf'][metric_key]
+            
+            if len(n2v_all) > 0:
+                row['Node2Vec'] = overall_comparison['n2v'][metric_key]
+            
+            if len(static_all) > 0:
+                row['Static'] = overall_comparison['static'][metric_key]
+            
+            if len(random_all) > 0:
+                row['Random'] = overall_comparison['random'][metric_key]
+                
+            overall_comparison_rows.append(row)
+        
+        # Convert to DataFrame and write as CSV
+        overall_df = pd.DataFrame(overall_comparison_rows)
+        overall_df.to_csv(f, index=False)
+        
+        # Add directed networks head-to-head comparison
+        f.write('\n\n=== DIRECTED NETWORKS HEAD-TO-HEAD COMPARISON (DPAH, Twitter only) ===\n')
+        f.write('Fair comparison on directed networks where WTF is applicable\n\n')
+        
+        directed_comparison_rows = []
+        metrics_to_write_directed = [
+            ('Mean Cooperation', 'mean_cooperation'),
+            ('Mean Coop (Coop Only)', 'mean_cooperation_coop_only'),
+            ('Cooperative Volume %', 'cooperative_volume'),
+            ('Max Backfirer Fraction', 'max_backfirer_fraction'),
+            ('Mean Backfirer Fraction', 'mean_backfirer_fraction'),
+            ('Backfirer Range', 'backfirer_range'),
+            ('Stubbornness Sensitivity', 'stubbornness_sensitivity'),
+            ('Backfirer Sensitivity', 'backfirer_sensitivity'),
+            ('High Polarization %', 'high_polarization_percent'),
+            ('Mean Polarization', 'mean_polarization'),
+            ('Stubbornness Range', 'stubbornness_range')
+        ]
+        
+        for metric_name, metric_key in metrics_to_write_directed:
+            row = {
+                'Metric': metric_name,
+                'Opposite': directed_comparison['opposite'][metric_key],
+                'Similar': directed_comparison['similar'][metric_key],
+                'WTF': directed_comparison['wtf'][metric_key],
+                'Node2Vec': directed_comparison['n2v'][metric_key],
+                'Static': directed_comparison['static'][metric_key],
+                'Random': directed_comparison['random'][metric_key]
+            }
+            directed_comparison_rows.append(row)
+        
+        directed_df = pd.DataFrame(directed_comparison_rows)
+        directed_df.to_csv(f, index=False)
+        
+        # Add subvariant analysis summaries
+        f.write('\n\n=== SUBVARIANT ANALYSIS: SIMILAR VARIANTS HEAD-TO-HEAD ===\n')
+        f.write('Comparing local(similar) vs bridge(similar) algorithms:\n\n')
+        
+        for _, row in subvariant_similar_comparison.iterrows():
+            topo = row['topology']
+            f.write(f"{topo} Network:\n")
+            f.write(f"  Local(similar): Mean coop = {row['local_similar_mean_coop']:.3f}, Max backfirer = {row['local_similar_max_backfirer']:.3f}, Coop volume = {row['local_similar_coop_volume']:.1f}%\n")
+            f.write(f"  Bridge(similar): Mean coop = {row['bridge_similar_mean_coop']:.3f}, Max backfirer = {row['bridge_similar_max_backfirer']:.3f}, Coop volume = {row['bridge_similar_coop_volume']:.1f}%\n")
+            f.write(f"  Winner: {'Local(similar)' if row['local_similar_max_backfirer'] > row['bridge_similar_max_backfirer'] else 'Bridge(similar)'} (higher backfirer tolerance)\n\n")
+        
+        f.write('\n=== SUBVARIANT ANALYSIS: OPPOSITE VARIANTS HEAD-TO-HEAD ===\n')
+        f.write('Comparing local(opposite) vs bridge(opposite) algorithms:\n\n')
+        
+        for _, row in subvariant_opposite_comparison.iterrows():
+            topo = row['topology']
+            f.write(f"{topo} Network:\n")
+            f.write(f"  Local(opposite): Mean coop = {row['local_opposite_mean_coop']:.3f}, Max backfirer = {row['local_opposite_max_backfirer']:.3f}, Coop volume = {row['local_opposite_coop_volume']:.1f}%\n")
+            f.write(f"  Bridge(opposite): Mean coop = {row['bridge_opposite_mean_coop']:.3f}, Max backfirer = {row['bridge_opposite_max_backfirer']:.3f}, Coop volume = {row['bridge_opposite_coop_volume']:.1f}%\n")
+            f.write(f"  Winner: {'Local(opposite)' if row['local_opposite_max_backfirer'] > row['bridge_opposite_max_backfirer'] else 'Bridge(opposite)'} (higher backfirer tolerance)\n\n")
     
-    return comprehensive_path, main_path, comparison_path, summary_path, summary_wtf_path
+    return comprehensive_path, main_path, comparison_path, subvariant_similar_path, subvariant_opposite_path, summary_path, summary_wtf_path
 
 def main():
     """Main execution function"""
@@ -375,11 +818,14 @@ def main():
     # Calculate all metrics
     metrics_df = calculate_metrics(df)
     variant_comparison = calculate_variant_comparison(metrics_df)
+    directed_comparison = calculate_directed_networks_comparison(metrics_df)
+    subvariant_similar_comparison = calculate_subvariant_comparison_similar(metrics_df)
+    subvariant_opposite_comparison = calculate_subvariant_comparison_opposite(metrics_df)
     topology_summary = calculate_topology_summary(metrics_df, exclude_wtf=True)
     topology_summary_with_wtf = calculate_topology_summary(metrics_df, exclude_wtf=False)
     
     # Save results
-    paths = save_comprehensive_analysis(metrics_df, variant_comparison, topology_summary, topology_summary_with_wtf)
+    paths = save_comprehensive_analysis(metrics_df, variant_comparison, directed_comparison, subvariant_similar_comparison, subvariant_opposite_comparison, topology_summary, topology_summary_with_wtf)
     
     print(f"\nAnalysis complete! Files saved:")
     for i, path in enumerate(paths):
@@ -396,7 +842,7 @@ def main():
     for topo, max_val in max_by_topo.items():
         print(f"  {topo}: {max_val:.3f}")
     
-    return metrics_df, variant_comparison, topology_summary, topology_summary_with_wtf
+    return metrics_df, variant_comparison, directed_comparison, subvariant_similar_comparison, subvariant_opposite_comparison, topology_summary, topology_summary_with_wtf
 
 if __name__ == "__main__":
     main()

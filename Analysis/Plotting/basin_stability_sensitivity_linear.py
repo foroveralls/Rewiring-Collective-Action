@@ -61,6 +61,7 @@ def plot_basin_stability_sensitivity_linear(metrics_df, output_path):
     # Create a reverse mapping for common variations
     name_transforms = {
         'empirical wtf': 'wtf',
+        'empirical node2vec': 'node2vec',
         'bridge(similar)': 'B-sim',  
         'bridge (similar)': 'B-sim',
         'local(similar)': 'L-sim',
@@ -82,7 +83,7 @@ def plot_basin_stability_sensitivity_linear(metrics_df, output_path):
     valid_data['sensitivity_std'] = np.sqrt(valid_data['backfirer_within_variance'])
     
     # Proportionally scale error bars to fit within reasonable bounds while preserving relationships
-    y_range = valid_data['backfirer_sensitivity'].max() - valid_data['backfirer_sensitivity'].min()
+    y_range = valid_data['cooperative_volume_percent'].max() - valid_data['cooperative_volume_percent'].min()
     max_reasonable_error = 0.08 * y_range  # Target max error as 8% of y-axis range
     max_raw_error = valid_data['sensitivity_std'].max()
     
@@ -99,8 +100,8 @@ def plot_basin_stability_sensitivity_linear(metrics_df, output_path):
         marker = topology_markers.get(row['topology'], 'o')
         size = 30 if marker == '.' else 20
         
-        x = row['cooperative_volume_percent']
-        y = row['backfirer_sensitivity']
+        x = row['backfirer_sensitivity']
+        y = row['cooperative_volume_percent']
         yerr = row['sensitivity_std_scaled']
         
         # Plot error bars first (behind the points)
@@ -112,8 +113,8 @@ def plot_basin_stability_sensitivity_linear(metrics_df, output_path):
                   edgecolors='black', linewidth=0.5, zorder=5)
     
     # Add linear best fit line
-    x_data = valid_data['cooperative_volume_percent'].values
-    y_data = valid_data['backfirer_sensitivity'].values
+    x_data = valid_data['backfirer_sensitivity'].values
+    y_data = valid_data['cooperative_volume_percent'].values
     
     # Calculate linear regression
     slope, intercept, r_value, p_value, std_err = stats.linregress(x_data, y_data)
@@ -126,25 +127,25 @@ def plot_basin_stability_sensitivity_linear(metrics_df, output_path):
     ax.plot(x_line, y_line, 'k--', alpha=0.7, linewidth=1.0, zorder=1)
     
     # Set labels
-    ax.set_xlabel('Basin Stability (%)')
-    ax.set_ylabel('Backfirer Sensitivity ($S_\\rho$)')
+    ax.set_xlabel('Backfirer Sensitivity ($S_\\rho$)')
+    ax.set_ylabel('Cooperative area (%)')
     
     # Grid and styling (match convergence_vs_cooperation.py exactly)
     ax.grid(True, alpha=0.3, linewidth=0.4)
     ax.tick_params(labelsize=FONT_SIZE-1)
     
     # Set axis limits - extend y-axis to accommodate error bars
-    x_range = valid_data['cooperative_volume_percent'].max() - valid_data['cooperative_volume_percent'].min()
-    y_range = valid_data['backfirer_sensitivity'].max() - valid_data['backfirer_sensitivity'].min()
+    x_range = valid_data['backfirer_sensitivity'].max() - valid_data['backfirer_sensitivity'].min()
+    y_range = valid_data['cooperative_volume_percent'].max() - valid_data['cooperative_volume_percent'].min()
     
     # Calculate max error bar extent for y-axis padding
     max_error_extent = valid_data['sensitivity_std_scaled'].max()
     y_padding = max(0.05 * y_range, max_error_extent * 1.2)  # Ensure error bars fit
     
-    ax.set_xlim(valid_data['cooperative_volume_percent'].min() - 0.05 * x_range,
-                valid_data['cooperative_volume_percent'].max() + 0.05 * x_range)
-    ax.set_ylim(valid_data['backfirer_sensitivity'].min() - y_padding,
-                valid_data['backfirer_sensitivity'].max() + y_padding)
+    ax.set_xlim(valid_data['backfirer_sensitivity'].min() - 0.05 * x_range,
+                valid_data['backfirer_sensitivity'].max() + 0.05 * x_range)
+    ax.set_ylim(valid_data['cooperative_volume_percent'].min() - y_padding,
+                valid_data['cooperative_volume_percent'].max() + y_padding)
     
     # Adjust subplot to make room for legends
     plt.subplots_adjust(top=0.81, bottom=0.24)
