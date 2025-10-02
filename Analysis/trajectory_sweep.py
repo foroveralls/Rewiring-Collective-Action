@@ -11,6 +11,28 @@ from datetime import date
 def init(lock_):
     models_checks.init_lock(lock_)
 
+def get_adaptive_timesteps(algo, topology, mode="None", base=45000):
+    factors = {
+        ("DPAH", "biased", "same"): 3.0, ("DPAH", "biased", "diff"): 1.4,
+        ("DPAH", "bridge", "same"): 2.0, ("DPAH", "bridge", "diff"): 1.4,
+        ("Twitter", "biased", "same"): 3.0, ("Twitter", "biased", "diff"): 3.0,
+        ("Twitter", "bridge", "same"): 3.0, ("Twitter", "bridge", "diff"): 3.0,
+        ("DPAH", "random"): 1, ("Twitter", "random"): 0.9,
+        ("DPAH", "node2vec"): 1.2, ("Twitter", "node2vec"): 1.4,
+        ("DPAH", "wtf"): 2.0, ("Twitter", "wtf"): 1.3,
+        ("DPAH", "None"): 1.1, ("Twitter", "None"): 1.3,
+        ("cl", "biased", "same"): 2.0, ("cl", "biased", "diff"): 3.0,
+        ("cl", "bridge", "same"): 2.0, ("cl", "bridge", "diff"): 3.0,
+        ("FB", "biased", "same"): 3.0, ("FB", "biased", "diff"): 3.0,
+        ("FB", "bridge", "same"): 3.0, ("FB", "bridge", "diff"): 3.0,
+        ("cl", "random"): 0.9, ("FB", "random"): 0.9,
+        ("cl", "node2vec"): 0.9, ("FB", "node2vec"): 0.9,
+        ("cl", "None"): 0.9, ("FB", "None"): 0.8
+    }
+    key = (topology, algo, mode) if mode != "None" else (topology, algo)
+    factor = factors.get(key, factors.get((topology, algo), 1.0))
+    return int(base*factor)
+
 if __name__ == '__main__':
     # Constants and Variables
     numberOfSimulations = 90  # Increased for statistical significance
@@ -66,6 +88,9 @@ if __name__ == '__main__':
                 top_file = None
                 nwsize = 800
 
+            # Get adaptive timesteps based on algorithm and topology
+            adaptive_timesteps = get_adaptive_timesteps(algo, topology, mode)
+
             # Prepare simulation arguments
             sim_args = {
                 "rewiringAlgorithm": algo,
@@ -73,7 +98,7 @@ if __name__ == '__main__':
                 "rewiringMode": mode,
                 "type": topology,
                 "top_file": top_file,
-                "timesteps": 45000,
+                "timesteps": adaptive_timesteps,
                 "plot": False,
                 **params  # Include sweep parameters
             }
