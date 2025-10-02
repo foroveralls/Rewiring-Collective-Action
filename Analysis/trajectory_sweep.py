@@ -38,10 +38,13 @@ if __name__ == '__main__':
     numberOfSimulations = 90  # Increased for statistical significance
     numberOfProcessors = int(0.8 * multiprocessing.cpu_count())
     lock = multiprocessing.Lock()
-    
+
     pool = multiprocessing.Pool(processes=numberOfProcessors, initializer=init, initargs=(lock,))
     start = time.time()
-    
+
+    # Get base arguments from models_checks
+    base_args = models_checks.getargs()
+
     # Network configuration
     rewiring_list_h = ["diff", "same"]
     directed_topology_list = ["DPAH", "Twitter"]
@@ -103,10 +106,13 @@ if __name__ == '__main__':
                 **params  # Include sweep parameters
             }
 
+            # Merge with base arguments
+            complete_args = {**base_args, **sim_args}
+
             # Run simulations and time them
             start_1 = time.time()
-            sim = pool.starmap(models_checks.simulate, 
-                             zip(range(numberOfSimulations), repeat(sim_args)))
+            sim = pool.starmap(models_checks.simulate,
+                             zip(range(numberOfSimulations), repeat(complete_args)))
             
             # Verify consistency
             assert sim_args["rewiringAlgorithm"] == str(sim[0].algo), "Inconsistent values"
