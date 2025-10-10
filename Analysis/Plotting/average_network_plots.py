@@ -187,8 +187,26 @@ def main():
     n_runs = int(input("Runs (default 1): ") or "1")
     
     params = {
-        "rewiringAlgorithm": "WTF", "rewiringMode": None, 
+        "rewiringAlgorithm": "WTF", "rewiringMode": None,
         "polarisingNode_f": 0.10, "timesteps": 15000, "plot": False,
+        # Required parameters from models_checks.py
+        "defectorUtility": 0.0,
+        "politicalClimate": 0.05,
+        "stubbornness": 0.6,
+        "degree": 8,
+        "continuous": True,
+        "skew": -0.20,
+        "initSD": 0.15,
+        "newPoliticalClimate": 0.05,
+        "randomness": 0.10,
+        "friendship": 0.5,
+        "friendshipSD": 0.19,
+        "clustering": 0.5,
+        "breaklinkprob": 1,
+        "establishlinkprob": 0.5,
+        "seed": 42,
+        "f_all": 0.5,
+        "wtf_freq": 10,
         **config
     }
     
