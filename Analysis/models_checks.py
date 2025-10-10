@@ -395,20 +395,36 @@ class Model:
     
     
     #selectes node with highest degree from node_list
-    def select_kmax_new(self, node_list):
-        
-        degree_sum = 0
-        degree_sum = sum(self.graph.degree(i) for i in node_list)
-        
-        node = None 
+    def select_kmax_new(self, node_list, max_prob=0.5):
+        """
+        Preferential attachment with capped probability to prevent extreme hub formation.
+
+        Args:
+            node_list: List of candidate nodes
+            max_prob: Maximum probability any single node can have (default 0.5)
+        """
+        # Calculate degrees for all nodes
+        degrees = {i: self.graph.degree(i) for i in node_list}
+        degree_sum = sum(degrees.values())
+
+        # Calculate raw probabilities and cap them
+        raw_probs = {i: degrees[i] / degree_sum for i in node_list}
+        capped_probs = {i: min(prob, max_prob) for i, prob in raw_probs.items()}
+
+        # Renormalize probabilities to sum to 1
+        prob_sum = sum(capped_probs.values())
+        normalized_probs = {i: prob / prob_sum for i, prob in capped_probs.items()}
+
+        # Select node using capped and normalized probabilities
+        node = None
         while node == None:
             for i in node_list:
-                prob = self.graph.degree(i)/degree_sum
-                
+                prob = normalized_probs[i]
+
                 if random.random() < prob:
-                    node = i 
+                    node = i
                     break
-            
+
         return node 
     
 
@@ -424,15 +440,18 @@ class Model:
         return node_state
     
     def rewire(self, node_i, neighbour_i):
-        
+        # Check if edge already exists - prevents degree decrease bug
+        if self.graph.has_edge(node_i, neighbour_i):
+            return False  # Already connected, don't count as rewired
+
         rewired = False
         if random.random() < establishlinkprob:
             weight = get_truncated_normal(self.local_args["friendship"], self.local_args["friendshipSD"], 0, 1).rvs(1)[0]
-            
+
             self.graph.add_edge(node_i, neighbour_i, weight = weight)
             #self.TF_step(node_i, neighbour_i, weight = weight)
             rewired = True
-            
+
         return rewired 
     
 
@@ -896,23 +915,27 @@ class Model:
     def wtf_rewire(self, nodeIndex):
         """Rewire using cached recommendations"""
         recommendations = getattr(self, 'wtf_cache', {}).get(nodeIndex, [])
-        
+
         if len(recommendations) == 0:
             return False
-        
-        neighbours = list(self.graph.adj[nodeIndex].keys())
+
         for rec in recommendations:
-            if rec not in neighbours:
-                if random.random() < self.local_args["establishlinkprob"]:
-                    weight = self.getFriendshipWeight()
-                    self.graph.add_edge(nodeIndex, rec, weight=weight)
-                    
-                    if random.random() < self.local_args["breaklinkprob"] and len(neighbours) > 0:
-                        breaklinkNeighbourIndex = neighbours[random.randint(0, len(neighbours)-1)]
+            # Use rewire() which checks if edge already exists
+            rewired = self.rewire(nodeIndex, rec)
+
+            if rewired:
+                # Break a link with probability breaklinkprob
+                if random.random() < self.local_args["breaklinkprob"]:
+                    neighbours = list(self.graph.adj[nodeIndex].keys())
+                    # Exclude the newly added edge
+                    old_neighbours = [n for n in neighbours if n != rec]
+
+                    if len(old_neighbours) > 0:
+                        breaklinkNeighbourIndex = old_neighbours[random.randint(0, len(old_neighbours)-1)]
                         self.graph.remove_edge(nodeIndex, breaklinkNeighbourIndex)
-                    
-                    return True
-        
+
+                return True
+
         return False
             
     def call_wtf(self, nodeIndex):

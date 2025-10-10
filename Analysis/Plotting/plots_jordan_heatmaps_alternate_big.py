@@ -45,8 +45,8 @@ FRIENDLY_NAMES = {
     'node2vec_none': 'N2V'
 }
 
-EXCLUDED_SCENARIOS = ['static']
-EXCLUDED_TOPOLOGIES = ['cl', 'DPAH']
+EXCLUDED_SCENARIOS = ['static', 'B-sim', 'L-opp', 'N2V']
+EXCLUDED_TOPOLOGIES = ['cl', 'DPAH', 'FB']
 
 # ====================== FUNCTIONS ======================
 
@@ -174,7 +174,7 @@ def create_heatmap_grid(df, value_columns, column_labels):
                     # Set colormap and limits
                     if metric == 'state':
                         cmap, vmin, vmax, center = coop_cmap, -1, 1, 0
-                        cbar_label = '⟨x⟩'
+                        cbar_label = '⟨a⟩'
                     else:
                         cmap, vmin, vmax, center = polar_cmap, 0, 1, None
                         cbar_label = '$\sigma(x)$'

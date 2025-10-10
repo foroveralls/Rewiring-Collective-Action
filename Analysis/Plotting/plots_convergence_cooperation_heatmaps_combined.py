@@ -55,8 +55,8 @@ FRIENDLY_NAMES = {
     'node2vec_none': 'N2V'
 }
 
-EXCLUDED_SCENARIOS = ['static']
-EXCLUDED_TOPOLOGIES = ['cl', 'DPAH']
+EXCLUDED_SCENARIOS = ['static', 'B-sim', 'L-opp', 'N2V']
+EXCLUDED_TOPOLOGIES = ['cl', 'DPAH', 'FB']
 
 # ====================== FUNCTIONS ======================
 
@@ -474,7 +474,7 @@ def create_combined_heatmap_grid(conv_data, coop_data=None):
     if last_coop_im:
         cbar_ax2 = fig.add_axes([0.93, 0.15, 0.015, 0.3])
         cbar2 = fig.colorbar(last_coop_im, cax=cbar_ax2)
-        cbar2.set_label('⟨x⟩', fontsize=LEGEND_FONT_SIZE)
+        cbar2.set_label('⟨a⟩', fontsize=LEGEND_FONT_SIZE)
         cbar2.ax.tick_params(labelsize=TICK_FONT_SIZE)
 
     # Axis labels
