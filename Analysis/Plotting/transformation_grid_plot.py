@@ -64,7 +64,11 @@ def run_sims(n_runs, params, timesteps):
     return models
 
 def create_avg_network(models, t, threshold=0.3, init_graph=None):
-    """Create average network with edge frequency filtering"""
+    """Create average network with edge frequency filtering
+
+    For single run (len(models)==1), returns actual network without averaging.
+    For multiple runs, averages opinions and filters edges by frequency threshold.
+    """
     n_models = len(models)
 
     # Get initial topology for marking rewired edges
@@ -107,9 +111,13 @@ def create_avg_network(models, t, threshold=0.3, init_graph=None):
     G = nx.DiGraph() if nx.is_directed(init_graph) else nx.Graph()
     G.add_nodes_from([(i, {'avg_opinion': avg_opinions[i]}) for i in range(n_nodes)])
 
+    # For single run, include all edges without threshold filtering
+    # For multiple runs, use frequency threshold
+    effective_threshold = 0.0 if n_models == 1 else threshold
+
     for e, count in edge_counts.items():
         freq = count / n_models
-        if freq > threshold:
+        if freq > effective_threshold:
             is_rewired = e not in init_edges
             G.add_edge(e[0], e[1], weight=freq, rewired=is_rewired)
 
@@ -153,6 +161,9 @@ def plot_network_compact(G, ax, layout=None, show_cbar=False):
         w_min, w_max = min(weights), max(weights)
         w_range = w_max - w_min if w_max > w_min else 1
 
+        # Show arrows for directed graphs
+        is_directed = nx.is_directed(G)
+
         for u, v in G.edges():
             freq = G[u][v]['weight']
             is_rewired = G[u][v].get('rewired', False)
@@ -160,8 +171,27 @@ def plot_network_compact(G, ax, layout=None, show_cbar=False):
             alpha = 0.2 + freq * 0.35
             color = plt.cm.plasma(freq) if is_rewired else plt.cm.gray(0.25 + freq * 0.5)
 
-            nx.draw_networkx_edges(G, layout, [(u, v)], width=width, alpha=alpha,
-                                 edge_color=[color], arrows=False, ax=ax)
+            # Draw edges with arrows for directed graphs
+            edge_params = {
+                'width': width,
+                'alpha': alpha,
+                'edge_color': [color],
+                'ax': ax
+            }
+
+            if is_directed:
+                edge_params.update({
+                    'arrows': True,
+                    'arrowsize': 4,
+                    'arrowstyle': '->',
+                    'connectionstyle': 'arc3,rad=0.1',  # Slight curve to see reciprocal edges
+                    'min_source_margin': 8,
+                    'min_target_margin': 8
+                })
+            else:
+                edge_params['arrows'] = False
+
+            nx.draw_networkx_edges(G, layout, [(u, v)], **edge_params)
 
     # Calculate and display cooperation value
     avg_coop = np.mean(opinions)
@@ -219,6 +249,10 @@ def plot_transformation_grid(n_runs=30, timesteps=[0, 14999], max_timesteps=None
     # Create figure
     fig, axes = plt.subplots(n_rows, n_cols, figsize=(8.9*cm, 14*cm))
     fig.subplots_adjust(wspace=0.05, hspace=0.15, left=0.12, right=0.95, top=0.96, bottom=0.04)
+
+    # Add title indicating averaging status
+    run_type = "Single Run" if n_runs == 1 else f"Averaged over {n_runs} runs"
+    fig.suptitle(run_type, fontsize=FONT_SIZE, y=0.995)
 
     print(f"Generating transformation grid with {n_runs} runs...")
 
@@ -291,11 +325,16 @@ def main():
     print("Network Transformation Grid Visualization")
     print("=" * 60)
 
-    # Start with small test
-    n_runs = int(input("Number of runs (10 for test, 90 for final): ") or "10")
+    # Allow user to specify number of runs (including single run)
+    print("\nNumber of runs:")
+    print("  1  = Single run (no averaging, actual network)")
+    print("  10 = Quick test (averaged over 10 runs)")
+    print("  30 = Standard (averaged over 30 runs)")
+    print("  90 = Publication quality (averaged over 90 runs)")
+    n_runs = int(input("Enter number of runs (default=10): ") or "10")
 
     # For testing, use shorter timesteps
-    use_short = input("Use short run for testing? (y/n, default=n): ").lower() == 'y'
+    use_short = input("\nUse short run for testing? (y/n, default=n): ").lower() == 'y'
     if use_short:
         plot_transformation_grid(n_runs=n_runs, timesteps=[0, 30000], max_timesteps=30000)
     else:

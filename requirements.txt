@@ -4,9 +4,6 @@ scipy
 matplotlib
 seaborn
 networkx
-imageio
-networkx
-dill
 joblib
 python-igraph
 leidenalg
@@ -15,4 +12,3 @@ netin
 rustworkx
 setuptools
 wheel
-igraph
