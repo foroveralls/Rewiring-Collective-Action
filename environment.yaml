@@ -11,11 +11,9 @@ dependencies:
   - matplotlib
   - seaborn
   - networkx
-  - imageio
   - rustworkx
   - setuptools
   - wheel
-  - dill
   - joblib
   # Packages that need to be installed via pip
   - pip
@@ -24,5 +22,3 @@ dependencies:
     - node2vec
     - leidenalg
     - python-igraph
-    - igraph
-
