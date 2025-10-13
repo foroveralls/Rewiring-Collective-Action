@@ -505,12 +505,19 @@ def create_stubbornness_trajectory_plot(df):
     plt.tight_layout()
     return fig
 
-def create_continuous_single_panel_plot(df):
-    """Create single-panel plot matching stubbornness_trajectories.pdf data structure"""
+def create_continuous_single_panel_plot(df, for_combined=False):
+    """Create single-panel plot matching stubbornness_trajectories.pdf data structure
+
+    Args:
+        df: DataFrame with regime data
+        for_combined: If True, adjust figure size for combined panel figure
+    """
     setup_style()
-    
+
     # Create figure with single panel and dual y-axes
-    fig, ax1 = plt.subplots(1, 1, figsize=(8*cm, 6*cm))
+    # Use matching height when combining with heatmap
+    figsize = (7*cm, 5.5*cm) if for_combined else (8*cm, 6*cm)
+    fig, ax1 = plt.subplots(1, 1, figsize=figsize)
     
     # Filter main algorithms
     main_algorithms = ['Opposite', 'Similar', 'WTF', 'Node2Vec', 'Static', 'Random']
@@ -563,21 +570,21 @@ def create_continuous_single_panel_plot(df):
     ax1.axvline(0.4, color='gray', linestyle='--', alpha=0.4, linewidth=0.8)
     ax1.axvline(0.7, color='gray', linestyle='--', alpha=0.4, linewidth=0.8)
     
-    # Add subtle regime labels at top
-    ax1.text(0.2, ax1.get_ylim()[1]*0.98, 'Low', ha='center', 
-            fontsize=FONT_SIZE-3, color='gray', alpha=0.7)
-    ax1.text(0.55, ax1.get_ylim()[1]*0.98, 'Medium', ha='center', 
-            fontsize=FONT_SIZE-3, color='gray', alpha=0.7)
-    ax1.text(0.85, ax1.get_ylim()[1]*0.98, 'High', ha='center', 
-            fontsize=FONT_SIZE-3, color='gray', alpha=0.7)
-    
-    # Legend at bottom
-    fig.legend(bbox_to_anchor=(0.5, 0.02), loc='upper center', ncol=3,
-              fontsize=FONT_SIZE-2, frameon=True, fancybox=False, 
+    # Add regime labels at top (bigger font)
+    ax1.text(0.2, ax1.get_ylim()[1]*0.98, 'Low', ha='center',
+            fontsize=FONT_SIZE-1, color='gray', alpha=0.8)
+    ax1.text(0.55, ax1.get_ylim()[1]*0.98, 'Medium', ha='center',
+            fontsize=FONT_SIZE-1, color='gray', alpha=0.8)
+    ax1.text(0.85, ax1.get_ylim()[1]*0.98, 'High', ha='center',
+            fontsize=FONT_SIZE-1, color='gray', alpha=0.8)
+
+    # Legend at bottom with reduced spacing
+    fig.legend(bbox_to_anchor=(0.5, -0.02), loc='upper center', ncol=3,
+              fontsize=FONT_SIZE-2, frameon=True, fancybox=False,
               edgecolor='black', facecolor='white')
-    
+
     plt.tight_layout()
-    plt.subplots_adjust(bottom=0.25)  # Make room for legend
+    plt.subplots_adjust(bottom=0.12)  # Reduced from 0.25 to minimize whitespace
     
     return fig
 

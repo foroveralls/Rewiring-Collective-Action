@@ -7,6 +7,7 @@ Uses matplotlib's figure combination approach
 
 import os
 import pandas as pd
+import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
 from matplotlib.gridspec import GridSpec
@@ -43,8 +44,9 @@ def create_combined_figure(conv_data, coop_data=None, regime_df=None):
     fig = plt.figure(figsize=(17.8/2.54, 8/2.54))
 
     # Create gridspec with 1 row, 2 columns with different widths
+    # Using equal top/bottom alignment
     gs = GridSpec(1, 2, figure=fig, width_ratios=[1.2, 1],
-                  left=0.08, right=0.95, bottom=0.15, top=0.9, wspace=0.3)
+                  left=0.08, right=0.95, bottom=0.15, top=0.88, wspace=0.3)
 
     # Panel A: Heatmap (left)
     # Create the heatmap in a temporary figure first
@@ -108,67 +110,112 @@ def create_combined_figure(conv_data, coop_data=None, regime_df=None):
         # Add legend
         ax_right.legend(loc='upper right', fontsize=5, frameon=True)
 
-    # Add panel labels
-    fig.text(0.08, 0.92, 'A', fontsize=10, fontweight='bold')
-    fig.text(0.52, 0.92, 'B', fontsize=10, fontweight='bold')
+    # Add panel labels (lowercase)
+    fig.text(0.08, 0.92, 'a', fontsize=10, fontweight='bold')
+    fig.text(0.52, 0.92, 'b', fontsize=10, fontweight='bold')
 
     plt.close(fig_heatmap)  # Close temporary figure
 
     return fig
 
-def combine_pdfs_to_single_figure(pdf_path1, pdf_path2, output_path):
+def crop_whitespace(img, threshold=0.95):
     """
-    Combine two PDF figures horizontally into a single figure
-    Uses temporary PNG conversion for matplotlib combination
+    Crop whitespace from image edges
+
+    Args:
+        img: Image array (H, W, C) with values in [0, 1]
+        threshold: Pixel values above this are considered white
+
+    Returns:
+        Cropped image array
     """
-    import subprocess
+    # Convert to grayscale for whitespace detection
+    if img.shape[2] == 4:  # RGBA
+        gray = img[:, :, :3].mean(axis=2)  # Average RGB channels
+    else:  # RGB
+        gray = img.mean(axis=2)
 
-    # Convert PDFs to PNGs temporarily
-    with tempfile.TemporaryDirectory() as tmpdir:
-        png1 = os.path.join(tmpdir, 'fig1.png')
-        png2 = os.path.join(tmpdir, 'fig2.png')
+    # Find non-white pixels
+    non_white_pixels = gray < threshold
 
-        # Convert using pdftoppm (if available) or fallback to matplotlib
-        try:
-            # Try using pdftoppm for better quality
-            subprocess.run(['pdftoppm', '-png', '-singlefile', '-r', '300',
-                          pdf_path1, png1.replace('.png', '')], check=True)
-            subprocess.run(['pdftoppm', '-png', '-singlefile', '-r', '300',
-                          pdf_path2, png2.replace('.png', '')], check=True)
-        except (subprocess.CalledProcessError, FileNotFoundError):
-            # Fallback: use matplotlib to read PDFs
-            print("pdftoppm not available, using matplotlib to combine figures...")
-            return False
+    # Find bounding box
+    rows = np.any(non_white_pixels, axis=1)
+    cols = np.any(non_white_pixels, axis=0)
 
-        # Load images
-        img1 = mpimg.imread(png1)
-        img2 = mpimg.imread(png2)
+    if not rows.any() or not cols.any():
+        return img  # Return original if all white
 
-        # Create combined figure
-        fig = plt.figure(figsize=(18/2.54, 8/2.54), dpi=300)
-        gs = GridSpec(1, 2, figure=fig, width_ratios=[1.2, 1],
-                     left=0.02, right=0.98, bottom=0.02, top=0.98, wspace=0.05)
+    row_min, row_max = np.where(rows)[0][[0, -1]]
+    col_min, col_max = np.where(cols)[0][[0, -1]]
 
-        # Add panel A (heatmap)
+    # Add small padding (2% of dimension) to avoid cutting too close
+    h, w = img.shape[:2]
+    pad_h = int(h * 0.02)
+    pad_w = int(w * 0.02)
+
+    row_min = max(0, row_min - pad_h)
+    row_max = min(h, row_max + pad_h)
+    col_min = max(0, col_min - pad_w)
+    col_max = min(w, col_max + pad_w)
+
+    return img[row_min:row_max+1, col_min:col_max+1]
+
+def combine_figures_horizontally(fig_path1, fig_path2, output_path):
+    """
+    Combine two PNG figures horizontally into a single figure
+
+    Args:
+        fig_path1: Path to left figure (heatmap) - PNG format
+        fig_path2: Path to right figure (regime) - PNG format
+        output_path: Path for combined output
+    """
+    try:
+        # Load PNG images directly
+        img1 = mpimg.imread(fig_path1)
+        img2 = mpimg.imread(fig_path2)
+
+        # Crop whitespace from both images
+        img1_cropped = crop_whitespace(img1)
+        img2_cropped = crop_whitespace(img2)
+
+        # Create combined figure with matched heights
+        # Using full two-column width (17.8cm) for manuscript
+        # Reduced height to 5.5cm for better horizontal aspect ratio (margins will be adjusted in publication)
+        cm = 1/2.54
+        fig = plt.figure(figsize=(17.8*cm, 5.5*cm), dpi=300)
+        gs = GridSpec(1, 2, figure=fig, width_ratios=[1.5, 1],
+                     left=0.01, right=0.99, bottom=0.01, top=0.99, wspace=0.002)
+
+        # Add panel a (heatmap)
         ax1 = fig.add_subplot(gs[0, 0])
-        ax1.imshow(img1)
+        ax1.imshow(img1_cropped)
         ax1.axis('off')
-        ax1.text(0.02, 0.98, 'A', transform=ax1.transAxes,
-                fontsize=12, fontweight='bold', va='top')
+        ax1.text(0.01, 0.99, 'a', transform=ax1.transAxes,
+                fontsize=10, fontweight='bold', va='top', ha='left')
 
-        # Add panel B (regime)
+        # Add panel b (regime)
         ax2 = fig.add_subplot(gs[0, 1])
-        ax2.imshow(img2)
+        ax2.imshow(img2_cropped)
         ax2.axis('off')
-        ax2.text(0.02, 0.98, 'B', transform=ax2.transAxes,
-                fontsize=12, fontweight='bold', va='top')
+        ax2.text(0.01, 0.99, 'b', transform=ax2.transAxes,
+                fontsize=10, fontweight='bold', va='top', ha='left')
 
-        # Save combined figure
-        fig.savefig(output_path, dpi=300, bbox_inches='tight')
-        print(f"Combined figure saved: {output_path}")
+        # Save combined figure as both PDF and PNG
+        pdf_output = output_path if output_path.endswith('.pdf') else output_path.replace('.png', '.pdf')
+        png_output = pdf_output.replace('.pdf', '.png')
+
+        fig.savefig(pdf_output, dpi=300, bbox_inches='tight', format='pdf')
+        fig.savefig(png_output, dpi=300, bbox_inches='tight')
+        print(f"✓ Combined figure saved:")
+        print(f"  PDF: {pdf_output}")
+        print(f"  PNG: {png_output}")
+
         plt.close(fig)
+        return True
 
-    return True
+    except Exception as e:
+        print(f"Error combining figures: {e}")
+        return False
 
 def get_most_recent_file(directory, pattern, extension='.pkl'):
     """Get the most recent file matching pattern"""
@@ -211,46 +258,56 @@ def main():
     print("\nGenerating stubbornness/backfirer heatmap...")
     value_columns = ['state', 'state_std']
     column_labels = {'state': 'avg(x)', 'state_std': 'std(x)'}
-    fig_heatmap = create_heatmap_grid(df, value_columns, column_labels)
-    heatmap_path = f'{output_dir}/heatmap_stubbornness_backfirer_{today}.pdf'
-    fig_heatmap.savefig(heatmap_path, bbox_inches='tight', dpi=300)
-    print(f"Stubbornness/backfirer heatmap saved: {heatmap_path}")
+    fig_heatmap = create_heatmap_grid(df, value_columns, column_labels, for_combined=True)
+    heatmap_pdf_path = f'{output_dir}/heatmap_stubbornness_backfirer_{today}.pdf'
+    heatmap_png_path = f'{output_dir}/heatmap_stubbornness_backfirer_{today}.png'
+    fig_heatmap.savefig(heatmap_pdf_path, bbox_inches='tight', dpi=300)
+    fig_heatmap.savefig(heatmap_png_path, bbox_inches='tight', dpi=300)
+    print(f"Stubbornness/backfirer heatmap saved: {heatmap_pdf_path}")
     plt.show()
     plt.close()
 
     # Generate the regime panel separately
-    regime_path = None
+    regime_png_path = None
     if regime_df is not None:
         print("\nGenerating regime performance panel...")
         setup_style()
-        fig_regime = create_continuous_single_panel_plot(regime_df)
-        regime_path = f'{output_dir}/regime_panel_{today}.pdf'
-        fig_regime.savefig(regime_path, bbox_inches='tight', dpi=300)
-        print(f"Regime panel saved: {regime_path}")
+        fig_regime = create_continuous_single_panel_plot(regime_df, for_combined=True)
+        regime_pdf_path = f'{output_dir}/regime_panel_{today}.pdf'
+        regime_png_path = f'{output_dir}/regime_panel_{today}.png'
+        fig_regime.savefig(regime_pdf_path, bbox_inches='tight', dpi=300)
+        fig_regime.savefig(regime_png_path, bbox_inches='tight', dpi=300)
+        print(f"Regime panel saved: {regime_pdf_path}")
         plt.show()
         plt.close()
 
-    # Attempt to combine them
-    if regime_path and os.path.exists(heatmap_path) and os.path.exists(regime_path):
-        print("\nAttempting to combine figures...")
+    # Attempt to combine them using PNG versions
+    if regime_png_path and os.path.exists(heatmap_png_path) and os.path.exists(regime_png_path):
+        print("\nCombining figures...")
         combined_path = f'{output_dir}/combined_heatmap_regime_{today}.pdf'
-        success = combine_pdfs_to_single_figure(heatmap_path, regime_path, combined_path)
+        success = combine_figures_horizontally(heatmap_png_path, regime_png_path, combined_path)
 
         if not success:
             print("\n" + "="*60)
-            print("Automatic combination not available.")
+            print("Automatic combination failed.")
             print("Generated separate figures:")
-            print(f"  A (Heatmap): {heatmap_path}")
-            print(f"  B (Regime): {regime_path}")
-            print("\nTo combine manually, use Inkscape, Illustrator, or:")
-            print("  pdfunite heatmap.pdf regime.pdf combined.pdf")
+            print(f"  a (Heatmap): {heatmap_pdf_path}")
+            print(f"  b (Regime): {regime_pdf_path}")
+            print("\nTo combine manually, use Inkscape, Illustrator, or ImageMagick")
+            print("="*60)
+        else:
+            print("\n" + "="*60)
+            print("✓ Success! Combined figure created.")
+            print(f"  Combined: {combined_path}")
+            print(f"  Heatmap: {heatmap_pdf_path}")
+            print(f"  Regime: {regime_pdf_path}")
             print("="*60)
     else:
         print("\n" + "="*60)
         print("Generated figures:")
-        print(f"  Heatmap: {heatmap_path}")
-        if regime_path:
-            print(f"  Regime: {regime_path}")
+        print(f"  Heatmap: {heatmap_pdf_path}")
+        if regime_png_path:
+            print(f"  Regime: {regime_pdf_path}")
         print("="*60)
 
 if __name__ == "__main__":
