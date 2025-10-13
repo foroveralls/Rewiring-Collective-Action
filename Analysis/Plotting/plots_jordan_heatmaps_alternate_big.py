@@ -15,7 +15,7 @@ from datetime import date
 
 # ====================== CONFIGURATION ======================
 BASE_FONT_SIZE = 9
-cm = 1/2.54
+cm = 1/2.54  # centimeters to inches conversion
 
 # Define font sizes for different elements
 TITLE_FONT_SIZE = BASE_FONT_SIZE
@@ -100,34 +100,49 @@ def get_friendly_name(scenario):
     key = f"{parts[1]}_{parts[0]}" if len(parts) > 1 else f"{parts[0]}_none"
     return FRIENDLY_NAMES.get(key, scenario)
 
-def create_heatmap_grid(df, value_columns, column_labels):
-    """Create compact grid: topologies as 2-row blocks, scenarios as columns"""
+def create_heatmap_grid(df, value_columns, column_labels, for_combined=False):
+    """Create compact grid: topologies as 2-row blocks, scenarios as columns
+
+    Args:
+        df: DataFrame with heatmap data
+        value_columns: Columns to plot
+        column_labels: Labels for columns
+        for_combined: If True, adjust figure size for combined panel figure
+    """
     scenarios = df['scenario'].unique()
     topologies = [t for t in df['topology'].unique() if t not in EXCLUDED_TOPOLOGIES]
-    
+
     # Filter scenarios
     friendly_scenarios = {}
     for scenario in scenarios:
         friendly_name = get_friendly_name(scenario)
         if friendly_name not in EXCLUDED_SCENARIOS:
             friendly_scenarios[scenario] = friendly_name
-    
+
     # UPDATED: Custom ordering instead of alphabetical
     desired_order = ['B-opp', 'B-sim', 'L-opp', 'L-sim', 'random', 'N2V', 'WTF']
-    sorted_scenarios = sorted(friendly_scenarios.keys(), 
-                             key=lambda s: desired_order.index(friendly_scenarios[s]) 
+    sorted_scenarios = sorted(friendly_scenarios.keys(),
+                             key=lambda s: desired_order.index(friendly_scenarios[s])
                              if friendly_scenarios[s] in desired_order else 999)
-    
+
     # Layout: 2 rows per topology, scenarios as columns
     n_topology_blocks = len(topologies)
     n_rows = n_topology_blocks * 2
     n_cols = len(sorted_scenarios)
-    
-    fig = plt.figure(figsize=(17.8*cm, max(10*cm,    n_rows * 2*cm)))
-    
-    gs = fig.add_gridspec(n_rows, n_cols, 
-                         hspace=0.15, wspace=0.05,
-                         left=0.08, right=0.92, top=0.9, bottom=0.15)
+
+    # Use fixed height when combining with regime panel
+    if for_combined:
+        fig = plt.figure(figsize=(10*cm, 5.5*cm))
+        # Adjust margins for combined layout to accommodate labels without overlap
+        gs = fig.add_gridspec(n_rows, n_cols,
+                             hspace=0.15, wspace=0.05,
+                             left=0.12, right=0.86, top=0.9, bottom=0.18)
+    else:
+        fig = plt.figure(figsize=(17.8*cm, max(10*cm, n_rows * 2*cm)))
+        # Leave more space on right for colorbars (0.96 instead of 0.92)
+        gs = fig.add_gridspec(n_rows, n_cols,
+                             hspace=0.15, wspace=0.05,
+                             left=0.08, right=0.86, top=0.9, bottom=0.15)
     
     # Colormaps
     coop_cmap = sns.diverging_palette(20, 220, as_cmap=True, center="light")
@@ -145,8 +160,9 @@ def create_heatmap_grid(df, value_columns, column_labels):
     
     # Create heatmaps
     for t_idx, topology in enumerate(topologies):
-        # Add topology label on left (moved closer)
-        fig.text(0.003, 0.15 + (n_topology_blocks - t_idx - 0.5) * 0.75/n_topology_blocks, 
+        # Add topology label on left (position depends on layout)
+        label_x = 0.005 if for_combined else 0.003
+        fig.text(label_x, 0.15 + (n_topology_blocks - t_idx - 0.5) * 0.75/n_topology_blocks,
                  topology.upper(),
                  ha='center', va='center',
                  fontsize=AXIS_LABEL_FONT_SIZE, fontweight='bold', rotation=90)
@@ -179,13 +195,10 @@ def create_heatmap_grid(df, value_columns, column_labels):
                         cmap, vmin, vmax, center = polar_cmap, 0, 1, None
                         cbar_label = '$\sigma(x)$'
                     
-                    # Only show colorbar on rightmost column
-                    show_cbar = (s == n_cols - 1)
-                    
+                    # Don't show colorbar in heatmap - we'll add them manually later
                     sns.heatmap(heatmap_data, ax=ax, cmap=cmap, center=center,
-                                vmin=vmin, vmax=vmax, cbar=show_cbar,
-                                linewidths=0, linecolor='white',
-                                cbar_kws={'label': cbar_label} if show_cbar else {})
+                                vmin=vmin, vmax=vmax, cbar=False,
+                                linewidths=0, linecolor='white')
                     
                     # Add grid for better readability
                     ax.grid(True, linestyle='--', alpha=0.2, linewidth=0.2)
@@ -253,9 +266,35 @@ def create_heatmap_grid(df, value_columns, column_labels):
                     ax.set_yticks([])
     
     # Add axis labels (only once at bottom and left)
-    fig.text(0.5, 0.04, 'Stubbornness, $\\mathbf{w_i}$', ha='center', fontsize=AXIS_LABEL_FONT_SIZE, fontweight='bold')
-    fig.text(0.02, 0.52, 'Diverging Node Fraction, $\\mathbf{\\rho}$', va='center', rotation=90, 
-         fontsize=AXIS_LABEL_FONT_SIZE, fontweight='bold')
+    # Adjust label positions based on layout
+    y_label_x = 0.04 if for_combined else 0.02
+    x_label_y = 0.02 if for_combined else 0.04
+    y_label_fontsize = AXIS_LABEL_FONT_SIZE - 1 if for_combined else AXIS_LABEL_FONT_SIZE
+
+    fig.text(0.5, x_label_y, 'Stubbornness, $\\mathbf{w_i}$', ha='center',
+             fontsize=y_label_fontsize, fontweight='bold')
+    fig.text(y_label_x, 0.52, 'Diverger fraction, $\\mathbf{\\rho}$', va='center', rotation=90,
+             fontsize=y_label_fontsize, fontweight='bold')
+
+    # Add manual colorbars outside the gridspec to avoid squishing the WTF column
+    from matplotlib.colorbar import ColorbarBase
+    from matplotlib.colors import Normalize
+
+    # Create colorbar axes on the right side
+    # Cooperation colorbar (top half)
+    cbar_ax1 = fig.add_axes([0.88, 0.55, 0.015, 0.32])  # [left, bottom, width, height]
+    norm1 = Normalize(vmin=-1, vmax=1)
+    cb1 = ColorbarBase(cbar_ax1, cmap=coop_cmap, norm=norm1, orientation='vertical')
+    cb1.set_label('⟨a⟩', fontsize=AXIS_LABEL_FONT_SIZE)
+    cb1.ax.tick_params(labelsize=TICK_FONT_SIZE)
+
+    # Polarization colorbar (bottom half)
+    cbar_ax2 = fig.add_axes([0.88, 0.18, 0.015, 0.32])  # [left, bottom, width, height]
+    norm2 = Normalize(vmin=0, vmax=1)
+    cb2 = ColorbarBase(cbar_ax2, cmap=polar_cmap, norm=norm2, orientation='vertical')
+    cb2.set_label('$\\sigma(x)$', fontsize=AXIS_LABEL_FONT_SIZE)
+    cb2.ax.tick_params(labelsize=TICK_FONT_SIZE)
+
     return fig
 
 def save_figure(fig, output_name='stubborness_backfirer_heatmap'):

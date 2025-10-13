@@ -1,0 +1,56 @@
+VISUALIZATION GUIDE: Who-To-Follow and Node2Vec Rewiring Algorithms
+======================================================================
+
+This guide provides specific advice for illustrating WTF and Node2Vec algorithms
+in the network rewiring quadrat figure (similar to local/bridge similar/opposite panels).
+
+## WHO-TO-FOLLOW (WTF)
+
+Mechanism: Build a "circle of trust" from focal node's neighbors, then recommend
+who *they* follow (2-hop transitivity).
+
+Visual recommendation:
+- Focal node: Choose a well-connected node (e.g., a blue node on the left with 2-3 neighbors)
+- Circle of trust: Add small highlight circles around the focal node's immediate neighbors
+- Dotted line target: Draw to a node that is:
+  * Connected to at least one member of the circle of trust
+  * NOT currently connected to the focal node
+  * At distance 2 from focal node (2-hop path)
+
+Specific example using panel A's layout:
+- Focal: Bottom-left blue node with multiple connections
+- Highlight its 2-3 immediate neighbors (the trusted circle)
+- Dotted line → a node (blue OR orange) that those neighbors connect to but focal doesn't
+
+---
+
+## NODE2VEC
+
+Mechanism: Recommend nodes with similar structural embeddings (similar network
+positions/roles), regardless of graph distance or attributes.
+
+Visual recommendation:
+- Focal node: Any node with distinct structural properties
+- Dotted line target: A node with similar structural role:
+  * Similar degree (both hubs or both peripheral)
+  * Similar clustering coefficient
+  * Similar betweenness centrality (both bridges or both embedded)
+  * Can be far apart in the graph
+
+Specific example:
+- Connect two hub nodes (high degree) that are distant in the network
+- OR connect two bridge nodes (high betweenness) from different communities
+- The key: they share structural similarity, not proximity
+
+---
+
+## KEY VISUAL DISTINCTION
+
+- WTF: Shows *local traversal* through the network (follow the path through trusted neighbors)
+- Node2Vec: Shows *structural equivalence* that can jump across the network topology
+  based on embedding similarity
+
+---
+
+Note: Both algorithms are CLASS-AGNOSTIC - they don't consider node attributes
+(blue vs orange), only network structure.
