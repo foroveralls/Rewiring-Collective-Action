@@ -319,14 +319,20 @@ class Model:
          
     # picks a randon agent to perform an interaction with a random neighbour and then to rewire
     def interact(self):
+        """
+        Agent interaction step.
+        For directed graphs: agents are influenced by nodes they follow (successors).
+        For undirected graphs: agents are influenced by all neighbors.
+        """
         #print('starting interaction')
         nodeIndex = random.randint(0, len(self.graph) - 1)
         #print("in interact: ", nodeIndex)
         node = self.graph.nodes[nodeIndex]['agent']
-     
-            
+
+        # For directed graphs: .adj returns successors (people nodeIndex follows)
+        # For undirected graphs: .adj returns all neighbors
         neighbours =  list(self.graph.adj[nodeIndex].keys())
-        
+
         if(len(neighbours) == 0):
             return nodeIndex
        
@@ -389,10 +395,23 @@ class Model:
         Args:
             node_list: List of candidate nodes
             max_prob: Maximum probability any single node can have (default 0.5)
+
+        For directed graphs: uses in-degree (popularity/followers)
+        For undirected graphs: uses total degree
         """
         # Calculate degrees for all nodes
-        degrees = {i: self.graph.degree(i) for i in node_list}
+        if nx.is_directed(self.graph):
+            # Use in-degree for directed graphs (prefer popular/followed nodes)
+            degrees = {i: self.graph.in_degree(i) for i in node_list}
+        else:
+            # Use total degree for undirected graphs
+            degrees = {i: self.graph.degree(i) for i in node_list}
+
         degree_sum = sum(degrees.values())
+
+        # Handle edge case where all nodes have 0 degree
+        if degree_sum == 0:
+            return random.choice(list(node_list))
 
         # Calculate raw probabilities and cap them
         raw_probs = {i: degrees[i] / degree_sum for i in node_list}
@@ -463,34 +482,55 @@ class Model:
         
  
     def find_2_steps(self, nodeIndex):
-        
-        adjacency = list(self.graph.adj[nodeIndex].keys())
+        """
+        Find nodes 2 steps away from nodeIndex.
+        For directed graphs: explores both incoming and outgoing edges.
+        For undirected graphs: standard 2-hop neighbors.
+        """
         total_neighbours = []
-        
-        for i in adjacency:
-            adjacency_two = list(self.graph.adj[i].keys())
-            total_neighbours+= adjacency_two
-        
-        #removing nodeIndex
+
+        if nx.is_directed(self.graph):
+            # Get 1-step neighbors in both directions (followers + following)
+            adjacency = set(self.graph.successors(nodeIndex)) | set(self.graph.predecessors(nodeIndex))
+
+            # Get 2-step neighbors through all 1-step neighbors
+            for i in adjacency:
+                adjacency_two = set(self.graph.successors(i)) | set(self.graph.predecessors(i))
+                total_neighbours.extend(adjacency_two)
+        else:
+            # Undirected: standard neighbor exploration
+            adjacency = list(self.graph.adj[nodeIndex].keys())
+            for i in adjacency:
+                adjacency_two = list(self.graph.adj[i].keys())
+                total_neighbours += adjacency_two
+
+        # Remove nodeIndex itself
         total_neighbours = [x for x in total_neighbours if x != nodeIndex]
-        
+
         assert nodeIndex not in total_neighbours, "index in list"
-        
+
         return total_neighbours 
     
     
     def randomrewiring(self, nodeIndex, establishlinkprob = None):
+            """
+            Random rewiring algorithm.
+            For directed graphs: establishes new outgoing edges (follows), breaks outgoing edges (unfollows).
+            Can create bidirectional edges if nodeIndex follows someone who already follows them.
+            """
             establishlinkprob = establishlinkprob or self.local_args["establishlinkprob"]
-               
+
            # print('starting random rewiring')
-            
+
             #reseting rewired value
-            rewired_rand = False 
-            
-    
+            rewired_rand = False
+
+
             breaklinkprob = self.local_args["breaklinkprob"]
             self.probs  = establishlinkprob, breaklinkprob
-                
+
+            # For directed graphs: nx.non_neighbors returns nodes that are not successors
+            # This includes nodes that point to nodeIndex (predecessors not in successors)
             non_neighbors = []
             non_neighbors.append([k for k in nx.non_neighbors(self.graph, nodeIndex)])
             non_neighbors = non_neighbors[0]
@@ -522,14 +562,21 @@ class Model:
         
         
     def biasedrewiring(self, nodeIndex):
+        """
+        Biased/local rewiring algorithm - agents rewire within 2-step neighborhood with homophily bias.
+        For directed graphs: establishes new outgoing edges (follows), breaks outgoing edges (unfollows).
+        Uses preferential attachment based on in-degree (popularity).
+        Can create bidirectional edges.
+        """
         #'realistic' rewiring. Agent can only rewire within small number of network steps and has a bias towards like minded people in the establishing of links
-        #here we have an extreme assumption: if agents are of the same opinion a link is established for sure, if not, no link is established -> could be refined by introducing a probability curve 
+        #here we have an extreme assumption: if agents are of the same opinion a link is established for sure, if not, no link is established -> could be refined by introducing a probability curve
         #e.g the more alike they are, the higher the probability of establishing a link, vice versa
         #breaking a link only when a link is established is a good idea as the likelyhood of meeting like thinkers changes as the network evolves and it is an easy way to retain the average degree to not get isolated nodes etc
-      
-        #print('starting biased rewiring')        
-        
+
+        #print('starting biased rewiring')
+
         potential_friends = []
+        # For directed graphs: nx.non_neighbors returns nodes that are not successors
         non_neighbors = []
         non_neighbors.append([k for k in nx.non_neighbors(self.graph,nodeIndex)])
         non_neighbors = non_neighbors[0]
@@ -577,9 +624,11 @@ class Model:
                    
            if rewired == True: #links are only broken if a link is established
                if random.random() < breaklinkprob:
+                    # For directed graphs: breaks outgoing edges (unfollow dynamics)
+                    # For undirected graphs: breaks any edge
                     current_neighbours = list(self.graph.adj[nodeIndex].keys())
                     old_neighbours = [n for n in current_neighbours if n != establishlinkNeighborIndex]
-                    
+
                     if len(old_neighbours) >= 1:
                         breaklinkNeighbourIndex = old_neighbours[random.randint(0, len(old_neighbours)-1)]
                         self.graph.remove_edge(nodeIndex, breaklinkNeighbourIndex)
@@ -587,12 +636,18 @@ class Model:
 
 
     def bridgerewiring(self, nodeIndex):
+        """
+        Bridge rewiring algorithm - agents rewire across community boundaries.
+        For directed graphs: establishes new outgoing edges (follows), breaks outgoing edges (unfollows).
+        Uses preferential attachment based on in-degree (popularity).
+        Can create bidirectional edges.
+        """
         #rewiring outside of ones own (opinion) cluster (we work with louvain clusters (=topological) but these become proxies for opinion clusters over time) -> time efficiency reason (see thesis)
         #we are looking at a deliberate algorithm that promotes faster dissolution of clusters (extreme case), non realistic
         #links are established for sure if agents disagree in their opinion, no link is established if they agree;
         #again this could be refined by introducing probability functions
         #links are only broken is a link is established (see above in biasedrewiring)
-              
+
         if(self.partition == None): #louvain is already used in first step of runSim, this is just to set the variable equal to the partition in the function as well.
             partition = findClusters(self.graph, self.community_detection_with_leidenalg)
         else:
@@ -645,10 +700,11 @@ class Model:
             
             if rewired == True:
                 if random.random() < breaklinkprob:
-                    # Get neighbors before rewiring by getting current neighbors and removing new one
+                    # For directed graphs: breaks outgoing edges (unfollow dynamics)
+                    # For undirected graphs: breaks any edge
                     current_neighbours = list(self.graph.adj[nodeIndex].keys())
                     old_neighbours = [n for n in current_neighbours if n != partnerOutClusterIndex]
-                    
+
                     if len(old_neighbours) >= 1:
                         breaklinkNeighbourIndex = old_neighbours[random.randint(0, len(old_neighbours)-1)]
                         self.graph.remove_edge(nodeIndex, breaklinkNeighbourIndex)
