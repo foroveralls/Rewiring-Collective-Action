@@ -38,16 +38,14 @@ def combine_figures_horizontally(fig_path1, fig_path2, output_path, width_ratios
         ax1.imshow(img1)
         ax1.axis('off')
         ax1.text(0.01, 0.99, 'a', transform=ax1.transAxes,
-                fontsize=14, fontweight='bold', va='top', ha='left',
-                bbox=dict(facecolor='white', alpha=0.8, boxstyle='round,pad=0.3'))
+                fontsize=10, fontweight='bold', va='top', ha='left')
 
         # Add panel b (transformation grid)
         ax2 = fig.add_subplot(gs[0, 1])
         ax2.imshow(img2)
         ax2.axis('off')
         ax2.text(0.01, 0.99, 'b', transform=ax2.transAxes,
-                fontsize=14, fontweight='bold', va='top', ha='left',
-                bbox=dict(facecolor='white', alpha=0.8, boxstyle='round,pad=0.3'))
+                fontsize=10, fontweight='bold', va='top', ha='left')
 
         # Save combined figure as PNG only
         png_output = output_path.replace('.pdf', '.png')
@@ -109,7 +107,7 @@ def main():
     output_path = f"{output_dir}/combined_trajectory_grid_{today}.png"
 
     success = combine_figures_horizontally(traj_path, grid_path, output_path,
-                                          width_ratios=[1.0, 0.8])
+                                          width_ratios=[0.85, 0.8])
 
     if success:
         print("\n" + "=" * 60)

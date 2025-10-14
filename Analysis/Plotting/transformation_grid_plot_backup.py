@@ -63,7 +63,7 @@ def run_sims(n_runs, params, timesteps):
 
     return models
 
-def create_avg_network(models, t, threshold=0.2, init_graph=None):
+def create_avg_network(models, t, threshold=0.3, init_graph=None):
     """Create average network with edge frequency filtering
 
     For single run (len(models)==1), returns actual network without averaging.
@@ -122,64 +122,6 @@ def create_avg_network(models, t, threshold=0.2, init_graph=None):
             G.add_edge(e[0], e[1], weight=freq, rewired=is_rewired)
 
     return G
-
-def create_union_graph_for_layout(models, timesteps, threshold=0.2, init_graph=None):
-    """Create union graph containing all edges from final timesteps for layout generation
-
-    This creates a combined graph that represents the evolved network structure.
-    Only edges from final timestep(s) are collected across all runs to focus the
-    layout on the final state topology.
-    """
-    n_models = len(models)
-
-    # Get initial topology for node structure
-    if init_graph is None:
-        init_graph = models[0].snapshots[0] if 0 in models[0].snapshots else models[0].graph
-
-    n_nodes = len(init_graph.nodes())
-
-    # Collect edge counts from final timestep(s) only
-    all_edge_counts = {}
-    all_opinions = {i: [] for i in range(n_nodes)}
-
-    # Collect edges from ALL runs at final timestep(s)
-    for t in timesteps[-1:]:  # Only use final timestep(s)
-        for m in models:
-            # Get network at timestep t
-            if t in m.snapshots:
-                graph_t = m.snapshots[t]
-            else:
-                graph_t = m.graph
-
-            # Collect opinions
-            for i in range(n_nodes):
-                if i in graph_t.nodes():
-                    all_opinions[i].append(graph_t.nodes[i]['agent'].state)
-
-            # Count edges
-            edges = set(graph_t.edges())
-            if not nx.is_directed(graph_t):
-                edges = {tuple(sorted(e)) for e in edges}
-            for e in edges:
-                all_edge_counts[e] = all_edge_counts.get(e, 0) + 1
-
-    # Calculate mean opinions
-    avg_opinions = {i: np.mean(opinions) if opinions else 0 for i, opinions in all_opinions.items()}
-
-    # Build union graph with all edges that meet threshold
-    G_union = nx.DiGraph() if nx.is_directed(init_graph) else nx.Graph()
-    G_union.add_nodes_from([(i, {'avg_opinion': avg_opinions[i]}) for i in range(n_nodes)])
-
-    # Total observations: n_models * len(final timesteps)
-    n_observations = n_models * len(timesteps[-1:])
-    effective_threshold = 0.0 if n_models == 1 else threshold
-
-    for e, count in all_edge_counts.items():
-        freq = count / n_observations
-        if freq > effective_threshold:
-            G_union.add_edge(e[0], e[1], weight=freq)
-
-    return G_union
 
 def plot_network_compact(G, ax, layout=None, show_cbar=False):
     """Plot network in compact style for grid"""
@@ -244,18 +186,15 @@ def plot_network_compact(G, ax, layout=None, show_cbar=False):
                     continue
 
                 freq = G_clean[u][v]['weight']
+                is_rewired = G_clean[u][v].get('rewired', False)
                 width = 0.1 + (freq - w_min) / w_range * 0.6
                 alpha = 0.2 + freq * 0.35
-                # All edges grey, scaled by frequency
-                color = plt.cm.gray(0.25 + freq * 0.5)
+                color = plt.cm.plasma(freq) if is_rewired else plt.cm.gray(0.25 + freq * 0.5)
 
-                # Draw edges with arrows for directed graphs
+                # Draw edges without arrows
                 nx.draw_networkx_edges(G_clean, layout_clean, [(u, v)],
                                      width=width, alpha=alpha,
-                                     edge_color=[color], arrows=True,
-                                     arrowsize=3, arrowstyle='->',
-                                     node_size=8,
-                                     connectionstyle='arc3,rad=0.1', ax=ax)
+                                     edge_color=[color], arrows=False, ax=ax)
 
     # Calculate and display cooperation value (print but don't show on plot)
     avg_coop = np.mean(opinions) if len(opinions) > 0 else 0.0
@@ -333,7 +272,7 @@ def plot_transformation_grid(n_runs=30, timesteps=[0, 14999], max_timesteps=None
     models_init = run_sims(n_runs, params, [0])
 
     init_graph = models_init[0].snapshots[0] if 0 in models_init[0].snapshots else models_init[0].graph
-    G_init = create_avg_network(models_init, 0, threshold=0.2, init_graph=init_graph)
+    G_init = create_avg_network(models_init, 0, threshold=0.3, init_graph=init_graph)
 
     # Plot initial network in the middle of the left column
     ax_init = fig.add_subplot(gs[:, 0])
@@ -350,24 +289,16 @@ def plot_transformation_grid(n_runs=30, timesteps=[0, 14999], max_timesteps=None
         params['rewiringAlgorithm'] = alg['algo']
         params['rewiringMode'] = alg['mode']
 
-        # Run simulations - need both initial and final timesteps
+        # Run simulations - only need final timestep
         final_t = timesteps[-1]
         models = run_sims(n_runs, params, [0, final_t])
 
-        # Create union graph from final timestep to generate layout
-        print(f"  Creating union graph for layout generation...")
-        G_union = create_union_graph_for_layout(models, [0, final_t], threshold=0.1, init_graph=init_graph)
-
-        # Generate layout from union graph (represents final state topology)
-        alg_layout = plot_network_compact(G_union, plt.figure().add_subplot(111), layout=None)
-        plt.close()  # Close the temporary figure
-
         # Create average network for final timestep
-        G_final = create_avg_network(models, final_t, threshold=0.2, init_graph=init_graph)
+        G_final = create_avg_network(models, final_t, threshold=0.3, init_graph=init_graph)
 
-        # Plot final network using the union-based layout
+        # Plot final network using the same layout as initial (prevents artificial hubs)
         ax_final = fig.add_subplot(gs[row_idx, 1])
-        plot_network_compact(G_final, ax_final, layout=alg_layout)
+        plot_network_compact(G_final, ax_final, layout=init_layout)
 
         # Add algorithm label to the right of final network
         ax_final.text(1.05, 0.5, alg['name'],
@@ -445,7 +376,7 @@ def plot_transformation_circle(n_runs=30, timesteps=[0, 14999], max_timesteps=No
     # Base parameters (match models_checks.py defaults)
     base_params = {
         "type": "DPAH",
-        "nwsize": 100,
+        "nwsize": 150,
         "degree": 8,
         "polarisingNode_f": 0.10,
         "timesteps": max_timesteps if max_timesteps else 15000,
@@ -495,7 +426,7 @@ def plot_transformation_circle(n_runs=30, timesteps=[0, 14999], max_timesteps=No
     models_init = run_sims(n_runs, params, [0])
 
     init_graph = models_init[0].snapshots[0] if 0 in models_init[0].snapshots else models_init[0].graph
-    G_init = create_avg_network(models_init, 0, threshold=0.2, init_graph=init_graph)
+    G_init = create_avg_network(models_init, 0, threshold=0.3, init_graph=init_graph)
 
     # Plot initial network in center
     init_layout = plot_network_compact(G_init, center_ax, layout=None)
@@ -511,24 +442,16 @@ def plot_transformation_circle(n_runs=30, timesteps=[0, 14999], max_timesteps=No
         params['rewiringAlgorithm'] = alg['algo']
         params['rewiringMode'] = alg['mode']
 
-        # Run simulations - need both initial and final timesteps
+        # Run simulations - only need final timestep
         final_t = timesteps[-1]
         models = run_sims(n_runs, params, [0, final_t])
 
-        # Create union graph from final timestep to generate layout
-        print(f"  Creating union graph for layout generation...")
-        G_union = create_union_graph_for_layout(models, [0, final_t], threshold=0.1, init_graph=init_graph)
-
-        # Generate layout from union graph (represents final state topology)
-        alg_layout = plot_network_compact(G_union, plt.figure().add_subplot(111), layout=None)
-        plt.close()  # Close the temporary figure
-
         # Create average network for final timestep
-        G_final = create_avg_network(models, final_t, threshold=0.2, init_graph=init_graph)
+        G_final = create_avg_network(models, final_t, threshold=0.3, init_graph=init_graph)
 
-        # Plot final network at corresponding position using union-based layout
+        # Plot final network at corresponding position using same layout as initial
         ax_final = plt.subplot(3, 3, final_positions[idx])
-        plot_network_compact(G_final, ax_final, layout=alg_layout)
+        plot_network_compact(G_final, ax_final, layout=init_layout)
 
         # Add algorithm label
         ax_final.set_title(f'{alg["name"]}', fontsize=FONT_SIZE, pad=5)
