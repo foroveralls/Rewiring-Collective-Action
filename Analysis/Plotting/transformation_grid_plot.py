@@ -877,12 +877,12 @@ def main():
     # Call appropriate function
     if layout_choice == "2":
         if use_short:
-            plot_transformation_circle(n_runs=n_runs, threshold=threshold, timesteps=[0, 9999], max_timesteps=25000)
+            plot_transformation_circle(n_runs=n_runs, threshold=threshold, timesteps=[0, 9999], max_timesteps=20000)
         else:
             plot_transformation_circle(n_runs=n_runs, threshold=threshold)
     else:
         if use_short:
-            plot_transformation_grid(n_runs=n_runs, threshold=threshold, timesteps=[0, 9999], max_timesteps=25000)
+            plot_transformation_grid(n_runs=n_runs, threshold=threshold, timesteps=[0, 9999], max_timesteps=20000)
         else:
             plot_transformation_grid(n_runs=n_runs, threshold=threshold)
 
