@@ -35,7 +35,7 @@ PLOT_COLORS = {
 
 NETWORK_DISPLAY_NAMES = {
     'cl': 'CSF',
-    'DPAH': 'DPAH',
+    'DPAH': 'DPA',
     'Twitter': 'Twitter',
     'FB': 'FB'
 }
@@ -215,7 +215,7 @@ def plot_network_dynamics(data, t_max=50, scale_type='linear', output_file=None)
             ax.xaxis.offsetText.set_visible(False)
 
     # Set axis labels
-    g.set_axis_labels(xlabel, "Cooperativity, ⟨a⟩")
+    g.set_axis_labels(xlabel, "Cooperation, ⟨a⟩")
     
     # Adjust spacing
     g.fig.subplots_adjust(top=0.84, bottom=0.20, hspace=0.25, wspace=0.28, left=0.1, right=0.95)
@@ -312,10 +312,10 @@ def plot_single_topology_dynamics(data, t_max=50, scale_type='linear', output_fi
     legend_ax.axis('off')
     
     line_style_elements = [
-        Line2D([], [], color='black', linestyle='-', label='cooperativity'),
+        Line2D([], [], color='black', linestyle='-', label='cooperation'),
         Line2D([], [], color='black', linestyle='--', dashes=(4, 2), label='polarization'),
         Line2D([], [], color='black', linestyle='-', marker='>', markersize=2, 
-               markevery=0.1, label='directed (DPAH)'),
+               markevery=0.1, label='directed (DPA)'),
         Line2D([], [], color='black', linestyle='-', label='undirected (CSF)')
     ]
     legend_ax.legend(handles=line_style_elements, ncol=5, loc='center', 
@@ -429,7 +429,7 @@ def plot_single_topology_dynamics(data, t_max=50, scale_type='linear', output_fi
         # Set labels and title
         ax.set_title(f'{key}')
         if is_left_col:
-            ax.set_ylabel(r'Cooperativity, $\langle a \rangle$')
+            ax.set_ylabel(r'Cooperation, $\langle a \rangle$')
         if is_bottom_row:
             ax.set_xlabel(xlabel)
         

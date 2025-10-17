@@ -138,18 +138,22 @@ def plot_network_compact(G, ax, layout=None, show_cbar=False):
 
     # If graph is empty or has no nodes, return early
     if G.number_of_nodes() == 0:
-        ax.axis('off')
+        # Turn off ticks and labels but keep border frame
+        ax.set_xticks([])
+        ax.set_yticks([])
+        ax.set_xticklabels([])
+        ax.set_yticklabels([])
         # Add thin grey border
         for spine in ax.spines.values():
-            spine.set_edgecolor('lightgray')
-            spine.set_linewidth(0.5)
+            spine.set_edgecolor('#BBBBBB')
+            spine.set_linewidth(0.8)
             spine.set_visible(True)
         return {}
 
     # Create layout - use provided layout or create new one
     # Using a consistent layout prevents artificial hub formation in averaged networks
     if layout is None:
-        layout = nx.spring_layout(G, k=0.25, iterations=50, seed=42)
+        layout = nx.spring_layout(G, k=0.18, iterations=50, seed=42)
     else:
         # Filter layout to only include nodes in G
         layout = {n: pos for n, pos in layout.items() if n in G.nodes()}
@@ -169,7 +173,7 @@ def plot_network_compact(G, ax, layout=None, show_cbar=False):
     # Draw nodes
     nx.draw_networkx_nodes(G_clean, layout_clean,
                           node_color=colors, node_size=8,
-                          edgecolors='black', linewidths=0, ax=ax)
+                          edgecolors='black', linewidths=0.3, ax=ax)
 
     # Draw edges with rewiring distinction (no arrows)
     if G_clean.number_of_edges() > 0:
@@ -187,25 +191,32 @@ def plot_network_compact(G, ax, layout=None, show_cbar=False):
 
                 freq = G_clean[u][v]['weight']
                 is_rewired = G_clean[u][v].get('rewired', False)
-                width = 0.1 + (freq - w_min) / w_range * 0.6
-                alpha = 0.2 + freq * 0.35
-                color = plt.cm.plasma(freq) if is_rewired else plt.cm.gray(0.25 + freq * 0.5)
+                width = 0.08 + (freq - w_min) / w_range * 0.35
+                alpha = 0.4  # Uniform alpha for clarity
+                color = '#666666' if is_rewired else 'black'  # Gray for rewired, black for original
 
-                # Draw edges without arrows
+                # Draw edges with arrows for directed graphs
                 nx.draw_networkx_edges(G_clean, layout_clean, [(u, v)],
                                      width=width, alpha=alpha,
-                                     edge_color=[color], arrows=False, ax=ax)
+                                     edge_color=[color], arrows=True,
+                                     arrowsize=4, arrowstyle='->',
+                                     node_size=8,
+                                     connectionstyle='arc3,rad=0.1', ax=ax)
 
     # Calculate and display cooperation value (print but don't show on plot)
     avg_coop = np.mean(opinions) if len(opinions) > 0 else 0.0
     print(f"  Average cooperation: {avg_coop:.2f}")
 
-    ax.axis('off')
+    # Turn off ticks and labels but keep border frame
+    ax.set_xticks([])
+    ax.set_yticks([])
+    ax.set_xticklabels([])
+    ax.set_yticklabels([])
 
-    # Add thin grey border around the plot
+    # Add visible grey border around the plot
     for spine in ax.spines.values():
-        spine.set_edgecolor('lightgray')
-        spine.set_linewidth(0.5)
+        spine.set_edgecolor('#BBBBBB')
+        spine.set_linewidth(0.8)
         spine.set_visible(True)
 
     return layout_clean
@@ -256,7 +267,7 @@ def plot_transformation_grid(n_runs=30, timesteps=[0, 14999], max_timesteps=None
     from matplotlib.gridspec import GridSpec
     fig = plt.figure(figsize=(8.9*cm, 14*cm))
     gs = GridSpec(n_rows, 2, figure=fig, width_ratios=[1, 1],
-                  wspace=0.25, hspace=0.15, left=0.08, right=0.92, top=0.96, bottom=0.04)
+                  wspace=0.15, hspace=0.08, left=0.08, right=0.78, top=0.96, bottom=0.04)
 
     # Add title indicating averaging status
     run_type = "Single Run" if n_runs == 1 else f"Averaged over {n_runs} runs"
@@ -329,17 +340,17 @@ def plot_transformation_grid(n_runs=30, timesteps=[0, 14999], max_timesteps=None
             (start_x, start_y),
             (end_x, end_y),
             transform=fig.transFigure,
-            arrowstyle='->',
-            mutation_scale=15,
-            linewidth=1.0,
-            color='gray',
-            alpha=0.6,
+            arrowstyle='-|>',  # Solid filled arrowhead
+            mutation_scale=8,  # Smaller arrows
+            linewidth=0.8,
+            color='black',
+            alpha=1.0,
             zorder=0
         )
         fig.patches.append(arrow)
 
     # Add shared colorbar
-    cbar_ax = fig.add_axes([0.94, 0.15, 0.015, 0.7])
+    cbar_ax = fig.add_axes([0.82, 0.15, 0.025, 0.7])
     norm = Normalize(-1, 1)
     sm = ScalarMappable(cmap=plt.cm.coolwarm_r, norm=norm)
     cbar = plt.colorbar(sm, cax=cbar_ax)
@@ -351,8 +362,8 @@ def plot_transformation_grid(n_runs=30, timesteps=[0, 14999], max_timesteps=None
     os.makedirs("../../Figs/Networks", exist_ok=True)
     filename = f"../../Figs/Networks/transformation_grid_N100_DPAH_n{n_runs}_{today}"
 
-    plt.savefig(f"{filename}.pdf", bbox_inches='tight', dpi=300)
-    plt.savefig(f"{filename}.png", bbox_inches='tight', dpi=300)
+    plt.savefig(f"{filename}.pdf", dpi=300)
+    plt.savefig(f"{filename}.png", dpi=300)
 
     print(f"\n✓ Saved: {filename}.pdf")
     print(f"✓ Saved: {filename}.png")
@@ -376,8 +387,8 @@ def plot_transformation_circle(n_runs=30, timesteps=[0, 14999], max_timesteps=No
     # Base parameters (match models_checks.py defaults)
     base_params = {
         "type": "DPAH",
-        "nwsize": 150,
-        "degree": 8,
+        "nwsize": 100,
+        "degree": 5,
         "polarisingNode_f": 0.10,
         "timesteps": max_timesteps if max_timesteps else 15000,
         "plot": False,
@@ -447,7 +458,7 @@ def plot_transformation_circle(n_runs=30, timesteps=[0, 14999], max_timesteps=No
         models = run_sims(n_runs, params, [0, final_t])
 
         # Create average network for final timestep
-        G_final = create_avg_network(models, final_t, threshold=0.3, init_graph=init_graph)
+        G_final = create_avg_network(models, final_t, threshold=0.05, init_graph=init_graph)
 
         # Plot final network at corresponding position using same layout as initial
         ax_final = plt.subplot(3, 3, final_positions[idx])
@@ -473,8 +484,8 @@ def plot_transformation_circle(n_runs=30, timesteps=[0, 14999], max_timesteps=No
     os.makedirs("../../Figs/Networks", exist_ok=True)
     filename = f"../../Figs/Networks/transformation_circle_N100_DPAH_n{n_runs}_{today}"
 
-    plt.savefig(f"{filename}.pdf", bbox_inches='tight', dpi=300)
-    plt.savefig(f"{filename}.png", bbox_inches='tight', dpi=300)
+    plt.savefig(f"{filename}.pdf", dpi=300)
+    plt.savefig(f"{filename}.png", dpi=300)
 
     print(f"\n✓ Saved: {filename}.pdf")
     print(f"\n✓ Saved: {filename}.png")
@@ -509,12 +520,12 @@ def main():
     # Call appropriate function
     if layout_choice == "2":
         if use_short:
-            plot_transformation_circle(n_runs=n_runs, timesteps=[0, 30000], max_timesteps=30000)
+            plot_transformation_circle(n_runs=n_runs, timesteps=[0, 30000], max_timesteps=25000)
         else:
             plot_transformation_circle(n_runs=n_runs)
     else:
         if use_short:
-            plot_transformation_grid(n_runs=n_runs, timesteps=[0, 30000], max_timesteps=30000)
+            plot_transformation_grid(n_runs=n_runs, timesteps=[0, 30000], max_timesteps=25000)
         else:
             plot_transformation_grid(n_runs=n_runs)
 

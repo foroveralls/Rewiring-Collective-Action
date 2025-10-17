@@ -162,12 +162,12 @@ def crop_whitespace(img, threshold=0.95):
 
 def combine_figures_horizontally(fig_path1, fig_path2, output_path):
     """
-    Combine two PNG figures horizontally into a single figure
+    Combine two figures horizontally with maximum quality preservation
 
     Args:
         fig_path1: Path to left figure (heatmap) - PNG format
         fig_path2: Path to right figure (regime) - PNG format
-        output_path: Path for combined output
+        output_path: Path for combined output (saves as both PDF and PNG)
     """
     try:
         # Load PNG images directly
@@ -180,32 +180,37 @@ def combine_figures_horizontally(fig_path1, fig_path2, output_path):
 
         # Create combined figure with matched heights
         # Using full two-column width (17.8cm) for manuscript
-        # Reduced height to 5.5cm for better horizontal aspect ratio (margins will be adjusted in publication)
+        # Increased height from 5.5cm to 8cm for better visibility in manuscript
+        # Use higher DPI (600) for publication quality
         cm = 1/2.54
-        fig = plt.figure(figsize=(17.8*cm, 5.5*cm), dpi=300)
+        fig = plt.figure(figsize=(17.8*cm, 8*cm), dpi=600)
         gs = GridSpec(1, 2, figure=fig, width_ratios=[1.5, 1],
                      left=0.01, right=0.99, bottom=0.01, top=0.99, wspace=0.002)
 
         # Add panel a (heatmap)
         ax1 = fig.add_subplot(gs[0, 0])
-        ax1.imshow(img1_cropped)
+        ax1.imshow(img1_cropped, interpolation='none')  # No interpolation for sharpness
         ax1.axis('off')
         ax1.text(0.01, 0.99, 'a', transform=ax1.transAxes,
                 fontsize=10, fontweight='bold', va='top', ha='left')
 
         # Add panel b (regime)
         ax2 = fig.add_subplot(gs[0, 1])
-        ax2.imshow(img2_cropped)
+        ax2.imshow(img2_cropped, interpolation='none')  # No interpolation for sharpness
         ax2.axis('off')
         ax2.text(0.01, 0.99, 'b', transform=ax2.transAxes,
                 fontsize=10, fontweight='bold', va='top', ha='left')
 
-        # Save combined figure as both PDF and PNG
+        # Save combined figure as both PDF and PNG at high quality
         pdf_output = output_path if output_path.endswith('.pdf') else output_path.replace('.png', '.pdf')
         png_output = pdf_output.replace('.pdf', '.png')
 
-        fig.savefig(pdf_output, dpi=300, bbox_inches='tight', format='pdf')
-        fig.savefig(png_output, dpi=300, bbox_inches='tight')
+        # Save PDF with embedded high-quality raster and metadata
+        fig.savefig(pdf_output, dpi=600, bbox_inches='tight', format='pdf',
+                   metadata={'Creator': 'Collective Rewiring Analysis'})
+        # Save PNG at high DPI for preview/web use
+        fig.savefig(png_output, dpi=600, bbox_inches='tight')
+
         print(f"✓ Combined figure saved:")
         print(f"  PDF: {pdf_output}")
         print(f"  PNG: {png_output}")
