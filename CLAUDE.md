@@ -2,6 +2,10 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Claude heuristics
+- Claude_stuff contains useful conversation history and summaries: If user asks you to read from a txt or MD file for context search here first.
+- If user asks you to read from a MD or txt file, please update it at the end of the conversation, remove any redundant or old info.
+
 ## Project Overview
 
 This is a research codebase for studying network rewiring effects on polarization and collective action using agent-based models. The project analyzes how different rewiring strategies affect cooperative consensus formation and depolarization in social networks.It will be published in a high impact journal like PNAS or Nature Communications so figures etc have to be high quality and follow good design standards appropriate for the journals. Respond like an expert in network science, statisical physics, and computational social science. Please be conservative with code changes and try and integrate suggestions with existing architecture.

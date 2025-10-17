@@ -420,7 +420,7 @@ def plot_network_properties_production(df, topology_filter=None, output_file=Non
     algorithm_labels = {}
     algorithm_order = []
     
-    # Combine topological constraints (remove static, group bridge and local together)
+    # Keep topological constraints separate (remove static)
     for scenario in scenarios:
         base_scenario = scenario.lower()
         if base_scenario == 'none_none':
@@ -429,12 +429,18 @@ def plot_network_properties_production(df, topology_filter=None, output_file=Non
             label = 'Random'
             algorithm_labels[scenario] = label
             algorithm_order.append((scenario, label))
-        elif 'biased' in base_scenario or 'bridge' in base_scenario:
-            # Group topological constraints together
+        elif 'biased' in base_scenario:
             if 'same' in base_scenario:
-                label = 'Topo. Constraints (Similar)'
+                label = 'Local (Similar)'
             else:
-                label = 'Topo. Constraints (Opposite)'
+                label = 'Local (Opposite)'
+            algorithm_labels[scenario] = label
+            algorithm_order.append((scenario, label))
+        elif 'bridge' in base_scenario:
+            if 'same' in base_scenario:
+                label = 'Bridge (Similar)'
+            else:
+                label = 'Bridge (Opposite)'
             algorithm_labels[scenario] = label
             algorithm_order.append((scenario, label))
         elif base_scenario == 'wtf_none':
@@ -472,15 +478,8 @@ def plot_network_properties_production(df, topology_filter=None, output_file=Non
         for alg_idx, (scenario, alg_label) in enumerate(unique_algorithm_order):
             ax = fig.add_subplot(gs[prop_idx, alg_idx])
             
-            # For grouped labels, combine data from multiple scenarios
-            if 'Topo. Constraints' in alg_label:
-                if 'Similar' in alg_label:
-                    relevant_scenarios = [s for s in scenarios if ('biased_same' in s.lower() or 'bridge_same' in s.lower())]
-                else:
-                    relevant_scenarios = [s for s in scenarios if ('biased_diff' in s.lower() or 'bridge_diff' in s.lower())]
-                algorithm_data = df[df['scenario_grouped'].isin(relevant_scenarios)]
-            else:
-                algorithm_data = df[df['scenario_grouped'] == scenario]
+            # Get data for this specific algorithm
+            algorithm_data = df[df['scenario_grouped'] == scenario]
             
             # Get color for this algorithm
             base_scenario = scenario.lower()

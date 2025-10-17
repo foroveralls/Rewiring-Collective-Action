@@ -95,7 +95,8 @@ def configure_axis_style_truncated(ax, t_max, scale_type='linear', show_ylabel=T
     return xlabel
 
 def plot_network_dynamics_truncated(data, t_max=80000, scale_type='linear',
-                                   add_steady_state_markers=True, output_file=None):
+                                   add_steady_state_markers=True, output_file=None,
+                                   for_combined=False):
     """
     Plot network dynamics with truncated time window and steady-state markers
 
@@ -105,6 +106,7 @@ def plot_network_dynamics_truncated(data, t_max=80000, scale_type='linear',
         scale_type: 'linear' or 'symlog'
         add_steady_state_markers: If True, add markers on right spine showing steady state from max timestep
         output_file: Path to save figure
+        for_combined: If True, use taller figure size (14cm) to match transformation grid height
     """
     # Create color mapping
     scenario_color_map = {}
@@ -141,7 +143,9 @@ def plot_network_dynamics_truncated(data, t_max=80000, scale_type='linear',
     )
 
     # Reduce figure size for better space utilization
-    g.fig.set_size_inches(15*cm, 10*cm)
+    # Use taller figure (14cm) when for_combined=True to match transformation grid height
+    fig_height = 14*cm if for_combined else 10*cm
+    g.fig.set_size_inches(15*cm, fig_height)
 
     # Add polarization lines
     for ax_idx, ax in enumerate(g.axes.flat):
@@ -294,7 +298,7 @@ if __name__ == "__main__":
         scale = 'linear'
 
     data = pd.read_csv(os.path.join("../../Output", file_list[file_index]))
-    t_max = 70000  # Display truncated at 70,000
+    t_max = 65000  #Display truncated at 70,000
     get_N, get_n = file_list[file_index].split("_")[4], file_list[file_index].split("_")[6]
 
     # Process data WITHOUT filtering by t_max to preserve full data for steady-state calculation
@@ -318,10 +322,19 @@ if __name__ == "__main__":
     today = date.today()
     suffix = f"_{scale}" if scale != 'linear' else ""
 
+    # Generate standard version
     plot_network_dynamics_truncated(
         processed_data, t_max, scale, add_steady_state_markers=True,
         output_file=f"../../Figs/Trajectories/network_dynamics_truncated_N{get_N}_n{get_n}_{today}{suffix}.png"
     )
 
+    # Generate version for combination with transformation grid (taller)
+    plot_network_dynamics_truncated(
+        processed_data, t_max, scale, add_steady_state_markers=True,
+        output_file=f"../../Figs/Trajectories/network_dynamics_truncated_for_combined_N{get_N}_n{get_n}_{today}{suffix}.png",
+        for_combined=True
+    )
+
     plt.show()
     print(f"Truncated trajectory plot saved to Figs/Trajectories/ as PNG")
+    print(f"Taller version for combination saved with 'for_combined' suffix")

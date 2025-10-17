@@ -883,22 +883,22 @@ class Model:
     def _get_personalized_recommendations(self, nodeIndex, topk=5):
         """Get personalized recommendations using PageRank + SALSA"""
         G = rx.networkx_converter(self.graph)
-        
+
         pp = {node: 0.0 for node in G.nodes()}
         pp[nodeIndex] = 1.0
-        
+
         try:
             pr = rx.pagerank(G, alpha=0.70, personalization=pp, max_iter=100)
         except:
             return np.array([])
-        
+
         current_neighbors = set(G.neighbors(nodeIndex))
-        pr_candidates = [(node, score) for node, score in pr.items() 
+        pr_candidates = [(node, score) for node, score in pr.items()
                         if node != nodeIndex and node not in current_neighbors]
-        
+
         if len(pr_candidates) == 0:
             return np.array([])
-        
+
         pr_candidates.sort(key=lambda x: -x[1])
         cot = [node for node, _ in pr_candidates[:topk]]
         
@@ -1318,10 +1318,11 @@ class Model:
     def community_detection_with_leidenalg(self, nx_graph):
         # Convert networkx graph to igraph
         ig_graph = ig.Graph.from_networkx(nx_graph)
-        
+
         # Perform community detection using leidenalg on the igraph graph
-        partition = la.find_partition(ig_graph, la.ModularityVertexPartition)
-        
+        # Note: leidenalg uses a deterministic seed parameter for reproducibility
+        partition = la.find_partition(ig_graph, la.ModularityVertexPartition, seed=42)
+
         # Map the community detection results back to the networkx graph
         # Creating a dictionary where keys are nodes in the original networkx graph,
         # and values are their community labels
@@ -1329,7 +1330,7 @@ class Model:
         for node in nx_graph.nodes():
             #ig_index = ig_graph.vs.find(name=str(node)).index  # Find the igraph index of the node
             nx_partition[node] = partition.membership[node]
-        
+
         return nx_partition
     
     
@@ -1482,12 +1483,12 @@ class EmpiricalModel_w_agents(Model):
 class DPAHModel(Model):
     def __init__(self, n, m, skew= 0, args = None, **kwargs):
         super().__init__(args=args, **kwargs)
-        #TODO: make these not hard-coded 
+        #TODO: make these not hard-coded
         self.graph = DPAH(n, f_m=0.5, d=0.02, h_MM=args["f_all"], h_mm=args["f_all"], plo_M=2.0, plo_m=2.0,
                      seed = 42)
-        
+
         self.graph.generate()
-        
+
         self.populateModel_netin(n, skew)
 
         
