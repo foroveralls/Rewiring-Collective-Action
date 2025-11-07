@@ -11,7 +11,7 @@ from matplotlib.gridspec import GridSpec
 from datetime import date
 
 cm = 1/2.54
-FONT_SIZE = 7
+FONT_SIZE = 11  # Increased from 7 for better readability
 
 def combine_figures_horizontally(fig_path1, fig_path2, output_path, width_ratios=[1, 0.7]):
     """
@@ -34,21 +34,21 @@ def combine_figures_horizontally(fig_path1, fig_path2, output_path, width_ratios
         # Increased height from 8cm to 10cm for better visibility in manuscript
         fig = plt.figure(figsize=(17.8*cm, 10*cm), dpi=600)
         gs = GridSpec(1, 2, figure=fig, width_ratios=width_ratios,
-                     left=0.01, right=0.99, bottom=0.01, top=0.99, wspace=0.03)
+                     left=0.01, right=0.99, bottom=0.01, top=0.99, wspace=0.02)  # Reduced wspace from 0.03 to 0.02
 
         # Add panel a (trajectory)
         ax1 = fig.add_subplot(gs[0, 0])
         ax1.imshow(img1, interpolation='none')  # No interpolation to preserve sharpness
         ax1.axis('off')
         ax1.text(0.01, 0.99, 'a', transform=ax1.transAxes,
-                fontsize=10, fontweight='bold', va='top', ha='left')
+                fontsize=12, fontweight='bold', va='top', ha='left')
 
         # Add panel b (transformation grid)
         ax2 = fig.add_subplot(gs[0, 1])
         ax2.imshow(img2, interpolation='none')  # No interpolation to preserve sharpness
         ax2.axis('off')
-        ax2.text(0.01, 0.99, 'b', transform=ax2.transAxes,
-                fontsize=10, fontweight='bold', va='top', ha='left')
+        ax2.text(-0.02, 0.99, 'b', transform=ax2.transAxes,
+                fontsize=12, fontweight='bold', va='top', ha='right')  # Moved left (x=-0.02) to avoid occluding network grid
 
         # Save combined figure as both PDF (for publication) and PNG (for preview)
         pdf_output = output_path if output_path.endswith('.pdf') else output_path.replace('.png', '.pdf')

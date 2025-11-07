@@ -22,7 +22,7 @@ from plots_lines import (
 )
 
 cm = 1/2.54
-FONT_SIZE = 7
+FONT_SIZE = 11  # Increased from 7 for better readability
 
 def configure_axis_style_truncated(ax, t_max, scale_type='linear', show_ylabel=True,
                                   show_xlabel=True, add_steady_state_markers=False):

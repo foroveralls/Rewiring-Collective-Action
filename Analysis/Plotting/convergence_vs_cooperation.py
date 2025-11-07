@@ -6,6 +6,18 @@ Demonstrates that rewiring algorithms cluster along optimal trade-off boundaries
 where improvements in convergence speed necessarily reduce final cooperation.
 Suitable for high-impact journals (Nature Communications, PNAS) as it shows
 fundamental algorithmic optimality rather than mere correlations.
+
+CONVERGENCE METHODS:
+-------------------
+1. t95 method (default): Time to reach 95% of final cooperation value
+   - Simple, robust, always computable
+   - Returns normalized speed: 1 - (t95/t_max), range [0,1]
+
+2. inflection method: Instantaneous rate during exponential depolarization phase
+   - Matches trajectory_stats.py methodology
+   - Finds inflection point via second derivative
+   - Returns slope around inflection point (raw rate)
+   - Theoretically grounded for dynamical systems analysis
 """
 
 import os
@@ -17,6 +29,8 @@ from scipy.optimize import curve_fit
 from scipy.spatial import ConvexHull
 from matplotlib.lines import Line2D
 from datetime import date
+import warnings
+warnings.filterwarnings('ignore')
 
 cm = 1/2.54
 FONT_SIZE = 8
@@ -46,38 +60,109 @@ def calculate_t95_convergence_speed(trajectory):
     """Calculate time to reach 95% of final value - robust convergence metric"""
     final_val = np.mean(trajectory[-int(len(trajectory)*0.1):])  # Last 10% average
     target = 0.95 * final_val
-    
+
     # Find first time we reach 95% of final value
     t95_idx = np.argmax(trajectory >= target) if np.any(trajectory >= target) else len(trajectory)
-    
+
     # Convert to speed (1 - normalized time), so higher = faster
     speed = 1 - (t95_idx / len(trajectory))
     return max(0, speed)  # Ensure non-negative
 
-def calculate_metrics(data):
-    """Calculate speed and cooperativity metrics"""
+def find_inflection(seq):
+    """Find inflection point in trajectory (proxy for convergence) - from trajectory_stats.py"""
+    if len(seq) < 1200:
+        return False
+
+    try:
+        smooth = gaussian_filter1d(seq, 600)
+        d2 = np.gradient(np.gradient(smooth))
+        infls = np.where(np.diff(np.sign(d2)))[0]
+
+        inf_min = 5000
+        if not any(i >= inf_min for i in infls):
+            return False
+
+        inf_ind = next((i for i in infls if i >= inf_min), False)
+        return inf_ind if inf_ind > inf_min and inf_ind < 20000 else False
+    except:
+        return False
+
+def estimate_convergence_rate(trajec, loc, regwin=10):
+    """Estimate convergence rate around specified location - from trajectory_stats.py"""
+    x = np.arange(len(trajec) - 1)
+    y = trajec
+
+    if loc is not None:
+        x = x[loc-regwin: loc+regwin+1]
+        y = trajec[loc-regwin: loc+regwin+1]
+
+    y, x = np.asarray([y, x])
+
+    # Linear regression
+    n = np.size(x)
+    mx, my = np.mean(x), np.mean(y)
+    ssxy = np.sum(y*x) - n*my*mx
+    ssxx = np.sum(x*x) - n*mx*mx
+    b1 = ssxy / ssxx
+
+    rate = -b1/(trajec[loc]-1)
+    return rate
+
+def calculate_inflection_convergence_speed(trajectory):
+    """Calculate convergence rate using inflection point method - matches trajectory_stats.py
+
+    Returns the instantaneous rate of change during the exponential depolarization phase.
+    Note: Returns raw rate (not 0-1 normalized). Plot uses rank-based normalization for comparison.
+    Higher values = faster convergence.
+    """
+    convergence_rate = np.nan
+    inflection_x = find_inflection(trajectory)
+
+    if inflection_x:
+        try:
+            # Get raw rate (multiplied by 1000 like in trajectory_stats.py)
+            convergence_rate = estimate_convergence_rate(trajectory, inflection_x) * 1000
+        except:
+            pass
+
+    # Return raw rate if valid, otherwise return 0
+    return convergence_rate if not np.isnan(convergence_rate) else 0.0
+
+def calculate_metrics(data, method='t95'):
+    """Calculate speed and cooperativity metrics
+
+    Parameters
+    ----------
+    data : pd.DataFrame
+        Trajectory data
+    method : str
+        't95' for time-to-95% method (default) or 'inflection' for inflection point method
+    """
     data['rewiring'] = data['rewiring'].fillna('none')
     data['scenario'] = data['scenario'].fillna('none')
     data['scenario_grouped'] = data['scenario'].str.cat(data['rewiring'], sep='_')
-    
+
     results = []
     for name, group in data.groupby(['scenario_grouped', 'type']):
         scenario, topology = name
         trajectory = group['avg_state'].values
-        
-        # Convergence speed (higher = faster)
-        speed = calculate_t95_convergence_speed(trajectory)
-        
+
+        # Convergence speed (higher = faster) - choose method
+        if method == 'inflection':
+            speed = calculate_inflection_convergence_speed(trajectory)
+        else:  # default to t95
+            speed = calculate_t95_convergence_speed(trajectory)
+
         # Final cooperativity (robust measure)
         final_window = int(len(trajectory) * 0.1)  # Last 10%
         final_coop = np.mean(trajectory[-final_window:]) if final_window > 0 else trajectory[-1]
-        
+
         friendly_name = FRIENDLY_NAMES.get(scenario, scenario)
         results.append({
             'scenario': friendly_name, 'topology': topology,
             'speed': speed, 'cooperativity': final_coop
         })
-    
+
     return pd.DataFrame(results)
 
 def find_pareto_front(metrics_df):
@@ -97,11 +182,20 @@ def find_pareto_front(metrics_df):
     
     return pareto_mask
 
-def plot_pareto_analysis(metrics_df, output_path):
+def plot_pareto_analysis(metrics_df, output_path, method='t95'):
     """Create Pareto frontier analysis showing speed-accuracy trade-offs
-    
+
     Algorithms clustering along the frontier demonstrate optimal trade-offs
     where improvements in convergence speed necessarily reduce cooperation.
+
+    Parameters
+    ----------
+    metrics_df : pd.DataFrame
+        Metrics data
+    output_path : str
+        Output file path
+    method : str
+        't95' or 'inflection' to indicate which method was used
     """
     setup_style()
     fig, ax = plt.subplots(figsize=(8.7*cm, 8*cm))
@@ -127,26 +221,27 @@ def plot_pareto_analysis(metrics_df, output_path):
     
     # Topology markers
     topology_markers = {'DPAH': 'x', 'cl': '+', 'Twitter': '^', 'FB': '.'}
+    topology_labels = {'DPAH': 'DPA', 'cl': 'CSF', 'Twitter': 'Twitter', 'FB': 'FB'}
     
     # Plot dominated points
     for i, (idx, row) in enumerate(dominated_data.iterrows()):
         color = FRIENDLY_COLORS.get(row['scenario'], 'black')
         marker = topology_markers.get(row['topology'], 'o')
-        size = 30 if marker == '.' else 20
+        size = 25 if marker == '.' else 15
         
         ax.scatter(speed_ranks.loc[idx], coop_ranks.loc[idx], c=color, marker=marker,
-                  s=size, alpha=0.7, edgecolors='black', linewidth=0.5)
+                  s=size, alpha=0.8, edgecolors='black', linewidth=0.5)
     
     # Plot Pareto optimal points (larger, bolder)
     pareto_points_ranked = []
     for i, (idx, row) in enumerate(pareto_data.iterrows()):
         color = FRIENDLY_COLORS.get(row['scenario'], 'black')
         marker = topology_markers.get(row['topology'], 'o')
-        size = 50 if marker == '.' else 40
+        size = 45 if marker == '.' else 35
         
         x_rank, y_rank = speed_ranks.loc[idx], coop_ranks.loc[idx]
         ax.scatter(x_rank, y_rank, c=color, marker=marker,
-                  s=size, alpha=0.9, edgecolors='black', linewidth=1.0)
+                  s=size, alpha=0.9, edgecolors='black', linewidth=0.7)
         pareto_points_ranked.append([x_rank, y_rank])
     
     # Draw empirical Pareto front line showing algorithmic optimality
@@ -156,18 +251,21 @@ def plot_pareto_analysis(metrics_df, output_path):
         sorted_pareto = pareto_array[sorted_indices]
         
         ax.plot(sorted_pareto[:, 0], sorted_pareto[:, 1], 
-               'r--', alpha=0.7, linewidth=1.3, 
+               'r--', alpha=0.7, linewidth=1.1, 
                label='Empirical Pareto frontier')
     
     # Flip y-axis to show speed-accuracy trade-off
     ax.invert_yaxis()
     
     # Perfect trade-off reference line (now diagonal from top-left to bottom-right)
-    ax.plot([0, 1], [1, 0], 'k--', alpha=0.5, linewidth=0.8, zorder=1, 
+    ax.plot([0, 1], [1, 0], 'k--', alpha=0.5, linewidth=0.6, zorder=1, 
            label='Perfect speed-accuracy trade-off')
     
-    # Styling
-    ax.set_xlabel('Convergence Rate')
+    # Styling - update labels based on method
+    if method == 'inflection':
+        ax.set_xlabel('Convergence Rate')
+    else:
+        ax.set_xlabel('Convergence Rate (t95 method)')
     ax.set_ylabel(r'Final Cooperation, $\langle a \rangle_{t_{end}}$')
     ax.grid(True, alpha=0.3, linewidth=0.4)
     ax.set_xlim(0, 1.02)
@@ -187,8 +285,8 @@ def plot_pareto_analysis(metrics_df, output_path):
                            ncol=4)
     
     # Topology legend at top using figlegend (more reliable)
-    topo_elements = [Line2D([0], [0], marker=marker, color='black', linestyle='None', 
-                           markersize=5, label=topo) 
+    topo_elements = [Line2D([0], [0], marker=marker, color='black', linestyle='None',
+                           markersize=5, label=topology_labels[topo])
                     for topo, marker in topology_markers.items()]
     fig.legend(handles=topo_elements, columnspacing=0.8, bbox_to_anchor=(0.53, 0.995), 
               loc='center', frameon=True, fontsize=FONT_SIZE-2, 
@@ -263,27 +361,38 @@ def main():
     if not files:
         print("No default_run_avg files found")
         return
-    
+
     for i, f in enumerate(files):
         print(f"{i}: {f}")
-    
+
     idx = int(input("Select file: "))
+
+    # Let user choose convergence method
+    print("\nChoose convergence rate calculation method:")
+    print("1: t95 method (time to reach 95% of final value - simple and robust)")
+    print("2: inflection method (slope during exponential phase - matches trajectory_stats.py)")
+    method_choice = input("Select method (1 or 2, default=1): ").strip()
+
+    method = 'inflection' if method_choice == '2' else 't95'
+    print(f"\nUsing {method} method for convergence rate calculation")
+
     data = pd.read_csv(os.path.join("../../Output", files[idx]))
-    
-    metrics = calculate_metrics(data)
+
+    metrics = calculate_metrics(data, method=method)
     if metrics.empty:
         print("No valid metrics calculated")
         return
-    
+
     # Create plot and analysis
     output_dir = "../../Figs/Convergence"
     os.makedirs(output_dir, exist_ok=True)
-    output_path = f"{output_dir}/pareto_speed_cooperativity_{date.today()}.pdf"
-    
-    pareto_data, dominated_data = plot_pareto_analysis(metrics, output_path)
+    output_path = f"{output_dir}/pareto_speed_cooperativity_{method}_{date.today()}.pdf"
+
+    pareto_data, dominated_data = plot_pareto_analysis(metrics, output_path, method=method)
     analyze_pareto_results(pareto_data, dominated_data)
-    
+
     print(f"\nPareto trade-off analysis saved: {output_path}")
+    print(f"Method used: {method}")
     print("\nℹ️  INTERPRETATION: Algorithms clustering along the diagonal reference")
     print("   line demonstrate optimal speed-accuracy trade-offs. Deviations from")
     print("   this frontier indicate suboptimal parameter configurations.")

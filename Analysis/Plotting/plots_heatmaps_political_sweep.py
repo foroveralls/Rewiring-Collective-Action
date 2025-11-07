@@ -143,10 +143,13 @@ def create_state_heatmap_grid(df, param_name, max_param_value=0.05):
     """
     # Get unique topologies and scenarios
     all_topologies = sorted(df['topology'].unique())
-    
+
     # Define preferred topology order
     preferred_order = ["DPAH", "Twitter", "cl", "FB"]
     all_topologies = sorted(all_topologies, key=lambda t: preferred_order.index(t) if t in preferred_order else 999)
+
+    # Create display names mapping (DPAH -> DPA)
+    topology_display_names = {top: "DPA" if top == "DPAH" else top.upper() for top in all_topologies}
     
     # Group by mode and rewiring to get unique scenarios
     scenarios = df.groupby(['mode', 'rewiring']).size().reset_index()
@@ -279,10 +282,11 @@ def create_state_heatmap_grid(df, param_name, max_param_value=0.05):
             # Add labels with improved positioning
             if col_idx == 0:  # First column gets ⟨x⟩ label
                 ax.set_ylabel(r'$\langle a\rangle$', fontsize=AXIS_LABEL_FONT_SIZE+1, labelpad=5, fontweight='bold')
-                
+
                 # Add topology label further from plot (adjusted for new spacing)
-                ax.text(-0.50, 0.5, topology.upper(), transform=ax.transAxes, 
-                       rotation=90, fontsize=AXIS_LABEL_FONT_SIZE+1, 
+                display_name = topology_display_names.get(topology, topology.upper())
+                ax.text(-0.50, 0.5, display_name, transform=ax.transAxes,
+                       rotation=90, fontsize=AXIS_LABEL_FONT_SIZE+1,
                        fontweight='bold', va='center', ha='center')
             
             if row_idx == 0:  # First row gets scenario title

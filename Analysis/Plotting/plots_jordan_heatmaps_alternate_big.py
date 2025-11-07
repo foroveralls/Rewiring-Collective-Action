@@ -193,7 +193,7 @@ def create_heatmap_grid(df, value_columns, column_labels, for_combined=False):
                         cbar_label = '⟨a⟩'
                     else:
                         cmap, vmin, vmax, center = polar_cmap, 0, 1, None
-                        cbar_label = '$\sigma(x)$'
+                        cbar_label = '$⟨P⟩$'
                     
                     # Don't show colorbar in heatmap - we'll add them manually later
                     sns.heatmap(heatmap_data, ax=ax, cmap=cmap, center=center,
@@ -292,7 +292,7 @@ def create_heatmap_grid(df, value_columns, column_labels, for_combined=False):
     cbar_ax2 = fig.add_axes([0.88, 0.18, 0.015, 0.32])  # [left, bottom, width, height]
     norm2 = Normalize(vmin=0, vmax=1)
     cb2 = ColorbarBase(cbar_ax2, cmap=polar_cmap, norm=norm2, orientation='vertical')
-    cb2.set_label('$\\sigma(x)$', fontsize=AXIS_LABEL_FONT_SIZE)
+    cb2.set_label('$⟨P⟩$', fontsize=AXIS_LABEL_FONT_SIZE)
     cb2.ax.tick_params(labelsize=TICK_FONT_SIZE)
 
     return fig
