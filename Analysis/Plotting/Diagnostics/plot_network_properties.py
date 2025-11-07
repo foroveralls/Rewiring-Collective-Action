@@ -54,6 +54,14 @@ NETWORK_DISPLAY_NAMES = {
     'FB': 'FB'
 }
 
+# Line styles for different network topologies
+NETWORK_LINE_STYLES = {
+    'cl': '-',           # solid
+    'DPAH': '--',        # dashed
+    'Twitter': '-.',     # dash-dot
+    'FB': ':'            # dotted
+}
+
 def set_plot_style():
     """Set consistent style elements for all plots"""
     sns.set_style("white")
@@ -379,30 +387,40 @@ def configure_axis_style(ax, show_ylabel=True, show_xlabel=True):
         labelleft=False, labelright=False
     )
 
-def plot_network_properties_production(df, topology_filter=None, output_file=None):
+def plot_network_properties_production(df, topology_filter=None, combine_topologies=False, output_file=None):
     """
     Create a production-level grid plot with simplified metrics for final publication.
     Removes assortativity and total Gini, shortens clustering coefficient label,
     and combines topological constraints.
-    
+
     Parameters:
     -----------
     df : pd.DataFrame
         DataFrame with network properties data
     topology_filter : str, optional
         Filter data for specific topology (e.g., 'cl', 'DPAH', 'FB', 'Twitter')
+        Ignored if combine_topologies=True
+    combine_topologies : bool, optional
+        If True, show all topologies in one plot using different line styles
     output_file : str, optional
         Output file path for saving the plot
     """
     if df.empty:
         print("No data to plot")
         return None
-    
-    # Filter by topology if specified
-    if topology_filter:
+
+    # Filter by topology if specified and not combining
+    if topology_filter and not combine_topologies:
         df = df[df['network_type'] == topology_filter]
         if df.empty:
             print(f"No data found for topology: {topology_filter}")
+            return None
+
+    # Get available topologies for combined plot
+    if combine_topologies:
+        available_topologies = sorted(df['network_type'].unique())
+        if not available_topologies:
+            print("No topologies found in data")
             return None
     
     # Properties to plot (simplified for production)
@@ -477,36 +495,66 @@ def plot_network_properties_production(df, topology_filter=None, output_file=Non
     for prop_idx, prop in enumerate(properties):
         for alg_idx, (scenario, alg_label) in enumerate(unique_algorithm_order):
             ax = fig.add_subplot(gs[prop_idx, alg_idx])
-            
+
             # Get data for this specific algorithm
             algorithm_data = df[df['scenario_grouped'] == scenario]
-            
+
             # Get color for this algorithm
             base_scenario = scenario.lower()
             if 'biased' in base_scenario:
                 color = PLOT_COLORS.get('biased_same' if 'same' in base_scenario else 'biased_diff', '#009988')
             else:
                 color = PLOT_COLORS.get(base_scenario, '#FE6900')
-            
+
             if not algorithm_data.empty:
-                # Group by timestep and calculate mean/std across all simulation runs
-                grouped = algorithm_data.groupby(['timestep'])[prop].agg(['mean', 'std', 'count']).reset_index()
-                
-                if not grouped.empty and not grouped['mean'].isna().all():
-                    # Plot mean line (averaged across all simulations)
-                    ax.plot(grouped['timestep'], grouped['mean'], 
-                           color=color,
-                           linewidth=line_params["data_line_width"])
-                    
-                    # Add error bars showing variation across simulation runs
-                    if not grouped['std'].isna().all() and (grouped['count'] > 1).any():
-                        # Use standard error for error bars
-                        stderr = grouped['std'] / np.sqrt(grouped['count'])
-                        ax.fill_between(grouped['timestep'], 
-                                      grouped['mean'] - stderr,
-                                      grouped['mean'] + stderr,
-                                      color=color,
-                                      alpha=0.2)
+                # If combining topologies, plot each with different line style
+                if combine_topologies:
+                    for topology in available_topologies:
+                        topology_data = algorithm_data[algorithm_data['network_type'] == topology]
+
+                        if not topology_data.empty:
+                            # Group by timestep and calculate mean/std
+                            grouped = topology_data.groupby(['timestep'])[prop].agg(['mean', 'std', 'count']).reset_index()
+
+                            if not grouped.empty and not grouped['mean'].isna().all():
+                                linestyle = NETWORK_LINE_STYLES.get(topology, '-')
+
+                                # Plot mean line
+                                ax.plot(grouped['timestep'], grouped['mean'],
+                                       color=color,
+                                       linestyle=linestyle,
+                                       linewidth=line_params["data_line_width"],
+                                       label=NETWORK_DISPLAY_NAMES.get(topology, topology))
+
+                                # Add error bars showing variation across simulation runs
+                                if not grouped['std'].isna().all() and (grouped['count'] > 1).any():
+                                    # Use standard error for error bars
+                                    stderr = grouped['std'] / np.sqrt(grouped['count'])
+                                    ax.fill_between(grouped['timestep'],
+                                                  grouped['mean'] - stderr,
+                                                  grouped['mean'] + stderr,
+                                                  color=color,
+                                                  alpha=0.15)
+                else:
+                    # Single topology plot (original behavior)
+                    # Group by timestep and calculate mean/std across all simulation runs
+                    grouped = algorithm_data.groupby(['timestep'])[prop].agg(['mean', 'std', 'count']).reset_index()
+
+                    if not grouped.empty and not grouped['mean'].isna().all():
+                        # Plot mean line (averaged across all simulations)
+                        ax.plot(grouped['timestep'], grouped['mean'],
+                               color=color,
+                               linewidth=line_params["data_line_width"])
+
+                        # Add error bars showing variation across simulation runs
+                        if not grouped['std'].isna().all() and (grouped['count'] > 1).any():
+                            # Use standard error for error bars
+                            stderr = grouped['std'] / np.sqrt(grouped['count'])
+                            ax.fill_between(grouped['timestep'],
+                                          grouped['mean'] - stderr,
+                                          grouped['mean'] + stderr,
+                                          color=color,
+                                          alpha=0.2)
             
             # Configure axis styling
             is_bottom_row = prop_idx == n_properties - 1
@@ -536,7 +584,22 @@ def plot_network_properties_production(df, topology_filter=None, output_file=Non
                 ax.set_ylim(0, 1)
             elif prop == 'gini_in_degree':
                 ax.set_ylim(0, 1)
-    
+
+    # Add legend for topologies if combining
+    if combine_topologies:
+        # Create custom legend handles for topologies
+        legend_handles = []
+        for topology in available_topologies:
+            linestyle = NETWORK_LINE_STYLES.get(topology, '-')
+            label = NETWORK_DISPLAY_NAMES.get(topology, topology)
+            handle = Line2D([0], [0], color='black', linestyle=linestyle,
+                          linewidth=line_params["data_line_width"], label=label)
+            legend_handles.append(handle)
+
+        # Place legend above the plot
+        fig.legend(handles=legend_handles, loc='upper center', ncol=len(available_topologies),
+                  frameon=False, fontsize=FONT_SIZE, bbox_to_anchor=(0.5, 0.98))
+
     if output_file:
         # Create directory if it doesn't exist
         os.makedirs(os.path.dirname(output_file), exist_ok=True)
@@ -716,9 +779,9 @@ def plot_network_properties(df, topology_filter=None, output_file=None):
     """
     return plot_network_properties_supplementary(df, topology_filter, output_file)
 
-def main(topology_filter=None, production_plots=True, supplementary_plots=False):
+def main(topology_filter=None, production_plots=True, supplementary_plots=False, combine_topologies=False):
     """Main function to load data and create plots
-    
+
     Parameters:
     -----------
     topology_filter : str, optional
@@ -728,58 +791,72 @@ def main(topology_filter=None, production_plots=True, supplementary_plots=False)
         Whether to create production-level plots with simplified metrics
     supplementary_plots : bool, default False
         Whether to create comprehensive supplementary plots with all metrics
+    combine_topologies : bool, default False
+        If True, combine all topologies into one plot using different line styles
     """
     set_plot_style()
-    
+
     print("Loading snapshot data...")
     snapshot_data = load_snapshot_data()
-    
+
     if not snapshot_data:
         print("No snapshot data found. Make sure you have run simulations with save_snapshots=True")
         return
-    
+
     print(f"Found {len(snapshot_data)} scenarios with snapshot data")
-    
+
     print("Processing snapshots to calculate network properties...")
     df = process_snapshots_to_properties(snapshot_data)
-    
+
     if df.empty:
         print("No valid network properties data generated")
         return
-    
+
     print(f"Processed {len(df)} data points")
-    
-    # Determine which topologies to plot
-    if topology_filter:
-        topologies_to_plot = [topology_filter]
-    else:
-        topologies_to_plot = df['network_type'].unique()
-    
-    # Create plots for each topology
+
     today = date.today()
-    for topology in topologies_to_plot:
-        # Create production-level plots if requested
+
+    # Create combined topology plot if requested
+    if combine_topologies:
         if production_plots:
-            output_file = f"../../Figs/Networks/network_properties_production_{topology}_{today}.pdf"
-            fig = plot_network_properties_production(df, topology_filter=topology, output_file=output_file)
-            print(f"Created production plot for {topology}")
-        
-        # Create supplementary plots if requested  
+            output_file = f"../../Figs/Networks/network_properties_production_combined_{today}.pdf"
+            fig = plot_network_properties_production(df, combine_topologies=True, output_file=output_file)
+            print(f"Created combined production plot for all topologies")
+
         if supplementary_plots:
-            output_file = f"../../Figs/Networks/network_properties_supplementary_{topology}_{today}.pdf"
-            fig = plot_network_properties_supplementary(df, topology_filter=topology, output_file=output_file)
-            print(f"Created supplementary plot for {topology}")
-    
+            print("Warning: Combined supplementary plots not yet implemented")
+    else:
+        # Determine which topologies to plot
+        if topology_filter:
+            topologies_to_plot = [topology_filter]
+        else:
+            topologies_to_plot = df['network_type'].unique()
+
+        # Create plots for each topology
+        for topology in topologies_to_plot:
+            # Create production-level plots if requested
+            if production_plots:
+                output_file = f"../../Figs/Networks/network_properties_production_{topology}_{today}.pdf"
+                fig = plot_network_properties_production(df, topology_filter=topology, output_file=output_file)
+                print(f"Created production plot for {topology}")
+
+            # Create supplementary plots if requested
+            if supplementary_plots:
+                output_file = f"../../Figs/Networks/network_properties_supplementary_{topology}_{today}.pdf"
+                fig = plot_network_properties_supplementary(df, topology_filter=topology, output_file=output_file)
+                print(f"Created supplementary plot for {topology}")
+
     return df
 
 if __name__ == "__main__":
     import sys
-    
+
     # Parse command line arguments
     topology_filter = None
     production_plots = True
     supplementary_plots = False
-    
+    combine_topologies = False
+
     for arg in sys.argv[1:]:
         if arg in ['cl', 'DPAH', 'FB', 'Twitter']:
             topology_filter = arg
@@ -791,15 +868,19 @@ if __name__ == "__main__":
         elif arg == '--both':
             production_plots = True
             supplementary_plots = True
+        elif arg == '--combined':
+            combine_topologies = True
         elif arg == '--help':
             print("Usage: python plot_network_properties.py [topology] [options]")
             print("  topology: cl, DPAH, FB, or Twitter (optional)")
             print("  --supplementary: also create supplementary plots with all metrics")
             print("  --production-only: create only production plots (default)")
             print("  --both: create both production and supplementary plots")
+            print("  --combined: combine all topologies into one plot using different line styles")
             print("  --help: show this help message")
             sys.exit(0)
-    
-    df = main(topology_filter=topology_filter, 
-              production_plots=production_plots, 
-              supplementary_plots=supplementary_plots)
+
+    df = main(topology_filter=topology_filter,
+              production_plots=production_plots,
+              supplementary_plots=supplementary_plots,
+              combine_topologies=combine_topologies)

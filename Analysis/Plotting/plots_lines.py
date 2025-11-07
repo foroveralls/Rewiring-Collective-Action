@@ -8,18 +8,18 @@ from matplotlib.lines import Line2D
 from matplotlib.ticker import ScalarFormatter, AutoMinorLocator
 from matplotlib.gridspec import GridSpec
 
-# Line width parameters
+# Line width parameters (increased for better visibility at 110% zoom)
 line_params = {
-    "data_line_width": 0.8,
-    "axis_line_width": 0.8,
-    "grid_line_width": 0.5,
-    "tick_major_width": 0.8,
-    "tick_minor_width": 0.6,
-    "markersize": 3
+    "data_line_width": 1.0,  # Increased from 0.8
+    "axis_line_width": 1.2,  # Increased from 0.8
+    "grid_line_width": 0.6,  # Increased from 0.5
+    "tick_major_width": 1.2,  # Increased from 0.8
+    "tick_minor_width": 0.8,  # Increased from 0.6
+    "markersize": 4  # Increased from 3
 }
 
 cm = 1/2.54
-FONT_SIZE = 7
+FONT_SIZE = 11  # Increased from 7 for better readability
 
 # Color scheme
 PLOT_COLORS = {

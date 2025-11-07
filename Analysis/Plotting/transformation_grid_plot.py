@@ -7,7 +7,7 @@ import sys
 import numpy as np
 import networkx as nx
 import matplotlib.pyplot as plt
-from matplotlib.colors import Normalize
+from matplotlib.colors import Normalize, LinearSegmentedColormap
 from matplotlib.cm import ScalarMappable
 import random
 import pickle
@@ -19,14 +19,31 @@ import models_checks
 
 # Styling parameters
 cm = 1/2.54
-FONT_SIZE = 7
+FONT_SIZE = 11  # Increased from 9 for better readability at 110% zoom
 line_params = {
-    "axis_line_width": 0.8,
-    "tick_major_width": 0.8,
+    "axis_line_width": 1.2,  # Increased from 1.0 for better visibility
+    "tick_major_width": 1.2,  # Increased from 1.0 for better visibility
 }
 # Edge display threshold
 
 e_k = 0.1
+
+def create_opinion_colormap():
+    """Create custom colormap: orange (defectors, -1) to blue (cooperators, +1)
+
+    Uses specific RGBA colors from manuscript:
+    - #daa342 (orange) for defectors (opinion = -1)
+    - #3178ba (blue) for cooperators (opinion = +1)
+    """
+    # Convert hex colors to RGB (0-1 range)
+    orange = np.array([0xda, 0xa3, 0x42]) / 255.0  # Defectors
+    blue = np.array([0x31, 0x78, 0xba]) / 255.0    # Cooperators
+
+    # Create colormap from orange (-1) through white (0) to blue (+1)
+    colors = [orange, [1.0, 1.0, 1.0], blue]
+    n_bins = 256
+    cmap = LinearSegmentedColormap.from_list('opinion_cmap', colors, N=n_bins)
+    return cmap
 
 def set_plot_style():
     """Set consistent style for publication"""
@@ -37,8 +54,8 @@ def set_plot_style():
         'xtick.labelsize': FONT_SIZE,
         'ytick.labelsize': FONT_SIZE,
         'axes.linewidth': line_params["axis_line_width"],
-        'figure.dpi': 300,
-        'savefig.dpi': 300,
+        'figure.dpi': 600,  # Increased from 300 for sharper output
+        'savefig.dpi': 600,  # Increased from 300 for sharper output
     })
 
 def run_sims(n_runs, params, timesteps, frozen_init_graph=None):
@@ -66,7 +83,7 @@ def run_sims(n_runs, params, timesteps, frozen_init_graph=None):
             n = params["nwsize"]
             m = params["degree"]
 
-            # Get initial state generator
+            # Get initial state generator (only needed for model initialization)
             from scipy.stats import truncnorm
             def get_truncated_normal(mean=0, sd=1, low=0, upp=10):
                 return truncnorm((low - mean) / sd, (upp - mean) / sd, loc=mean, scale=sd)
@@ -79,11 +96,12 @@ def run_sims(n_runs, params, timesteps, frozen_init_graph=None):
                                        initialStateGenerator=initialStateGenerator,
                                        args=params)
 
-            # Copy frozen topology
+            # Copy frozen topology WITH frozen agents and edge weights
+            # This preserves identical initial conditions across all runs
             model.graph = deepcopy(frozen_init_graph)
 
-            # Populate with agents (with varied seeds for different initial opinions)
-            model.populateModel_netin(n, params["skew"])
+            # SKIP populateModel_netin() - frozen_init_graph already has agents!
+            # This ensures all runs start with identical initial opinions
 
             # Save initial snapshot if needed
             save_snapshots = params.get('save_snapshots', False) and (i % 2 == 0)
@@ -213,12 +231,53 @@ def create_avg_network(models, t, threshold=0.3, init_graph=None):
 
     return G
 
-def plot_network_compact(G, ax, layout=None, show_cbar=False, threshold=0.3):
+def apply_radial_compression(layout, compression_radius_percentile=75, compression_factor=0.5):
+    """Compress outer nodes toward center while preserving inner structure
+
+    Args:
+        layout: Dict of node positions
+        compression_radius_percentile: Nodes beyond this percentile get compressed
+        compression_factor: How much to compress outer nodes (0-1, lower = more compression)
+    """
+    if not layout:
+        return layout
+
+    pos_array = np.array(list(layout.values()))
+    center = np.median(pos_array, axis=0)
+
+    # Calculate distances from center
+    distances = np.sqrt(np.sum((pos_array - center)**2, axis=1))
+    threshold_dist = np.percentile(distances, compression_radius_percentile)
+
+    compressed_layout = {}
+    for node, pos in layout.items():
+        dist = np.sqrt(np.sum((pos - center)**2))
+
+        if dist > threshold_dist:
+            # Apply smooth compression to outer nodes
+            excess_dist = dist - threshold_dist
+            compressed_excess = excess_dist * compression_factor
+            new_dist = threshold_dist + compressed_excess
+
+            # Scale position vector
+            direction = (pos - center) / dist if dist > 0 else pos - center
+            new_pos = center + direction * new_dist
+            compressed_layout[node] = new_pos
+        else:
+            # Keep inner nodes unchanged
+            compressed_layout[node] = pos
+
+    return compressed_layout
+
+def plot_network_compact(G, ax, layout=None, show_cbar=False, threshold=0.3, algorithm=None, mode=None):
     """Plot network in compact style for grid
 
     Args:
         threshold: The frequency threshold used when creating the averaged network.
                    Used for consistent edge width scaling across all graphs.
+        algorithm: Optional algorithm name for algorithm-specific layout adjustments.
+                   Used only for legibility, not to misrepresent network structure.
+        mode: Optional mode ('same', 'diff', etc.) to further distinguish algorithm behavior.
     """
     # Filter to largest component
     if G.number_of_nodes() > 1:
@@ -258,22 +317,50 @@ def plot_network_compact(G, ax, layout=None, show_cbar=False, threshold=0.3):
         # k=0.18 for normal density, slightly higher for very sparse networks
         k = 0.18 if density > 0.05 else 0.22
 
+        # Algorithm-specific layout parameters for legibility
+        # Default parameters work well for most algorithms
+        scaling_ratio = 2.0
+        gravity = 1.0
+
+        # N2V creates dense embedding-based clusters that need more node separation
+        if algorithm == 'node2vec' or algorithm == 'N2V':
+            scaling_ratio = 3.0  # Increased repulsion to prevent node overlap
+            print(f"    Using N2V-specific layout: scaling_ratio={scaling_ratio}")
+
+        # Random rewiring creates sparse random connections that can elongate severely
+        # Need very strong gravity to compress the elongated structure
+        elif algorithm == 'random':
+            gravity = 4.0  # Very strong pull to center to combat elongation
+            scaling_ratio = 2.5  # Slightly increased repulsion for better node separation
+            print(f"    Using Random-specific layout: gravity={gravity}, scaling_ratio={scaling_ratio}")
+
+        # Bridge-same (not bridge-opp) creates dense clusters that need more node separation
+        elif algorithm == 'bridge' and mode == 'same':
+            gravity = 1.0
+            scaling_ratio = 4.0  # Increased repulsion to prevent node overlap
+            print(f"    Using Bridge-same-specific layout: scaling_ratio={scaling_ratio}")
+
         # Higher iterations help sparse networks settle into good layouts
-        # layout = nx.spring_layout(G, k=k, iterations=110, seed=123, scale=1)
+        #layout = nx.spring_layout(G, iterations=110, seed=123, scale=1)
         # layout = nx.spring_layout(G, k=k, method="energy", iterations=110, seed=123, scale=1)  # Requires NetworkX 3.5 / Python 3.12
         # layout = nx.nx_agraph.graphviz_layout(G, prog="dot", root=None)
         #layout = nx.arf_layout(G, a=1.1, pos=None, seed=123, scaling=1)  # ARF: Adaptively Restrained Force-directed
-        #layout = nx.nx_agraph.graphviz_layout(G, prog="fdp")
+        #layout = nx.nx_agraph.graphviz_layout(G, prog="neato")
+        #layout = nx.kamada_kawai_layout(G)
         #ForceAtlas2: Better for revealing community structure and polarization (built into NetworkX)
         layout = nx.forceatlas2_layout(
             G, pos=None,
             linlog=False,  # False for small networks (N=100)
             #weight="weight",
-            strong_gravity=False,
-            gravity=1.0,
-            scaling_ratio=2.0,
-            seed=124
+            strong_gravity=False,  # Let structure breathe naturally
+            gravity=gravity,  # Moderate gravity - prevents extreme outliers while preserving structure
+            scaling_ratio=scaling_ratio,  # Node repulsion strength
+            seed=42
         )
+
+        # Apply radial compression to keep outer nodes within bounds
+        # Compress nodes beyond 70th percentile to 65% of their excess distance
+        layout = apply_radial_compression(layout, compression_radius_percentile=70, compression_factor=0.65)
     else:
         # Filter layout to only include nodes in G
         layout = {n: pos for n, pos in layout.items() if n in G.nodes()}
@@ -285,17 +372,57 @@ def plot_network_compact(G, ax, layout=None, show_cbar=False, threshold=0.3):
     # Clean layout to only include drawable nodes
     layout_clean = {n: pos for n, pos in layout.items() if n in drawable_nodes}
 
+    # Calculate bounding box BEFORE filtering to determine what's in bounds
+    if len(layout_clean) > 0:
+        # Calculate bounding box using percentile approach to exclude extreme outliers
+        pos_array = np.array([layout_clean[n] for n in layout_clean.keys()])
+
+        # Use 95th percentile to define bounds - ignores the most extreme 5% of nodes
+        x_positions = pos_array[:, 0]
+        y_positions = pos_array[:, 1]
+
+        # Calculate center from median (robust to outliers)
+        x_center = np.median(x_positions)
+        y_center = np.median(y_positions)
+
+        # Calculate distances from center
+        distances = np.sqrt((x_positions - x_center)**2 + (y_positions - y_center)**2)
+
+        # Use IQR to detect and exclude extreme outliers
+        q75, q25 = np.percentile(distances, [75, 25])
+        iqr = q75 - q25
+        outlier_threshold = q75 + 1.8 * iqr  # Slightly more aggressive than standard (1.5 would be very aggressive)
+
+        # Filter out extreme outliers, then use 92nd percentile of remaining
+        non_outlier_distances = distances[distances <= outlier_threshold]
+        max_dist = np.percentile(non_outlier_distances, 92) if len(non_outlier_distances) > 0 else np.percentile(distances, 88)
+
+        # Add padding for aesthetics - balance between showing structure and preventing edge clipping
+        padding = 0.20  # 20% padding to accommodate full network extent
+        view_radius = max_dist * (1 + padding)
+
+        # Define bounding box limits
+        x_min, x_max = x_center - view_radius, x_center + view_radius
+        y_min, y_max = y_center - view_radius, y_center + view_radius
+
+        # Filter nodes that fall within the bounding box
+        nodes_in_bounds = {n for n, pos in layout_clean.items()
+                          if x_min <= pos[0] <= x_max and y_min <= pos[1] <= y_max}
+
+        # Remove nodes outside bounds
+        G_clean = G_clean.subgraph(nodes_in_bounds).copy()
+        layout_clean = {n: pos for n, pos in layout_clean.items() if n in nodes_in_bounds}
+
+        print(f"    Removed {len(drawable_nodes) - len(nodes_in_bounds)} nodes outside bounding box")
+
     # Node colors by opinion
+    # Use custom colormap: orange (defectors, -1) to blue (cooperators, +1)
     opinions = [G_clean.nodes[n]['avg_opinion'] for n in G_clean.nodes()]
     norm = Normalize(-1, 1)
-    colors = plt.cm.coolwarm_r(norm(opinions))
+    cmap = create_opinion_colormap()
+    colors = cmap(norm(opinions))
 
-    # Draw nodes
-    nx.draw_networkx_nodes(G_clean, layout_clean,
-                          node_color=colors, node_size=8,
-                          edgecolors='black', linewidths=0.3, ax=ax)
-
-    # Draw edges with rewiring distinction
+    # Draw edges FIRST (so nodes appear on top)
     if G_clean.number_of_edges() > 0:
         edges_to_draw = [(u, v) for u, v in G_clean.edges()
                         if u in layout_clean and v in layout_clean]
@@ -309,10 +436,10 @@ def plot_network_compact(G, ax, layout=None, show_cbar=False, threshold=0.3):
             # Draw original edges FIRST with thin fixed width
             if original_edges:
                 nx.draw_networkx_edges(G_clean, layout_clean, original_edges,
-                                     width=0.12, alpha=0.7,  # Thin but clearly visible black
+                                     width=0.30, alpha=0.65,  # Reduced from 0.40 for cleaner appearance
                                      edge_color='black', arrows=True,
-                                     arrowsize=3, arrowstyle='->',
-                                     node_size=8,
+                                     arrowsize=10, arrowstyle='->',  # Reduced from 11 for cleaner appearance
+                                     node_size=25,  # Reduced from 28 per user request
                                      connectionstyle='arc3,rad=0.1', ax=ax)
 
             # Draw rewired edges with frequency-scaled width (thicker than original)
@@ -324,43 +451,50 @@ def plot_network_compact(G, ax, layout=None, show_cbar=False, threshold=0.3):
 
                 for u, v in rewired_edges:
                     freq = G_clean[u][v]['weight']
-                    # Scale width from 0.15 to 0.35 (thicker than original to stand out)
-                    width = 0.15 + (freq - w_min) / w_range * 0.20
+                    # Scale width from 0.45 to 0.85 (thicker than original to stand out)
+                    width = 0.45 + (freq - w_min) / w_range * 0.40  # Increased from 0.35-0.75 range
 
                     nx.draw_networkx_edges(G_clean, layout_clean, [(u, v)],
-                                         width=width, alpha=0.4,
+                                         width=width, alpha=0.55,
                                          edge_color='#666666', arrows=True,
-                                         arrowsize=4, arrowstyle='->',
-                                         node_size=8,
+                                         arrowsize=13, arrowstyle='->',  # Increased from 11 for better visibility
+                                         node_size=25,  # Reduced from 28 per user request
                                          connectionstyle='arc3,rad=0.1', ax=ax)
+
+    # Draw nodes AFTER edges (so they appear on top and aren't occluded)
+    nx.draw_networkx_nodes(G_clean, layout_clean,
+                          node_color=colors, node_size=25,  # Reduced from 28 per user request
+                          edgecolors='black', linewidths=0.5, ax=ax)  # Increased linewidth from 0.4
 
     # Calculate and display cooperation value (print but don't show on plot)
     avg_coop = np.mean(opinions) if len(opinions) > 0 else 0.0
     print(f"  Average cooperation: {avg_coop:.2f}")
 
-    # Set axis limits to center the network and provide padding
+    # Set axis limits to the bounding box we calculated earlier
     if len(layout_clean) > 0:
-        # Calculate bounding box from ALL nodes to ensure nothing goes outside
+        # Reuse the bounding box we already calculated when filtering nodes
         pos_array = np.array([layout_clean[n] for n in layout_clean.keys()])
+        x_positions = pos_array[:, 0]
+        y_positions = pos_array[:, 1]
 
-        x_min, x_max = pos_array[:, 0].min(), pos_array[:, 0].max()
-        y_min, y_max = pos_array[:, 1].min(), pos_array[:, 1].max()
+        # Calculate center and extent based on remaining nodes
+        x_center = np.median(x_positions)
+        y_center = np.median(y_positions)
 
-        # Calculate ranges - use natural aspect ratio (don't force square)
-        x_range = x_max - x_min
-        y_range = y_max - y_min
+        # Use max distance with padding
+        distances = np.sqrt((x_positions - x_center)**2 + (y_positions - y_center)**2)
+        max_dist = np.max(distances) if len(distances) > 0 else 1.0
 
-        # Add 7% padding to ensure nodes don't touch borders
-        padding = 0.07
-        x_padded = x_range * (1 + 2 * padding)
-        y_padded = y_range * (1 + 2 * padding)
+        # Add small padding for aesthetics
+        padding = 0.10  # 10% padding
+        view_radius = max_dist * (1 + padding)
 
-        # Center both dimensions using their natural ranges
-        x_center = (x_min + x_max) / 2
-        y_center = (y_min + y_max) / 2
+        # Set square aspect ratio for consistent appearance
+        ax.set_xlim(x_center - view_radius, x_center + view_radius)
+        ax.set_ylim(y_center - view_radius, y_center + view_radius)
 
-        ax.set_xlim(x_center - x_padded/2, x_center + x_padded/2)
-        ax.set_ylim(y_center - y_padded/2, y_center + y_padded/2)
+        # Force equal aspect ratio to ensure square bounding box
+        ax.set_aspect('equal', adjustable='box')
 
     # Turn off ticks and labels but keep border frame
     ax.set_xticks([])
@@ -388,6 +522,7 @@ def plot_transformation_grid(n_runs=30, threshold=0.1, timesteps=[0, 14999], max
         {'name': 'Static', 'algo': 'None', 'mode': 'None'},
         {'name': 'Random', 'algo': 'random', 'mode': 'None'},
         {'name': 'WTF', 'algo': 'wtf', 'mode': 'None'},
+        {'name': 'N2V', 'algo': 'node2vec', 'mode': 'None'},  # Use 'node2vec' not 'n2v' - matches models_checks.py:301
         {'name': 'B-opp', 'algo': 'bridge', 'mode': 'diff'},
         {'name': 'B-sim', 'algo': 'bridge', 'mode': 'same'},
         {'name': 'L-opp', 'algo': 'biased', 'mode': 'diff'},
@@ -426,9 +561,9 @@ def plot_transformation_grid(n_runs=30, threshold=0.1, timesteps=[0, 14999], max
     # Create figure with GridSpec for custom layout
     # Left column for initial network, right column for final states
     from matplotlib.gridspec import GridSpec
-    fig = plt.figure(figsize=(8.9*cm, 22*cm))  # Increased height for 7 rows
+    fig = plt.figure(figsize=(13*cm, 28*cm))  # Increased width from 12cm for larger elements
     gs = GridSpec(n_rows, 2, figure=fig, width_ratios=[1, 1],
-                  wspace=0.15, hspace=0.08, left=0.08, right=0.95, top=0.98, bottom=0.06)
+                  wspace=0.03, hspace=0.04, left=0.06, right=0.96, top=0.98, bottom=0.05)  # Reduced wspace from 0.10 to 0.03
 
     print(f"Generating transformation grid with {n_runs} runs, threshold={threshold}...")
 
@@ -462,13 +597,8 @@ def plot_transformation_grid(n_runs=30, threshold=0.1, timesteps=[0, 14999], max
     else:
         raise ValueError(f"Unsupported network type: {nw_type}")
 
-    # FREEZE the initial topology as reference
-    # CRITICAL: Convert to pure NetworkX Graph for consistent edge comparison
-    frozen_init_graph = nx.Graph() if not nx.is_directed(network_gen) else nx.DiGraph()
-    frozen_init_graph.add_nodes_from(network_gen.nodes(data=True))
-    frozen_init_graph.add_edges_from(network_gen.edges(data=True))
-
-    # Populate with agents and edge weights (using same seed for reproducibility)
+    # Create a temporary model to properly populate the frozen graph
+    # This ensures we use the official populateModel_netin() method with all its logic
     from scipy.stats import truncnorm
     def get_truncated_normal(mean=0, sd=1, low=0, upp=10):
         return truncnorm((low - mean) / sd, (upp - mean) / sd, loc=mean, scale=sd)
@@ -476,20 +606,27 @@ def plot_transformation_grid(n_runs=30, threshold=0.1, timesteps=[0, 14999], max
     friendshipWeightGenerator = get_truncated_normal(base_params["friendship"], base_params["friendshipSD"], 0, 1)
     initialStateGenerator = get_truncated_normal(base_params["skew"], base_params["initSD"], -1, 1)
 
-    for i in frozen_init_graph.nodes():
-        # Get initial state based on node class (if available from netin generators)
-        if 'm' in frozen_init_graph.nodes[i]:
-            node_class = frozen_init_graph.nodes[i]['m']
-            state = initialStateGenerator.rvs(1)[0] if node_class == 1 else -abs(initialStateGenerator.rvs(1)[0])
-        else:
-            state = initialStateGenerator.rvs(1)[0]
+    # Create temp params with required keys for Model initialization
+    temp_params = base_params.copy()
+    temp_params['rewiringAlgorithm'] = 'None'  # No rewiring for initial state
+    temp_params['rewiringMode'] = 'None'
 
-        agent = models_checks.Agent(state, base_params["stubbornness"], base_params.get("defectorUtility", 0.0))
-        frozen_init_graph.nodes[i]['agent'] = agent
+    temp_model = models_checks.Model(friendshipWeightGenerator=friendshipWeightGenerator,
+                                     initialStateGenerator=initialStateGenerator,
+                                     args=temp_params)
 
-    for u, v in frozen_init_graph.edges():
-        weight = friendshipWeightGenerator.rvs(1)[0]
-        frozen_init_graph[u][v]['weight'] = weight
+    # Assign the generated network topology
+    temp_model.graph = network_gen
+
+    # Use the official method to populate agents with correct opinion distribution
+    # This includes: proper opinion assignment, polarising nodes, edge weights
+    temp_model.populateModel_netin(n, base_params["skew"])
+
+    # FREEZE the fully populated graph as reference
+    # CRITICAL: Convert to pure NetworkX Graph for consistent edge comparison
+    frozen_init_graph = nx.Graph() if not nx.is_directed(temp_model.graph) else nx.DiGraph()
+    frozen_init_graph.add_nodes_from(temp_model.graph.nodes(data=True))
+    frozen_init_graph.add_edges_from(temp_model.graph.edges(data=True))
 
     # Verify frozen topology
     print(f"  Frozen initial network: {type(frozen_init_graph)}, directed={nx.is_directed(frozen_init_graph)}")
@@ -508,7 +645,7 @@ def plot_transformation_grid(n_runs=30, threshold=0.1, timesteps=[0, 14999], max
     # Plot initial network in the middle of the left column
     ax_init = fig.add_subplot(gs[:, 0])
     init_layout = plot_network_compact(G_init, ax_init, layout=None, threshold=threshold)
-    ax_init.set_title('Initial Network\n(t=0)', fontsize=FONT_SIZE, pad=5)
+    ax_init.set_title('Initial, t=0', fontsize=FONT_SIZE, pad=5)
 
     # Run simulations for each algorithm and plot final states
     final_axes = []  # Store axes for arrow drawing
@@ -537,7 +674,7 @@ def plot_transformation_grid(n_runs=30, threshold=0.1, timesteps=[0, 14999], max
         # For others, create new natural spring layout to show evolved topology
         ax_final = fig.add_subplot(gs[row_idx, 1])
         final_layout = init_layout if alg['algo'] == 'None' else None
-        plot_network_compact(G_final, ax_final, layout=final_layout, threshold=threshold)
+        plot_network_compact(G_final, ax_final, layout=final_layout, threshold=threshold, algorithm=alg['algo'], mode=alg['mode'])
 
         # Add algorithm label to the right of final network
         ax_final.text(1.05, 0.5, alg['name'],
@@ -594,8 +731,8 @@ def plot_transformation_grid(n_runs=30, threshold=0.1, timesteps=[0, 14999], max
     os.makedirs("../../Figs/Networks", exist_ok=True)
     filename = f"../../Figs/Networks/transformation_grid_N100_DPAH_n{n_runs}_thresh{threshold}_{today}"
 
-    plt.savefig(f"{filename}.pdf", dpi=300)
-    plt.savefig(f"{filename}.png", dpi=300)
+    plt.savefig(f"{filename}.pdf", dpi=600, bbox_inches='tight')  # Increased DPI and added bbox_inches
+    plt.savefig(f"{filename}.png", dpi=600, bbox_inches='tight')  # Increased DPI and added bbox_inches
 
     print(f"\n✓ Saved: {filename}.pdf")
     print(f"✓ Saved: {filename}.png")
@@ -635,6 +772,7 @@ def plot_transformation_circle(n_runs=30, threshold=0.1, timesteps=[0, 14999], m
         {'name': 'Static', 'algo': 'None', 'mode': 'None'},
         {'name': 'Random', 'algo': 'random', 'mode': 'None'},
         {'name': 'WTF', 'algo': 'wtf', 'mode': 'None'},
+        {'name': 'N2V', 'algo': 'node2vec', 'mode': 'None'},  # Use 'node2vec' not 'n2v' - matches models_checks.py:301
         {'name': 'B-opp', 'algo': 'bridge', 'mode': 'diff'},
         {'name': 'B-sim', 'algo': 'bridge', 'mode': 'same'},
         {'name': 'L-opp', 'algo': 'biased', 'mode': 'diff'},
@@ -645,7 +783,7 @@ def plot_transformation_circle(n_runs=30, threshold=0.1, timesteps=[0, 14999], m
     base_params = {
         "type": "DPAH",
         "nwsize": 100,
-        "degree": 6,
+        "degree": 2,
         "polarisingNode_f": 0.10,
         "timesteps": max_timesteps if max_timesteps else 15000,
         "plot": False,
@@ -670,16 +808,31 @@ def plot_transformation_circle(n_runs=30, threshold=0.1, timesteps=[0, 14999], m
 
     n_algs = len(algorithms)
 
-    # Create figure with circular arrangement
-    fig = plt.figure(figsize=(16*cm, 16*cm))
+    # Create figure with simple 3x3 grid
+    fig = plt.figure(figsize=(22*cm, 22*cm))  # Increased from 18x18 for better visibility
 
-    # Calculate positions for circular arrangement using 4x4 grid
-    # Center subplot for initial network (using middle 4 positions: 6, 7, 10, 11)
-    center_ax = plt.subplot(4, 4, 6)  # Top-left of center block
+    # Simple 3x3 grid with initial network in center (position 5)
+    import matplotlib.gridspec as gridspec
+    gs = gridspec.GridSpec(3, 3, figure=fig, wspace=0.15, hspace=0.15)  # Reduced spacing from 0.25
 
-    # Positions for final networks around the center (clockwise from top-left)
-    # Top row: 1, 2, 3, 4; Second row: 5, (center: 6,7), 8; Third row: 9, (center: 10,11), 12; Bottom row: 13, 14, 15, 16
-    final_positions = [1, 2, 4, 8, 12, 16, 13]  # Grid positions for 7 algorithms
+    # Center position (row=1, col=1) for initial network
+    center_ax = fig.add_subplot(gs[1, 1])
+
+    # Positions for 8 algorithms around the center (clockwise from top-left)
+    # Grid positions: [row, col] in 3x3 grid
+    # Layout:  0  1  2
+    #          7 [C] 3
+    #          6  5  4
+    final_positions = [
+        (0, 0),   # Top-left: Static
+        (0, 1),   # Top-center: Random
+        (0, 2),   # Top-right: WTF
+        (1, 2),   # Middle-right: N2V
+        (2, 2),   # Bottom-right: B-opp
+        (2, 1),   # Bottom-center: B-sim
+        (2, 0),   # Bottom-left: L-opp
+        (1, 0),   # Middle-left: L-sim
+    ]
 
     print(f"Generating circular transformation visualization with {n_runs} runs, threshold={threshold}...")
 
@@ -714,13 +867,8 @@ def plot_transformation_circle(n_runs=30, threshold=0.1, timesteps=[0, 14999], m
     else:
         raise ValueError(f"Unsupported network type: {nw_type}")
 
-    # FREEZE the initial topology as reference
-    # CRITICAL: Convert to pure NetworkX Graph for consistent edge comparison
-    frozen_init_graph = nx.Graph() if not nx.is_directed(network_gen) else nx.DiGraph()
-    frozen_init_graph.add_nodes_from(network_gen.nodes(data=True))
-    frozen_init_graph.add_edges_from(network_gen.edges(data=True))
-
-    # Populate with agents and edge weights (using same seed for reproducibility)
+    # Create a temporary model to properly populate the frozen graph
+    # This ensures we use the official populateModel_netin() method with all its logic
     from scipy.stats import truncnorm
     def get_truncated_normal(mean=0, sd=1, low=0, upp=10):
         return truncnorm((low - mean) / sd, (upp - mean) / sd, loc=mean, scale=sd)
@@ -728,20 +876,27 @@ def plot_transformation_circle(n_runs=30, threshold=0.1, timesteps=[0, 14999], m
     friendshipWeightGenerator = get_truncated_normal(base_params["friendship"], base_params["friendshipSD"], 0, 1)
     initialStateGenerator = get_truncated_normal(base_params["skew"], base_params["initSD"], -1, 1)
 
-    for i in frozen_init_graph.nodes():
-        # Get initial state based on node class (if available from netin generators)
-        if 'm' in frozen_init_graph.nodes[i]:
-            node_class = frozen_init_graph.nodes[i]['m']
-            state = initialStateGenerator.rvs(1)[0] if node_class == 1 else -abs(initialStateGenerator.rvs(1)[0])
-        else:
-            state = initialStateGenerator.rvs(1)[0]
+    # Create temp params with required keys for Model initialization
+    temp_params = base_params.copy()
+    temp_params['rewiringAlgorithm'] = 'None'  # No rewiring for initial state
+    temp_params['rewiringMode'] = 'None'
 
-        agent = models_checks.Agent(state, base_params["stubbornness"], base_params.get("defectorUtility", 0.0))
-        frozen_init_graph.nodes[i]['agent'] = agent
+    temp_model = models_checks.Model(friendshipWeightGenerator=friendshipWeightGenerator,
+                                     initialStateGenerator=initialStateGenerator,
+                                     args=temp_params)
 
-    for u, v in frozen_init_graph.edges():
-        weight = friendshipWeightGenerator.rvs(1)[0]
-        frozen_init_graph[u][v]['weight'] = weight
+    # Assign the generated network topology
+    temp_model.graph = network_gen
+
+    # Use the official method to populate agents with correct opinion distribution
+    # This includes: proper opinion assignment, polarising nodes, edge weights
+    temp_model.populateModel_netin(n, base_params["skew"])
+
+    # FREEZE the fully populated graph as reference
+    # CRITICAL: Convert to pure NetworkX Graph for consistent edge comparison
+    frozen_init_graph = nx.Graph() if not nx.is_directed(temp_model.graph) else nx.DiGraph()
+    frozen_init_graph.add_nodes_from(temp_model.graph.nodes(data=True))
+    frozen_init_graph.add_edges_from(temp_model.graph.edges(data=True))
 
     # Verify frozen topology
     print(f"  Frozen initial network: {type(frozen_init_graph)}, directed={nx.is_directed(frozen_init_graph)}")
@@ -759,7 +914,7 @@ def plot_transformation_circle(n_runs=30, threshold=0.1, timesteps=[0, 14999], m
 
     # Plot initial network in center
     init_layout = plot_network_compact(G_init, center_ax, layout=None, threshold=threshold)
-    center_ax.set_title('Initial\n(t=0)', fontsize=FONT_SIZE, pad=5, weight='bold')
+    center_ax.set_title('Initial (t=0)', fontsize=FONT_SIZE, pad=5, weight='bold')
 
     # Run simulations for each algorithm and plot final states in circle
     final_axes = []
@@ -783,17 +938,18 @@ def plot_transformation_circle(n_runs=30, threshold=0.1, timesteps=[0, 14999], m
         # Save network for later reproduction
         saved_networks[alg['name']] = G_final
 
-        # Plot final network at corresponding position
+        # Plot final network at corresponding position using GridSpec
         # For static (no rewiring), reuse initial layout since network doesn't change
         # For others, create new natural spring layout to show evolved topology
-        ax_final = plt.subplot(4, 4, final_positions[idx])
+        row, col = final_positions[idx]
+        ax_final = fig.add_subplot(gs[row, col])
         final_layout = init_layout if alg['algo'] == 'None' else None
-        plot_network_compact(G_final, ax_final, layout=final_layout, threshold=threshold)
+        plot_network_compact(G_final, ax_final, layout=final_layout, threshold=threshold, algorithm=alg['algo'], mode=alg['mode'])
 
         # Add algorithm label
         ax_final.set_title(f'{alg["name"]}', fontsize=FONT_SIZE, pad=5)
 
-        final_axes.append((ax_final, final_positions[idx]))
+        final_axes.append(ax_final)
 
     # Add colorbar at bottom
     # cbar_ax = fig.add_axes([0.25, 0.08, 0.5, 0.015])  # [left, bottom, width, height]
@@ -807,15 +963,15 @@ def plot_transformation_circle(n_runs=30, threshold=0.1, timesteps=[0, 14999], m
     #     label.set_rotation(45)
     #     label.set_ha('right')
 
-    plt.tight_layout()  # Remove rect constraint since no colorbar
+    # GridSpec handles layout, no need for tight_layout
 
     # Save figure
     today = date.today().strftime("%Y%m%d")
     os.makedirs("../../Figs/Networks", exist_ok=True)
     filename = f"../../Figs/Networks/transformation_circle_N100_DPAH_n{n_runs}_thresh{threshold}_{today}"
 
-    plt.savefig(f"{filename}.pdf", bbox_inches='tight', dpi=300)
-    plt.savefig(f"{filename}.png", bbox_inches='tight', dpi=300)
+    plt.savefig(f"{filename}.pdf", dpi=600, bbox_inches='tight')  # Increased DPI and added bbox_inches
+    plt.savefig(f"{filename}.png", dpi=600, bbox_inches='tight')  # Increased DPI and added bbox_inches
 
     print(f"\n✓ Saved: {filename}.pdf")
     print(f"\n✓ Saved: {filename}.png")

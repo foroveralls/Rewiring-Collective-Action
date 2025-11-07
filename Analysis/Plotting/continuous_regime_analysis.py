@@ -266,7 +266,7 @@ def create_2d_phase_diagram(df):
     
     # Customize axes
     ax.set_xlabel('Cooperation ($a$)', fontsize=FONT_SIZE-1)
-    ax.set_ylabel('Polarization ($\sigma(a)$)', fontsize=FONT_SIZE-1)
+    ax.set_ylabel('Polarization ($⟨P⟩$)', fontsize=FONT_SIZE-1)
     ax.grid(True, alpha=0.3, linewidth=0.3)
     ax.tick_params(labelsize=FONT_SIZE-2)
     
@@ -347,7 +347,7 @@ def create_performance_landscape_plot(df):
     
     # Customize axes
     ax.set_xlabel('Cooperation ($a$)', fontsize=FONT_SIZE-1)
-    ax.set_ylabel('Polarization ($\sigma(a)$)', fontsize=FONT_SIZE-1)
+    ax.set_ylabel('Polarization ($⟨P⟩$)', fontsize=FONT_SIZE-1)
     ax.grid(True, alpha=0.3, linewidth=0.3)
     ax.tick_params(labelsize=FONT_SIZE-2)
     
@@ -445,7 +445,7 @@ def create_continuous_landscape_plot(df):
     
     # Customize axes
     ax.set_xlabel('Cooperation ($a$)', fontsize=FONT_SIZE-1)
-    ax.set_ylabel('Polarization ($\sigma(a)$)', fontsize=FONT_SIZE-1)
+    ax.set_ylabel('Polarization ($⟨P⟩$)', fontsize=FONT_SIZE-1)
     ax.grid(True, alpha=0.2, linewidth=0.3)
     ax.tick_params(labelsize=FONT_SIZE-2)
     
@@ -498,7 +498,7 @@ def create_stubbornness_trajectory_plot(df):
     
     # Customize polarization plot
     ax2.set_xlabel('Stubbornness Parameter', fontsize=FONT_SIZE-1)
-    ax2.set_ylabel('Polarization ($\sigma(a)$)', fontsize=FONT_SIZE-1)
+    ax2.set_ylabel('Polarization ($⟨P⟩$)', fontsize=FONT_SIZE-1)
     ax2.grid(True, alpha=0.3, linewidth=0.3)
     ax2.tick_params(labelsize=FONT_SIZE-2)
     
@@ -563,7 +563,7 @@ def create_continuous_single_panel_plot(df, for_combined=False):
     ax1.tick_params(labelsize=FONT_SIZE-2)
     
     # Customize right axis (polarization)
-    ax2.set_ylabel('$\sigma(a)$', fontsize=FONT_SIZE-1, labelpad=2, color='black')
+    ax2.set_ylabel('$⟨P⟩$', fontsize=FONT_SIZE-1, labelpad=2, color='black')
     ax2.tick_params(labelsize=FONT_SIZE-2)
     
     # Add regime boundary lines (but don't label them as regimes)
@@ -648,7 +648,7 @@ def create_stubbornness_parameter_space(df):
                         color=color, linewidth=1, alpha=0.7)
 
     ax2.set_xlabel('Stubbornness Parameter', fontsize=FONT_SIZE-1)
-    ax2.set_ylabel('Polarization ($\sigma(a)$)', fontsize=FONT_SIZE-1)
+    ax2.set_ylabel('Polarization ($⟨P⟩$)', fontsize=FONT_SIZE-1)
     ax2.grid(True, alpha=0.3, linewidth=0.3)
     ax2.tick_params(labelsize=FONT_SIZE-2)
     ax2.set_title('B', fontsize=FONT_SIZE, fontweight='bold')
@@ -740,7 +740,7 @@ def create_2d_heatmap_grid(df_2d):
             ax_polar.set_xticklabels([])
 
         if idx == 0:  # Top row
-            ax_polar.text(0.5, 1.15, 'Polarization ($\sigma(a)$)', transform=ax_polar.transAxes,
+            ax_polar.text(0.5, 1.15, 'Polarization ($⟨P⟩$)', transform=ax_polar.transAxes,
                          ha='center', fontsize=FONT_SIZE, fontweight='bold')
 
         ax_polar.set_ylabel('')

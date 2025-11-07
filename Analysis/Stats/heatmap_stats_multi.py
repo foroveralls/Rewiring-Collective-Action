@@ -11,7 +11,9 @@ FRIENDLY_NAMES = {
     'bridge_same': 'bridge (similar)',
     'bridge_diff': 'bridge (opposite)',
     'wtf_none': 'wtf',
-    'node2vec_none': 'node2vec'
+    'node2vec_none': 'node2vec',
+    'wtf_empirical': 'wtf',  # Handle 'empirical wtf' scenario
+    'node2vec_empirical': 'node2vec'  # Handle 'empirical node2vec' scenario
 }
 
 # Include all topologies
@@ -270,13 +272,17 @@ def calculate_variant_comparison(metrics_df):
 def calculate_directed_networks_comparison(metrics_df):
     """Head-to-head comparison on directed networks only (DPAH, Twitter) where WTF is applicable"""
     # Directed networks where WTF can be applied
-    directed_topologies = ['DPAH', 'Twitter'] 
+    directed_topologies = ['DPAH', 'Twitter']
     directed_data = metrics_df[metrics_df['topology'].isin(directed_topologies)].copy()
-    
+
     print(f"\n=== DIRECTED NETWORKS HEAD-TO-HEAD COMPARISON ===")
     print(f"Comparing all algorithms on directed networks only: {directed_topologies}")
     print("This provides fair comparison since WTF only works on directed networks")
-    
+    print(f"\nTotal records in directed networks: {len(directed_data)}")
+    print(f"Topologies present: {directed_data['topology'].unique()}")
+    print(f"Scenarios present: {directed_data['scenario'].unique()}")
+    print(f"Friendly names present: {directed_data['friendly_name'].unique()}")
+
     # Group algorithms by type
     opposite_data = directed_data[directed_data['variant_type'] == 'opposite']
     similar_data = directed_data[directed_data['variant_type'] == 'similar']
@@ -284,9 +290,20 @@ def calculate_directed_networks_comparison(metrics_df):
     n2v_data = directed_data[directed_data['friendly_name'] == 'node2vec']
     static_data = directed_data[directed_data['friendly_name'] == 'static']
     random_data = directed_data[directed_data['friendly_name'] == 'random']
+
+    print(f"\nData counts:")
+    print(f"  Opposite: {len(opposite_data)}")
+    print(f"  Similar: {len(similar_data)}")
+    print(f"  WTF: {len(wtf_data)}")
+    print(f"  Node2Vec: {len(n2v_data)}")
+    print(f"  Static: {len(static_data)}")
+    print(f"  Random: {len(random_data)}")
     
-    directed_comparison = {
-        'opposite': {
+    directed_comparison = {}
+
+    # Only add data for algorithms that have records
+    if len(opposite_data) > 0:
+        directed_comparison['opposite'] = {
             'mean_cooperation': opposite_data['mean_cooperation'].mean(),
             'mean_cooperation_coop_only': opposite_data['mean_cooperation_coop_only'].mean(),
             'cooperative_volume': (opposite_data['n_cooperative'].sum() / opposite_data['total_combinations'].sum()) * 100,
@@ -298,8 +315,10 @@ def calculate_directed_networks_comparison(metrics_df):
             'high_polarization_percent': opposite_data['high_polarization_percent'].mean(),
             'mean_polarization': opposite_data['mean_polarization'].mean(),
             'stubbornness_range': f"[{opposite_data['min_stubbornness_coop'].min():.2f}-{opposite_data['max_stubbornness_coop'].max():.2f}]"
-        },
-        'similar': {
+        }
+
+    if len(similar_data) > 0:
+        directed_comparison['similar'] = {
             'mean_cooperation': similar_data['mean_cooperation'].mean(),
             'mean_cooperation_coop_only': similar_data['mean_cooperation_coop_only'].mean(),
             'cooperative_volume': (similar_data['n_cooperative'].sum() / similar_data['total_combinations'].sum()) * 100,
@@ -311,8 +330,10 @@ def calculate_directed_networks_comparison(metrics_df):
             'high_polarization_percent': similar_data['high_polarization_percent'].mean(),
             'mean_polarization': similar_data['mean_polarization'].mean(),
             'stubbornness_range': f"[{similar_data['min_stubbornness_coop'].min():.2f}-{similar_data['max_stubbornness_coop'].max():.2f}]"
-        },
-        'wtf': {
+        }
+
+    if len(wtf_data) > 0:
+        directed_comparison['wtf'] = {
             'mean_cooperation': wtf_data['mean_cooperation'].mean(),
             'mean_cooperation_coop_only': wtf_data['mean_cooperation_coop_only'].mean(),
             'cooperative_volume': (wtf_data['n_cooperative'].sum() / wtf_data['total_combinations'].sum()) * 100,
@@ -324,8 +345,10 @@ def calculate_directed_networks_comparison(metrics_df):
             'high_polarization_percent': wtf_data['high_polarization_percent'].mean(),
             'mean_polarization': wtf_data['mean_polarization'].mean(),
             'stubbornness_range': f"[{wtf_data['min_stubbornness_coop'].min():.2f}-{wtf_data['max_stubbornness_coop'].max():.2f}]"
-        },
-        'n2v': {
+        }
+
+    if len(n2v_data) > 0:
+        directed_comparison['n2v'] = {
             'mean_cooperation': n2v_data['mean_cooperation'].mean(),
             'mean_cooperation_coop_only': n2v_data['mean_cooperation_coop_only'].mean(),
             'cooperative_volume': (n2v_data['n_cooperative'].sum() / n2v_data['total_combinations'].sum()) * 100,
@@ -337,8 +360,10 @@ def calculate_directed_networks_comparison(metrics_df):
             'high_polarization_percent': n2v_data['high_polarization_percent'].mean(),
             'mean_polarization': n2v_data['mean_polarization'].mean(),
             'stubbornness_range': f"[{n2v_data['min_stubbornness_coop'].min():.2f}-{n2v_data['max_stubbornness_coop'].max():.2f}]"
-        },
-        'static': {
+        }
+
+    if len(static_data) > 0:
+        directed_comparison['static'] = {
             'mean_cooperation': static_data['mean_cooperation'].mean(),
             'mean_cooperation_coop_only': static_data['mean_cooperation_coop_only'].mean(),
             'cooperative_volume': (static_data['n_cooperative'].sum() / static_data['total_combinations'].sum()) * 100,
@@ -350,8 +375,10 @@ def calculate_directed_networks_comparison(metrics_df):
             'high_polarization_percent': static_data['high_polarization_percent'].mean(),
             'mean_polarization': static_data['mean_polarization'].mean(),
             'stubbornness_range': f"[{static_data['min_stubbornness_coop'].min():.2f}-{static_data['max_stubbornness_coop'].max():.2f}]"
-        },
-        'random': {
+        }
+
+    if len(random_data) > 0:
+        directed_comparison['random'] = {
             'mean_cooperation': random_data['mean_cooperation'].mean(),
             'mean_cooperation_coop_only': random_data['mean_cooperation_coop_only'].mean(),
             'cooperative_volume': (random_data['n_cooperative'].sum() / random_data['total_combinations'].sum()) * 100,
@@ -364,7 +391,6 @@ def calculate_directed_networks_comparison(metrics_df):
             'mean_polarization': random_data['mean_polarization'].mean(),
             'stubbornness_range': f"[{random_data['min_stubbornness_coop'].min():.2f}-{random_data['max_stubbornness_coop'].max():.2f}]"
         }
-    }
     
     return directed_comparison
 
@@ -753,15 +779,22 @@ def save_comprehensive_analysis(metrics_df, variant_comparison, directed_compari
         ]
         
         for metric_name, metric_key in metrics_to_write_directed:
-            row = {
-                'Metric': metric_name,
-                'Opposite': directed_comparison['opposite'][metric_key],
-                'Similar': directed_comparison['similar'][metric_key],
-                'WTF': directed_comparison['wtf'][metric_key],
-                'Node2Vec': directed_comparison['n2v'][metric_key],
-                'Static': directed_comparison['static'][metric_key],
-                'Random': directed_comparison['random'][metric_key]
-            }
+            row = {'Metric': metric_name}
+
+            # Only add algorithms that have data
+            if 'opposite' in directed_comparison:
+                row['Opposite'] = directed_comparison['opposite'][metric_key]
+            if 'similar' in directed_comparison:
+                row['Similar'] = directed_comparison['similar'][metric_key]
+            if 'wtf' in directed_comparison:
+                row['WTF'] = directed_comparison['wtf'][metric_key]
+            if 'n2v' in directed_comparison:
+                row['Node2Vec'] = directed_comparison['n2v'][metric_key]
+            if 'static' in directed_comparison:
+                row['Static'] = directed_comparison['static'][metric_key]
+            if 'random' in directed_comparison:
+                row['Random'] = directed_comparison['random'][metric_key]
+
             directed_comparison_rows.append(row)
         
         directed_df = pd.DataFrame(directed_comparison_rows)

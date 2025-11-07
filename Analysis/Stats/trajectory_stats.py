@@ -71,44 +71,62 @@ def estimate_convergence_rate(trajec, loc, regwin=10):
     return rate
 
 
-def analyze_trajectory_data(file_path, t_max=40000, batch_size=BATCH_SIZE):
-    """Main function to analyze trajectory data in batches."""
+def analyze_trajectory_data(file_path, t_max=None, batch_size=BATCH_SIZE):
+    """Main function to analyze trajectory data in batches.
+
+    Args:
+        file_path: Path to CSV file with individual trajectory data
+        t_max: Optional maximum timestep to consider. If None, uses full data range.
+        batch_size: Number of rows to process per batch
+    """
     print(f"Processing file: {file_path}")
-    
+
+    # First pass: determine actual maximum timestep in data if not specified
+    if t_max is None:
+        print("Determining actual maximum timestep in data...")
+        actual_t_max = 0
+        for chunk in pd.read_csv(file_path, chunksize=batch_size):
+            chunk_max = chunk['t'].max()
+            if chunk_max > actual_t_max:
+                actual_t_max = chunk_max
+        print(f"Found actual maximum timestep: {actual_t_max}")
+    else:
+        actual_t_max = t_max
+        print(f"Using specified maximum timestep: {actual_t_max}")
+
     # Process file in batches to handle large datasets
     all_metrics = []
     for i, chunk in enumerate(pd.read_csv(file_path, chunksize=batch_size)):
         print(f"Processing batch {i+1}...")
-        
+
         # Prepare batch
         batch = chunk.copy()
-        batch['rewiring'] = batch['rewiring'].fillna('none')
-        batch['scenario'] = batch['scenario'].fillna('none')
-        
+        batch['rewiring'] = batch['rewiring'].fillna('none').replace('None', 'none')
+        batch['scenario'] = batch['scenario'].fillna('none').replace('None', 'none')
+
         # Extract metrics from each trajectory
         batch_results = []
         for name, group in batch.groupby(['scenario', 'rewiring', 'type', 'model_run']):
             scenario, rewiring, topology, run = name
-            
-            # Filter data and skip if invalid
-            group = group[group['t'] <= t_max]
+
+            # Skip if invalid (but DON'T filter by t_max - we need all data for steady state)
             if group.empty or len(group) < 1200:
                 continue
-            
-            # Get trajectory data
+
+            # Get trajectory data (FULL trajectory, not filtered)
             trajectory = group['avg_state'].values
             polarization = group['std_states'].values
-            
+
             # Calculate friendly name and network class
             friendly_name = get_friendly_name(f"{scenario}_{rewiring}")
             network_class = 'directed' if topology in DIRECTED_NETWORKS else 'undirected'
-            
+
             # Extract algorithm characteristics
             is_similar = '(similar)' in friendly_name
             is_opposite = '(opposite)' in friendly_name
             algorithm_base = friendly_name.split(' (')[0] if is_similar or is_opposite else friendly_name
             rewiring_type = 'similar' if is_similar else 'opposite' if is_opposite else 'none'
-            
+
             # Calculate convergence metrics
             convergence_rate = np.nan
             inflection_x = find_inflection(trajectory)
@@ -117,9 +135,11 @@ def analyze_trajectory_data(file_path, t_max=40000, batch_size=BATCH_SIZE):
                     convergence_rate = estimate_convergence_rate(trajectory, inflection_x) * 1000
                 except:
                     pass
-            
-            # Calculate final metrics (from last 5000 timesteps)
-            window_start = t_max - 5000
+
+            # Calculate final metrics from last 10% of FULL data (matching plot script approach)
+            # This ensures we capture true steady state even for slow-converging algorithms like WTF
+            trajectory_t_max = group['t'].max()
+            window_start = trajectory_t_max * 0.9  # Last 10% of actual data
             final_window = group[group['t'] >= window_start]
             final_cooperativity = final_window['avg_state'].mean() if not final_window.empty else trajectory[-1]
             final_polarization = final_window['std_states'].mean() if not final_window.empty else polarization[-1]
@@ -169,19 +189,26 @@ def analyze_trajectory_data(file_path, t_max=40000, batch_size=BATCH_SIZE):
 def calculate_baseline_comparisons(metrics_df):
     """Calculate metrics relative to static and random baselines."""
     results = []
-    
+    baseline_results = []  # Store baseline algorithms separately
+
     # For each topology, compare algorithms to baselines
     for topology in metrics_df['topology'].unique():
         # Get baseline data
-        static_data = metrics_df[(metrics_df['topology'] == topology) & 
+        static_data = metrics_df[(metrics_df['topology'] == topology) &
                                (metrics_df['friendly_name'] == 'static')]
-        random_data = metrics_df[(metrics_df['topology'] == topology) & 
+        random_data = metrics_df[(metrics_df['topology'] == topology) &
                                (metrics_df['friendly_name'] == 'random')]
-        
+
         # Skip if missing baselines
         if static_data.empty or random_data.empty:
             continue
-            
+
+        # Store baseline algorithms for later inclusion
+        for _, baseline_row in static_data.iterrows():
+            baseline_results.append(baseline_row.to_dict())
+        for _, baseline_row in random_data.iterrows():
+            baseline_results.append(baseline_row.to_dict())
+
         # Calculate baseline averages
         baselines = {
             'static': {
@@ -197,19 +224,19 @@ def calculate_baseline_comparisons(metrics_df):
                 'time': random_data['time_to_majority'].mean()
             }
         }
-        
+
         # Compare each algorithm against baselines
         topo_data = metrics_df[metrics_df['topology'] == topology]
         for _, row in topo_data.iterrows():
             # Skip baselines
             if row['friendly_name'] in ['static', 'random']:
                 continue
-                
+
             # Calculate relative metrics
             comparisons = {}
             for baseline in ['static', 'random']:
                 for metric, value_key in [
-                    ('rate', 'convergence_rate'), 
+                    ('rate', 'convergence_rate'),
                     ('coop', 'final_cooperativity'),
                     ('polar', 'final_polarization'),
                     ('time', 'time_to_majority')
@@ -218,46 +245,81 @@ def calculate_baseline_comparisons(metrics_df):
                     baseline_val = baselines[baseline][metric]
                     if not np.isnan(baseline_val) and baseline_val != 0:
                         rel_val = row[value_key] / baseline_val
-                        
+
                         # Determine if better (for rate/coop higher is better, for polar/time lower is better)
                         is_better = rel_val > 1 if metric in ['rate', 'coop'] else rel_val < 1
-                        
+
                         comparisons[f"rel_vs_{baseline}_{metric}"] = rel_val
                         comparisons[f"better_than_{baseline}_{metric}"] = is_better
                     else:
                         comparisons[f"rel_vs_{baseline}_{metric}"] = np.nan
                         comparisons[f"better_than_{baseline}_{metric}"] = np.nan
-            
+
             # Add to results
             results.append({**row.to_dict(), **comparisons})
-    
-    return pd.DataFrame(results)
+
+    # Return empty DataFrame with proper columns if no results
+    if not results and not baseline_results:
+        return pd.DataFrame(columns=['scenario', 'rewiring', 'topology', 'model_run', 'friendly_name',
+                                     'network_class', 'algorithm_base', 'rewiring_type',
+                                     'convergence_rate', 'final_cooperativity', 'final_polarization',
+                                     'time_to_majority',
+                                     'rel_vs_static_rate', 'better_than_static_rate',
+                                     'rel_vs_static_coop', 'better_than_static_coop',
+                                     'rel_vs_static_polar', 'better_than_static_polar',
+                                     'rel_vs_static_time', 'better_than_static_time',
+                                     'rel_vs_random_rate', 'better_than_random_rate',
+                                     'rel_vs_random_coop', 'better_than_random_coop',
+                                     'rel_vs_random_polar', 'better_than_random_polar',
+                                     'rel_vs_random_time', 'better_than_random_time'])
+
+    # Combine regular results with baseline results
+    all_results = results + baseline_results
+    return pd.DataFrame(all_results)
 
 
 def calculate_summaries(comparative_metrics):
     """Calculate summary statistics and aggregate results."""
     # Filter non-baseline algorithms
     non_baseline = comparative_metrics[~comparative_metrics['friendly_name'].isin(['static', 'random'])]
-    
+
+    # Extract baseline algorithms for separate analysis
+    baseline_algos = comparative_metrics[comparative_metrics['friendly_name'].isin(['static', 'random'])]
+
     # 1. Individual run statistics
-    run_stats = {
-        'metric_type': 'individual_run_statistics',
-        'total_runs': len(non_baseline),
-        'vs_static_rate_count': non_baseline['better_than_static_rate'].sum(),
-        'vs_static_rate_pct': non_baseline['better_than_static_rate'].mean() * 100,
-        'vs_static_coop_count': non_baseline['better_than_static_coop'].sum(),
-        'vs_static_coop_pct': non_baseline['better_than_static_coop'].mean() * 100,
-        'vs_random_rate_count': non_baseline['better_than_random_rate'].sum(),
-        'vs_random_rate_pct': non_baseline['better_than_random_rate'].mean() * 100,
-        'vs_random_coop_count': non_baseline['better_than_random_coop'].sum(),
-        'vs_random_coop_pct': non_baseline['better_than_random_coop'].mean() * 100
-    }
+    # Handle case where non_baseline is empty or missing columns
+    if len(non_baseline) > 0 and 'better_than_static_rate' in non_baseline.columns:
+        run_stats = {
+            'metric_type': 'individual_run_statistics',
+            'total_runs': len(non_baseline),
+            'vs_static_rate_count': non_baseline['better_than_static_rate'].sum(),
+            'vs_static_rate_pct': non_baseline['better_than_static_rate'].mean() * 100,
+            'vs_static_coop_count': non_baseline['better_than_static_coop'].sum(),
+            'vs_static_coop_pct': non_baseline['better_than_static_coop'].mean() * 100,
+            'vs_random_rate_count': non_baseline['better_than_random_rate'].sum(),
+            'vs_random_rate_pct': non_baseline['better_than_random_rate'].mean() * 100,
+            'vs_random_coop_count': non_baseline['better_than_random_coop'].sum(),
+            'vs_random_coop_pct': non_baseline['better_than_random_coop'].mean() * 100
+        }
+    else:
+        run_stats = {
+            'metric_type': 'individual_run_statistics',
+            'total_runs': 0,
+            'vs_static_rate_count': 0,
+            'vs_static_rate_pct': 0.0,
+            'vs_static_coop_count': 0,
+            'vs_static_coop_pct': 0.0,
+            'vs_random_rate_count': 0,
+            'vs_random_rate_pct': 0.0,
+            'vs_random_coop_count': 0,
+            'vs_random_coop_pct': 0.0
+        }
     
     # 2. Algorithm type statistics (average of runs by algorithm type)
     # Use a more direct approach to avoid multi-index issues
     algo_stats = pd.DataFrame()
     algo_stats['friendly_name'] = non_baseline['friendly_name'].unique()
-    
+
     # Calculate metrics for each algorithm type
     for algo in algo_stats['friendly_name']:
         algo_data = non_baseline[non_baseline['friendly_name'] == algo]
@@ -273,29 +335,64 @@ def calculate_summaries(comparative_metrics):
         algo_stats.loc[algo_stats['friendly_name'] == algo, 'final_polarization_median'] = algo_data['final_polarization'].median()
         algo_stats.loc[algo_stats['friendly_name'] == algo, 'time_to_majority_mean'] = algo_data['time_to_majority'].mean()
         algo_stats.loc[algo_stats['friendly_name'] == algo, 'time_to_majority_median'] = algo_data['time_to_majority'].median()
-    
+
     # Add metric_type column
     algo_stats['metric_type'] = 'algorithm_summary'
-    
+
+    # 2.5 Baseline algorithm statistics (static and random) - NEW SECTION
+    baseline_stats = pd.DataFrame()
+    if not baseline_algos.empty:
+        baseline_stats['friendly_name'] = baseline_algos['friendly_name'].unique()
+
+        # Calculate metrics for each baseline algorithm
+        for algo in baseline_stats['friendly_name']:
+            algo_data = baseline_algos[baseline_algos['friendly_name'] == algo]
+            baseline_stats.loc[baseline_stats['friendly_name'] == algo, 'convergence_rate_mean'] = algo_data['convergence_rate'].mean()
+            baseline_stats.loc[baseline_stats['friendly_name'] == algo, 'convergence_rate_median'] = algo_data['convergence_rate'].median()
+            baseline_stats.loc[baseline_stats['friendly_name'] == algo, 'final_cooperativity_mean'] = algo_data['final_cooperativity'].mean()
+            baseline_stats.loc[baseline_stats['friendly_name'] == algo, 'final_cooperativity_median'] = algo_data['final_cooperativity'].median()
+            baseline_stats.loc[baseline_stats['friendly_name'] == algo, 'final_polarization_mean'] = algo_data['final_polarization'].mean()
+            baseline_stats.loc[baseline_stats['friendly_name'] == algo, 'final_polarization_median'] = algo_data['final_polarization'].median()
+            baseline_stats.loc[baseline_stats['friendly_name'] == algo, 'time_to_majority_mean'] = algo_data['time_to_majority'].mean()
+            baseline_stats.loc[baseline_stats['friendly_name'] == algo, 'time_to_majority_median'] = algo_data['time_to_majority'].median()
+
+        # Add metric_type column
+        baseline_stats['metric_type'] = 'baseline_algorithm_summary'
+
     # Count algorithm types better than baselines (>50% of runs)
-    algo_counts = {
-        'metric_type': 'algorithm_type_statistics',
-        'total_algorithm_types': len(algo_stats),
-        'algo_better_static_rate': sum(algo_stats['better_than_static_rate_mean'] > 0.5),
-        'algo_better_static_rate_pct': sum(algo_stats['better_than_static_rate_mean'] > 0.5) / len(algo_stats) * 100,
-        'algo_better_static_coop': sum(algo_stats['better_than_static_coop_mean'] > 0.5),
-        'algo_better_static_coop_pct': sum(algo_stats['better_than_static_coop_mean'] > 0.5) / len(algo_stats) * 100,
-        'algo_better_random_rate': sum(algo_stats['better_than_random_rate_mean'] > 0.5),
-        'algo_better_random_rate_pct': sum(algo_stats['better_than_random_rate_mean'] > 0.5) / len(algo_stats) * 100,
-        'algo_better_random_coop': sum(algo_stats['better_than_random_coop_mean'] > 0.5),
-        'algo_better_random_coop_pct': sum(algo_stats['better_than_random_coop_mean'] > 0.5) / len(algo_stats) * 100
-    }
+    # Handle case where algo_stats is empty or missing columns
+    if len(algo_stats) > 0 and 'better_than_static_rate_mean' in algo_stats.columns:
+        algo_counts = {
+            'metric_type': 'algorithm_type_statistics',
+            'total_algorithm_types': len(algo_stats),
+            'algo_better_static_rate': sum(algo_stats['better_than_static_rate_mean'] > 0.5),
+            'algo_better_static_rate_pct': sum(algo_stats['better_than_static_rate_mean'] > 0.5) / len(algo_stats) * 100,
+            'algo_better_static_coop': sum(algo_stats['better_than_static_coop_mean'] > 0.5),
+            'algo_better_static_coop_pct': sum(algo_stats['better_than_static_coop_mean'] > 0.5) / len(algo_stats) * 100,
+            'algo_better_random_rate': sum(algo_stats['better_than_random_rate_mean'] > 0.5),
+            'algo_better_random_rate_pct': sum(algo_stats['better_than_random_rate_mean'] > 0.5) / len(algo_stats) * 100,
+            'algo_better_random_coop': sum(algo_stats['better_than_random_coop_mean'] > 0.5),
+            'algo_better_random_coop_pct': sum(algo_stats['better_than_random_coop_mean'] > 0.5) / len(algo_stats) * 100
+        }
+    else:
+        algo_counts = {
+            'metric_type': 'algorithm_type_statistics',
+            'total_algorithm_types': 0,
+            'algo_better_static_rate': 0,
+            'algo_better_static_rate_pct': 0.0,
+            'algo_better_static_coop': 0,
+            'algo_better_static_coop_pct': 0.0,
+            'algo_better_random_rate': 0,
+            'algo_better_random_rate_pct': 0.0,
+            'algo_better_random_coop': 0,
+            'algo_better_random_coop_pct': 0.0
+        }
     
     # 3. Network class statistics - ENHANCED with more metrics
     # Use a simpler approach to avoid multi-index issues
     network_stats = pd.DataFrame()
     network_stats['network_class'] = non_baseline['network_class'].unique()
-    
+
     # Calculate metrics for each network class
     for network_class in network_stats['network_class']:
         class_data = non_baseline[non_baseline['network_class'] == network_class]
@@ -311,13 +408,42 @@ def calculate_summaries(comparative_metrics):
         network_stats.loc[network_stats['network_class'] == network_class, 'final_polarization_median'] = class_data['final_polarization'].median()
         network_stats.loc[network_stats['network_class'] == network_class, 'time_to_majority_mean'] = class_data['time_to_majority'].mean()
         network_stats.loc[network_stats['network_class'] == network_class, 'time_to_majority_median'] = class_data['time_to_majority'].median()
-    
-    # Flatten multiindex columns
-    network_stats.columns = ['_'.join(col).strip('_') if col[1] else col[0] for col in network_stats.columns.values]
-    
+
     # Add metric_type column
     network_stats['metric_type'] = 'network_statistics'
-    
+
+    # 3.5 Topology-specific statistics (NEW SECTION for manuscript verification)
+    topology_stats = pd.DataFrame()
+    topology_list = non_baseline['topology'].unique()
+
+    for topology in topology_list:
+        for algo in non_baseline['friendly_name'].unique():
+            topo_algo_data = non_baseline[(non_baseline['topology'] == topology) &
+                                         (non_baseline['friendly_name'] == algo)]
+
+            if not topo_algo_data.empty:
+                # Calculate all key metrics for this topology-algorithm combination
+                topo_stats = {
+                    'metric_type': 'topology_algorithm_statistics',
+                    'topology': topology,
+                    'friendly_name': algo,
+                    'run_count': len(topo_algo_data),
+                    'convergence_rate_mean': topo_algo_data['convergence_rate'].mean(),
+                    'convergence_rate_median': topo_algo_data['convergence_rate'].median(),
+                    'final_cooperativity_mean': topo_algo_data['final_cooperativity'].mean(),
+                    'final_cooperativity_median': topo_algo_data['final_cooperativity'].median(),
+                    'final_polarization_mean': topo_algo_data['final_polarization'].mean(),
+                    'final_polarization_median': topo_algo_data['final_polarization'].median(),
+                    'time_to_majority_mean': topo_algo_data['time_to_majority'].mean(),
+                    'time_to_majority_median': topo_algo_data['time_to_majority'].median()
+                }
+
+                # Add to results using pd.concat instead of append
+                if topology_stats.empty:
+                    topology_stats = pd.DataFrame([topo_stats])
+                else:
+                    topology_stats = pd.concat([topology_stats, pd.DataFrame([topo_stats])], ignore_index=True)
+
     # 4. Similar vs opposite comparison by base algorithm
     similar_vs_opposite_base = []
     for base in ['local', 'bridge']:
@@ -516,28 +642,43 @@ def calculate_summaries(comparative_metrics):
     
     # 8. Algorithm performance summary for manuscript
     performance_summary = []
-    
+
     # Calculate fraction of algorithms better than baselines
-    frac_better_static_rate = (algo_stats['better_than_static_rate_mean'] > 0.5).sum() / len(algo_stats)
-    frac_better_static_coop = (algo_stats['better_than_static_coop_mean'] > 0.5).sum() / len(algo_stats)
-    frac_better_random_rate = (algo_stats['better_than_random_rate_mean'] > 0.5).sum() / len(algo_stats)
-    frac_better_random_coop = (algo_stats['better_than_random_coop_mean'] > 0.5).sum() / len(algo_stats)
-    
-    # Speed comparison for "one third faster"
-    similar_algos = algo_stats[algo_stats['friendly_name'].str.contains('similar', na=False)]
-    opposite_algos = algo_stats[algo_stats['friendly_name'].str.contains('opposite', na=False)]
-    
-    if not similar_algos.empty and not opposite_algos.empty:
-        similar_time_avg = similar_algos['time_to_majority_mean'].mean()
-        opposite_time_avg = opposite_algos['time_to_majority_mean'].mean()
-        time_improvement_pct = ((similar_time_avg - opposite_time_avg) / similar_time_avg) * 100
+    # Only calculate if algo_stats has data and required columns
+    if len(algo_stats) > 0 and 'better_than_static_rate_mean' in algo_stats.columns:
+        frac_better_static_rate = (algo_stats['better_than_static_rate_mean'] > 0.5).sum() / len(algo_stats)
+        frac_better_static_coop = (algo_stats['better_than_static_coop_mean'] > 0.5).sum() / len(algo_stats)
+        frac_better_random_rate = (algo_stats['better_than_random_rate_mean'] > 0.5).sum() / len(algo_stats)
+        frac_better_random_coop = (algo_stats['better_than_random_coop_mean'] > 0.5).sum() / len(algo_stats)
+
+        # Speed comparison for "one third faster"
+        similar_algos = algo_stats[algo_stats['friendly_name'].str.contains('similar', na=False)]
+        opposite_algos = algo_stats[algo_stats['friendly_name'].str.contains('opposite', na=False)]
+
+        if not similar_algos.empty and not opposite_algos.empty and 'time_to_majority_mean' in algo_stats.columns:
+            similar_time_avg = similar_algos['time_to_majority_mean'].mean()
+            opposite_time_avg = opposite_algos['time_to_majority_mean'].mean()
+            time_improvement_pct = ((similar_time_avg - opposite_time_avg) / similar_time_avg) * 100
+        else:
+            similar_time_avg = float('nan')
+            opposite_time_avg = float('nan')
+            time_improvement_pct = float('nan')
+
+        # Max cooperation values
+        max_cooperation_overall = algo_stats['final_cooperativity_mean'].max() if 'final_cooperativity_mean' in algo_stats.columns else float('nan')
+        max_cooperation_opposite = opposite_algos['final_cooperativity_mean'].max() if not opposite_algos.empty and 'final_cooperativity_mean' in opposite_algos.columns else float('nan')
     else:
+        # No data available
+        frac_better_static_rate = float('nan')
+        frac_better_static_coop = float('nan')
+        frac_better_random_rate = float('nan')
+        frac_better_random_coop = float('nan')
+        similar_time_avg = float('nan')
+        opposite_time_avg = float('nan')
         time_improvement_pct = float('nan')
-    
-    # Max cooperation values
-    max_cooperation_overall = algo_stats['final_cooperativity_mean'].max()
-    max_cooperation_opposite = opposite_algos['final_cooperativity_mean'].max() if not opposite_algos.empty else float('nan')
-    
+        max_cooperation_overall = float('nan')
+        max_cooperation_opposite = float('nan')
+
     performance_summary.append({
         'metric_type': 'performance_summary',
         'fraction_better_static_rate': frac_better_static_rate,
@@ -547,16 +688,18 @@ def calculate_summaries(comparative_metrics):
         'opposite_time_improvement_pct': time_improvement_pct,
         'max_cooperation_overall': max_cooperation_overall,
         'max_cooperation_opposite': max_cooperation_opposite,
-        'similar_avg_time': similar_time_avg if not similar_algos.empty else float('nan'),
-        'opposite_avg_time': opposite_time_avg if not opposite_algos.empty else float('nan')
+        'similar_avg_time': similar_time_avg,
+        'opposite_avg_time': opposite_time_avg
     })
 
     # Return all summaries
     return {
         'run_stats': pd.DataFrame([run_stats]),
         'algorithm_stats': algo_stats,
+        'baseline_algorithm_stats': baseline_stats if not baseline_stats.empty else pd.DataFrame([{'metric_type': 'baseline_algorithm_summary'}]),
         'algorithm_counts': pd.DataFrame([algo_counts]),
         'network_stats': network_stats,
+        'topology_stats': topology_stats if not topology_stats.empty else pd.DataFrame([{'metric_type': 'topology_algorithm_statistics'}]),
         'baseline_values': pd.DataFrame(baseline_values) if baseline_values else pd.DataFrame([{'metric_type': 'baseline_values'}]),
         'similar_vs_opposite_base': pd.DataFrame(similar_vs_opposite_base) if similar_vs_opposite_base else pd.DataFrame([{'metric_type': 'similar_vs_opposite_base'}]),
         'similar_vs_opposite': pd.DataFrame([similar_vs_opposite]),
@@ -589,12 +732,22 @@ def export_combined_results(summaries, output_dir="../../Output/Stats"):
         f.write("### SECTION: Network Statistics\n")
         summaries['network_stats'].to_csv(f, index=False)
         f.write('\n\n\n')
-        
+
+        # 3.5 Topology-Specific Algorithm Statistics (NEW)
+        f.write("### SECTION: Topology-Specific Algorithm Statistics\n")
+        summaries['topology_stats'].to_csv(f, index=False)
+        f.write('\n\n\n')
+
         # 4. Algorithm Summary (details for each algorithm type)
         f.write("### SECTION: Algorithm Summary Metrics\n")
         summaries['algorithm_stats'].to_csv(f, index=False)
         f.write('\n\n\n')
-        
+
+        # 4.5 Baseline Algorithm Summary (NEW)
+        f.write("### SECTION: Baseline Algorithm Summary (Static and Random)\n")
+        summaries['baseline_algorithm_stats'].to_csv(f, index=False)
+        f.write('\n\n\n')
+
         # 5. Static and Random Baseline Values
         f.write("### SECTION: Baseline Values\n")
         summaries['baseline_values'].to_csv(f, index=False)
@@ -646,9 +799,11 @@ def main():
     print(f"Auto-selecting file {file_index}: {file_list[file_index]}")
         
     file_path = os.path.join(input_dir, file_list[file_index])
-    
-    # Analyze data
-    t_max = 40000  # Maximum timestep to analyze
+
+    # Analyze data using FULL data range (not truncated)
+    # This matches the plotting script approach and ensures we capture true steady state
+    # Specify known max timestep to avoid scanning the full 26GB file
+    t_max = 160000  # Full simulation length (known from run parameters)
     summaries = analyze_trajectory_data(file_path, t_max)
     
     if summaries is None:
