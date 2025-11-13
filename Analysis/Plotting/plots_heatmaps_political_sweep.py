@@ -102,7 +102,7 @@ def get_friendly_name(mode, rewiring):
 
 def get_data_file():
     """Get the data file path from user input."""
-    file_list = [f for f in os.listdir("../../Output") 
+    file_list = [f for f in os.listdir("../../Output/polclimate") 
                  if f.endswith(".csv") and "heatmap_sweep" in f]
     
     if not file_list:
@@ -114,7 +114,7 @@ def get_data_file():
         print(f"{i}: {file}")
     
     file_index = int(input("Enter the index of the file you want to plot: "))
-    return os.path.join("../../Output", file_list[file_index])
+    return os.path.join("../../Output/polclimate", file_list[file_index])
 
 def preprocess_data(df, param_name, max_param_value=0.05):
     """Preprocess the data for visualization."""
@@ -281,7 +281,7 @@ def create_state_heatmap_grid(df, param_name, max_param_value=0.05):
             
             # Add labels with improved positioning
             if col_idx == 0:  # First column gets ⟨x⟩ label
-                ax.set_ylabel(r'$\langle a\rangle$', fontsize=AXIS_LABEL_FONT_SIZE+1, labelpad=5, fontweight='bold')
+                ax.set_ylabel(r'$\langle a^* \rangle$', fontsize=AXIS_LABEL_FONT_SIZE+1, labelpad=5, fontweight='bold')
 
                 # Add topology label further from plot (adjusted for new spacing)
                 display_name = topology_display_names.get(topology, topology.upper())

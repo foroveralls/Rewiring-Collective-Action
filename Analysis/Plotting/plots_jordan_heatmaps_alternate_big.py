@@ -14,13 +14,13 @@ from matplotlib import transforms
 from datetime import date
 
 # ====================== CONFIGURATION ======================
-BASE_FONT_SIZE = 9
+BASE_FONT_SIZE = 8
 cm = 1/2.54  # centimeters to inches conversion
 
 # Define font sizes for different elements
 TITLE_FONT_SIZE = BASE_FONT_SIZE
 AXIS_LABEL_FONT_SIZE = BASE_FONT_SIZE - 1
-TICK_FONT_SIZE = BASE_FONT_SIZE - 3
+TICK_FONT_SIZE = BASE_FONT_SIZE - 2
 LEGEND_FONT_SIZE = BASE_FONT_SIZE - 2
 ANNOTATION_FONT_SIZE = BASE_FONT_SIZE - 1
 FRIENDLY_COLORS = {
@@ -132,7 +132,7 @@ def create_heatmap_grid(df, value_columns, column_labels, for_combined=False):
 
     # Use fixed height when combining with regime panel
     if for_combined:
-        fig = plt.figure(figsize=(10*cm, 5.5*cm))
+        fig = plt.figure(figsize=(12*cm, 7*cm))
         # Adjust margins for combined layout to accommodate labels without overlap
         gs = fig.add_gridspec(n_rows, n_cols,
                              hspace=0.15, wspace=0.05,
@@ -149,13 +149,21 @@ def create_heatmap_grid(df, value_columns, column_labels, for_combined=False):
     polar_cmap = sns.color_palette("Reds", as_cmap=True)
     
     # Add scenario labels at top
+    # Position depends on whether this is for combined figure or standalone
+    if for_combined:
+        label_left = 0.12
+        label_width = 0.74  # from left=0.12 to right=0.86
+    else:
+        label_left = 0.08
+        label_width = 0.78  # from left=0.08 to right=0.86
+
     for s, scenario in enumerate(sorted_scenarios):
         friendly_scenario = friendly_scenarios[scenario]
         scenario_color = FRIENDLY_COLORS.get(friendly_scenario, 'black')
-        fig.text(0.08 + (s + 0.5) * 0.84/n_cols, 0.91, 
-                 friendly_scenario, 
-                 ha='center', va='bottom', 
-                 fontsize=TITLE_FONT_SIZE, fontweight='bold',
+        fig.text(label_left + (s + 0.5) * label_width/n_cols, 0.91,
+                 friendly_scenario,
+                 ha='center', va='bottom',
+                 fontsize=TITLE_FONT_SIZE,
                  color=scenario_color)
     
     # Create heatmaps
@@ -165,7 +173,7 @@ def create_heatmap_grid(df, value_columns, column_labels, for_combined=False):
         fig.text(label_x, 0.15 + (n_topology_blocks - t_idx - 0.5) * 0.75/n_topology_blocks,
                  topology.upper(),
                  ha='center', va='center',
-                 fontsize=AXIS_LABEL_FONT_SIZE, fontweight='bold', rotation=90)
+                 fontsize=AXIS_LABEL_FONT_SIZE, rotation=90)
         
         for s, scenario in enumerate(sorted_scenarios):
             scenario_topo_data = df[(df['scenario'] == scenario) & (df['topology'] == topology)]
@@ -190,10 +198,10 @@ def create_heatmap_grid(df, value_columns, column_labels, for_combined=False):
                     # Set colormap and limits
                     if metric == 'state':
                         cmap, vmin, vmax, center = coop_cmap, -1, 1, 0
-                        cbar_label = '⟨a⟩'
+                        cbar_label = '$\\langle a^* \\rangle$'
                     else:
                         cmap, vmin, vmax, center = polar_cmap, 0, 1, None
-                        cbar_label = '$⟨P⟩$'
+                        cbar_label = '$\\langle P \\rangle$'
                     
                     # Don't show colorbar in heatmap - we'll add them manually later
                     sns.heatmap(heatmap_data, ax=ax, cmap=cmap, center=center,
@@ -268,13 +276,13 @@ def create_heatmap_grid(df, value_columns, column_labels, for_combined=False):
     # Add axis labels (only once at bottom and left)
     # Adjust label positions based on layout
     y_label_x = 0.04 if for_combined else 0.02
-    x_label_y = 0.02 if for_combined else 0.04
-    y_label_fontsize = AXIS_LABEL_FONT_SIZE - 1 if for_combined else AXIS_LABEL_FONT_SIZE
+    x_label_y = 0.04 if for_combined else 0.04
+    y_label_fontsize = AXIS_LABEL_FONT_SIZE if for_combined else AXIS_LABEL_FONT_SIZE
 
-    fig.text(0.5, x_label_y, 'Stubbornness, $\\mathbf{w_i}$', ha='center',
-             fontsize=y_label_fontsize, fontweight='bold')
-    fig.text(y_label_x, 0.52, 'Diverger fraction, $\\mathbf{\\rho}$', va='center', rotation=90,
-             fontsize=y_label_fontsize, fontweight='bold')
+    fig.text(0.5, x_label_y, 'Stubbornness, $w_i$', ha='center',
+             fontsize=y_label_fontsize)
+    fig.text(y_label_x, 0.55, 'Diverger fraction, $\\rho$', va='center', rotation=90,
+             fontsize=y_label_fontsize)
 
     # Add manual colorbars outside the gridspec to avoid squishing the WTF column
     from matplotlib.colorbar import ColorbarBase
@@ -285,15 +293,15 @@ def create_heatmap_grid(df, value_columns, column_labels, for_combined=False):
     cbar_ax1 = fig.add_axes([0.88, 0.55, 0.015, 0.32])  # [left, bottom, width, height]
     norm1 = Normalize(vmin=-1, vmax=1)
     cb1 = ColorbarBase(cbar_ax1, cmap=coop_cmap, norm=norm1, orientation='vertical')
-    cb1.set_label('⟨a⟩', fontsize=AXIS_LABEL_FONT_SIZE)
-    cb1.ax.tick_params(labelsize=TICK_FONT_SIZE)
+    cb1.set_label('$\\langle a^* \\rangle$', fontsize=AXIS_LABEL_FONT_SIZE)
+    cb1.ax.tick_params(labelsize=TICK_FONT_SIZE, length=2, width=0.5)
 
     # Polarization colorbar (bottom half)
     cbar_ax2 = fig.add_axes([0.88, 0.18, 0.015, 0.32])  # [left, bottom, width, height]
     norm2 = Normalize(vmin=0, vmax=1)
     cb2 = ColorbarBase(cbar_ax2, cmap=polar_cmap, norm=norm2, orientation='vertical')
     cb2.set_label('$⟨P⟩$', fontsize=AXIS_LABEL_FONT_SIZE)
-    cb2.ax.tick_params(labelsize=TICK_FONT_SIZE)
+    cb2.ax.tick_params(labelsize=TICK_FONT_SIZE, length=2, width=0.5)
 
     return fig
 

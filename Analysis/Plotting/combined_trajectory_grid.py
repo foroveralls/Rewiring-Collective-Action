@@ -31,8 +31,8 @@ def combine_figures_horizontally(fig_path1, fig_path2, output_path, width_ratios
 
         # Create combined figure with custom width ratios
         # Use higher DPI (600) for publication quality
-        # Increased height from 8cm to 10cm for better visibility in manuscript
-        fig = plt.figure(figsize=(17.8*cm, 10*cm), dpi=600)
+        # Increased height from 8cm to 11cm for better visibility in manuscript
+        fig = plt.figure(figsize=(17.8*cm, 11*cm), dpi=600)
         gs = GridSpec(1, 2, figure=fig, width_ratios=width_ratios,
                      left=0.01, right=0.99, bottom=0.01, top=0.99, wspace=0.02)  # Reduced wspace from 0.03 to 0.02
 

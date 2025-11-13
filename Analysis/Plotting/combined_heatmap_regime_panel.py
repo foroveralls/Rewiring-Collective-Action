@@ -97,22 +97,22 @@ def create_combined_figure(conv_data, coop_data=None, regime_df=None):
 
         # Customize axes
         ax_right.set_xlabel('Stubbornness, $\\rho$', fontsize=7)
-        ax_right.set_ylabel('⟨a⟩', fontsize=7, color='black')
-        ax_right_twin.set_ylabel('$\\⟨P⟩$', fontsize=7, color='black')
+        ax_right.set_ylabel('$\\langle a^* \\rangle$', fontsize=7, color='black')
+        ax_right_twin.set_ylabel('$\\langle P \\rangle$', fontsize=7, color='black')
         ax_right.grid(True, alpha=0.3, linewidth=0.3)
-        ax_right.tick_params(labelsize=5)
-        ax_right_twin.tick_params(labelsize=5)
+        ax_right.tick_params(labelsize=6)
+        ax_right_twin.tick_params(labelsize=6)
 
         # Add regime boundaries
         ax_right.axvline(0.33, color='black', linestyle='--', alpha=0.7, linewidth=0.7)
         ax_right.axvline(0.66, color='black', linestyle='--', alpha=0.7, linewidth=0.7)
 
         # Add legend
-        ax_right.legend(loc='upper right', fontsize=5, frameon=True)
+        ax_right.legend(loc='upper right', fontsize=6, frameon=True)
 
     # Add panel labels (lowercase)
-    fig.text(0.08, 0.92, 'a', fontsize=10, fontweight='bold')
-    fig.text(0.52, 0.92, 'b', fontsize=10, fontweight='bold')
+    fig.text(0.08, 0.92, 'a', fontsize=8, fontweight='bold')
+    fig.text(0.52, 0.92, 'b', fontsize=8, fontweight='bold')
 
     plt.close(fig_heatmap)  # Close temporary figure
 
@@ -180,10 +180,10 @@ def combine_figures_horizontally(fig_path1, fig_path2, output_path):
 
         # Create combined figure with matched heights
         # Using full two-column width (17.8cm) for manuscript
-        # Increased height from 5.5cm to 8cm for better visibility in manuscript
+        # Increased height from 5.5cm to 12cm for better visibility in manuscript
         # Use higher DPI (600) for publication quality
         cm = 1/2.54
-        fig = plt.figure(figsize=(17.8*cm, 8*cm), dpi=600)
+        fig = plt.figure(figsize=(17.8*cm, 12*cm), dpi=600)
         gs = GridSpec(1, 2, figure=fig, width_ratios=[1.5, 1],
                      left=0.01, right=0.99, bottom=0.01, top=0.99, wspace=0.002)
 
@@ -192,14 +192,14 @@ def combine_figures_horizontally(fig_path1, fig_path2, output_path):
         ax1.imshow(img1_cropped, interpolation='none')  # No interpolation for sharpness
         ax1.axis('off')
         ax1.text(0.01, 0.99, 'a', transform=ax1.transAxes,
-                fontsize=10, fontweight='bold', va='top', ha='left')
+                fontsize=7, fontweight='bold', va='top', ha='left')
 
         # Add panel b (regime)
         ax2 = fig.add_subplot(gs[0, 1])
         ax2.imshow(img2_cropped, interpolation='none')  # No interpolation for sharpness
         ax2.axis('off')
         ax2.text(0.01, 0.99, 'b', transform=ax2.transAxes,
-                fontsize=10, fontweight='bold', va='top', ha='left')
+                fontsize=7, fontweight='bold', va='top', ha='left')
 
         # Save combined figure as both PDF and PNG at high quality
         pdf_output = output_path if output_path.endswith('.pdf') else output_path.replace('.png', '.pdf')

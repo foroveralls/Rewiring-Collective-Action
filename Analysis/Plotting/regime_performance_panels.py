@@ -258,7 +258,7 @@ def create_single_panel_plot(algorithm_data):
     # Customize Panel - Cooperation & Polarization Combined with dual y-axes
     ax1.set_xlabel('Stubbornness Regime', fontsize=FONT_SIZE-1, labelpad=2)
     ax1.set_ylabel('$a$', fontsize=FONT_SIZE-1, labelpad=2, color='black')
-    ax1_twin.set_ylabel('$\sigma(a)$', fontsize=FONT_SIZE-1, labelpad=2, color='black')
+    ax1_twin.set_ylabel('$\langle P \rangle$', fontsize=FONT_SIZE-1, labelpad=2, color='black')
     ax1.set_xticks(x_pos)
     ax1.set_xticklabels(regime_labels, fontsize=FONT_SIZE-2)
     ax1.grid(True, alpha=0.3, linewidth=0.3)

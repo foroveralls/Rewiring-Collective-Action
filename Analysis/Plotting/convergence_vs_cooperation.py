@@ -266,7 +266,7 @@ def plot_pareto_analysis(metrics_df, output_path, method='t95'):
         ax.set_xlabel('Convergence Rate')
     else:
         ax.set_xlabel('Convergence Rate (t95 method)')
-    ax.set_ylabel(r'Final Cooperation, $\langle a \rangle_{t_{end}}$')
+    ax.set_ylabel(r'$\langle a^* \rangle$')
     ax.grid(True, alpha=0.3, linewidth=0.4)
     ax.set_xlim(0, 1.02)
     ax.set_ylim(0, 1.02)
