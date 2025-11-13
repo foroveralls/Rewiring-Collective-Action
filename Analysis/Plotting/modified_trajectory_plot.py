@@ -22,7 +22,7 @@ from plots_lines import (
 )
 
 cm = 1/2.54
-FONT_SIZE = 11  # Increased from 7 for better readability
+FONT_SIZE = 10  # Increased from 7 for better readability
 
 def configure_axis_style_truncated(ax, t_max, scale_type='linear', show_ylabel=True,
                                   show_xlabel=True, add_steady_state_markers=False):
@@ -224,10 +224,11 @@ def plot_network_dynamics_truncated(data, t_max=80000, scale_type='linear',
             ax.xaxis.offsetText.set_visible(False)
 
     # Set axis labels
-    g.set_axis_labels(xlabel, "Cooperativity, ⟨a⟩")
+    g.set_axis_labels(xlabel, "cooperation")
 
     # Reduced spacing for compactness - further reduce horizontal white space
-    g.fig.subplots_adjust(top=0.88, bottom=0.18, hspace=0.20, wspace=0.12, left=0.10, right=0.93)
+    # Increased bottom margin from 0.18 to 0.20 to add more space for legend
+    g.fig.subplots_adjust(top=0.88, bottom=0.20, hspace=0.20, wspace=0.12, left=0.10, right=0.93)
 
     # Add legends
     fig = g.fig
@@ -236,7 +237,7 @@ def plot_network_dynamics_truncated(data, t_max=80000, scale_type='linear',
     legend_ax.axis('off')
 
     line_style_elements = [
-        Line2D([], [], color='black', linestyle='-', label='cooperativity'),
+        Line2D([], [], color='black', linestyle='-', label='cooperation'),
         Line2D([], [], color='black', linestyle='--', dashes=(4, 2), label='polarization')
     ]
     if add_steady_state_markers:
@@ -246,9 +247,10 @@ def plot_network_dynamics_truncated(data, t_max=80000, scale_type='linear',
         )
 
     legend_ax.legend(handles=line_style_elements, ncol=3, loc='center',
-                    frameon=True, bbox_to_anchor=(0.5, 0.5), fontsize=FONT_SIZE-1)
+                    frameon=True, bbox_to_anchor=(0.5, 0.5), fontsize=FONT_SIZE-2)
 
-    bottom_legend_ax = fig.add_axes([0.15, 0.03, 0.7, 0.04])
+    # Move bottom legend up slightly and reduce font size
+    bottom_legend_ax = fig.add_axes([0.15, 0.04, 0.7, 0.04])
     bottom_legend_ax.axis('off')
 
     color_elements = [
@@ -267,7 +269,7 @@ def plot_network_dynamics_truncated(data, t_max=80000, scale_type='linear',
         color_elements.append(Line2D([], [], color=PLOT_COLORS['node2vec_none'], label='N2V'))
 
     bottom_legend_ax.legend(handles=color_elements, ncol=4, loc='center',
-                          frameon=True, bbox_to_anchor=(0.5, 0.5), fontsize=FONT_SIZE-1)
+                          frameon=True, bbox_to_anchor=(0.5, 0.5), fontsize=FONT_SIZE-2)
 
     if output_file:
         plt.savefig(output_file, dpi=300, bbox_inches='tight')
