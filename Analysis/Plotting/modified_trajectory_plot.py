@@ -224,7 +224,7 @@ def plot_network_dynamics_truncated(data, t_max=80000, scale_type='linear',
             ax.xaxis.offsetText.set_visible(False)
 
     # Set axis labels
-    g.set_axis_labels(xlabel, "cooperation")
+    g.set_axis_labels(xlabel, r"Cooperation, $\langle a \rangle$")
 
     # Reduced spacing for compactness - further reduce horizontal white space
     # Increased bottom margin from 0.18 to 0.20 to add more space for legend
