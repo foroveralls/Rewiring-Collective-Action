@@ -225,282 +225,11 @@ def load_2d_parameter_data():
 
     return result_df
 
-def create_2d_phase_diagram(df):
-    """Create 2D phase diagram showing cooperation vs polarization with stubbornness color-coded"""
-    setup_style()
-    
-    fig, ax = plt.subplots(1, 1, figsize=(10*cm, 8*cm))
-    
-    # Focus on main algorithms for clarity
-    main_algorithms = ['Opposite', 'Similar', 'WTF', 'Node2Vec', 'Static', 'Random']
-    df_main = df[df['algorithm'].isin(main_algorithms)]
-    
-    # Create algorithm color mapping
-    algorithm_colors = {
-        'Opposite': FRIENDLY_COLORS['local (opposite)'],
-        'Similar': FRIENDLY_COLORS['local (similar)'],
-        'WTF': FRIENDLY_COLORS['empirical wtf'],
-        'Node2Vec': FRIENDLY_COLORS['empirical node2vec'],
-        'Static': FRIENDLY_COLORS['static'],
-        'Random': FRIENDLY_COLORS['random']
-    }
-    
-    # Create scatter plot with stubbornness as color intensity
-    for alg in main_algorithms:
-        alg_data = df_main[df_main['algorithm'] == alg]
-        if len(alg_data) > 0:
-            # Use stubbornness_numeric to vary color intensity
-            colors = []
-            base_color = algorithm_colors.get(alg, '#666666')
-            
-            for _, row in alg_data.iterrows():
-                stub_val = row['stubbornness_numeric']
-                # Create gradient from light to dark based on stubbornness
-                if stub_val <= 0.3:  # Low stubbornness
-                    alpha = 0.4
-                    size = 20
-                    marker = 'o'
-                elif stub_val <= 0.6:  # Medium stubbornness
-                    alpha = 0.7
-                    size = 25
-                    marker = 's'
-                else:  # High stubbornness
-                    alpha = 1.0
-                    size = 30
-                    marker = '^'
-                
-                ax.scatter(row['mean_cooperation'], row['mean_polarization'],
-                          c=base_color, alpha=alpha, s=size, marker=marker,
-                          edgecolors='white', linewidth=0.3)
-    
-    # Draw trajectory lines connecting same algorithm across stubbornness levels
-    for alg in main_algorithms:
-        alg_data = df_main[df_main['algorithm'] == alg].sort_values('stubbornness_numeric')
-        if len(alg_data) >= 2:
-            ax.plot(alg_data['mean_cooperation'], alg_data['mean_polarization'],
-                   color=algorithm_colors.get(alg, '#666666'), 
-                   linewidth=0.8, alpha=0.6, linestyle='--')
-    
-    # Add regime boundaries as background regions
-    coop_range = ax.get_xlim()
-    polar_range = ax.get_ylim()
-    
-    # Add subtle background regions to show emergent regimes
-    # Low stubbornness region (high polarization)
-    rect1 = patches.Rectangle((coop_range[0], 0.75), coop_range[1]-coop_range[0], 
-                             polar_range[1]-0.75, linewidth=0, 
-                             facecolor='lightblue', alpha=0.1, label='Low stubbornness\n(high polarization)')
-    ax.add_patch(rect1)
-    
-    # Medium stubbornness region
-    rect2 = patches.Rectangle((coop_range[0], 0.6), coop_range[1]-coop_range[0], 
-                             0.15, linewidth=0, 
-                             facecolor='lightyellow', alpha=0.1, label='Medium stubbornness')
-    ax.add_patch(rect2)
-    
-    # High stubbornness region (low polarization)
-    rect3 = patches.Rectangle((coop_range[0], polar_range[0]), coop_range[1]-coop_range[0], 
-                             0.6-polar_range[0], linewidth=0, 
-                             facecolor='lightcoral', alpha=0.1, label='High stubbornness\n(low polarization)')
-    ax.add_patch(rect3)
-    
-    # Customize axes
-    ax.set_xlabel('Cooperation ($a$)', fontsize=FONT_SIZE-1)
-    ax.set_ylabel('Polarization ($⟨P⟩$)', fontsize=FONT_SIZE-1)
-    ax.grid(True, alpha=0.3, linewidth=0.3)
-    ax.tick_params(labelsize=FONT_SIZE-2)
-    
-    # Create custom legends
-    from matplotlib.lines import Line2D
-    
-    # Algorithm legend
-    alg_legend = [Line2D([0], [0], marker='o', color='w', 
-                        markerfacecolor=algorithm_colors.get(alg, '#666666'),
-                        markersize=4, label=alg, alpha=0.8) 
-                 for alg in main_algorithms]
-    
-    # Stubbornness legend
-    stub_legend = [
-        Line2D([0], [0], marker='o', color='gray', markersize=4, 
-               label='Low stubbornness', alpha=0.4, linestyle='None'),
-        Line2D([0], [0], marker='s', color='gray', markersize=5, 
-               label='Medium stubbornness', alpha=0.7, linestyle='None'),
-        Line2D([0], [0], marker='^', color='gray', markersize=6, 
-               label='High stubbornness', alpha=1.0, linestyle='None')
-    ]
-    
-    # Add legends
-    leg1 = ax.legend(handles=alg_legend, loc='upper left', 
-                    fontsize=FONT_SIZE-2, title='Algorithm')
-    leg2 = ax.legend(handles=stub_legend, loc='lower right', 
-                    fontsize=FONT_SIZE-2, title='Stubbornness Level')
-    ax.add_artist(leg1)
-    
-    plt.tight_layout()
-    return fig
+# REMOVED: create_2d_phase_diagram - unused visualization
 
-def create_performance_landscape_plot(df):
-    """Create 2D performance landscape visualization with averaged stubbornness data"""
-    setup_style()
-    
-    fig, ax = plt.subplots(1, 1, figsize=(12*cm, 10*cm))
-    
-    # Focus on main algorithms for clarity
-    main_algorithms = ['Opposite', 'Similar', 'WTF', 'Node2Vec', 'Static', 'Random']
-    df_main = df[df['algorithm'].isin(main_algorithms)]
-    
-    if len(df_main) == 0:
-        print(f"No data found for main algorithms. Available: {sorted(df['algorithm'].unique())}")
-        return fig
-    
-    print(f"Data points per algorithm:")
-    for alg in main_algorithms:
-        alg_data = df_main[df_main['algorithm'] == alg]
-        if len(alg_data) > 0:
-            print(f"  {alg}: {len(alg_data)} points")
-            print(f"    Stubbornness range: {alg_data['stubbornness'].min():.2f} - {alg_data['stubbornness'].max():.2f}")
-            print(f"    Cooperation range: {alg_data['mean_cooperation'].min():.2f} - {alg_data['mean_cooperation'].max():.2f}")
-    
-    # Create scatter plot with averaged data points
-    for alg in main_algorithms:
-        alg_data = df_main[df_main['algorithm'] == alg]
-        if len(alg_data) > 0:
-            color = FRIENDLY_COLORS.get(alg, '#666666')
-            
-            # Scatter plot with size based on cooperative volume
-            scatter = ax.scatter(alg_data['mean_cooperation'], alg_data['mean_polarization'],
-                               c=alg_data['stubbornness'], cmap='viridis',
-                               s=alg_data['cooperative_volume_percent']/3,  # Reduced size scaling
-                               alpha=0.7, edgecolors='white', linewidth=0.3,  # Thinner edges
-                               label=alg)
-            
-            # Draw trajectory connecting points sorted by stubbornness
-            alg_data_sorted = alg_data.sort_values('stubbornness')
-            if len(alg_data_sorted) >= 2:
-                ax.plot(alg_data_sorted['mean_cooperation'], alg_data_sorted['mean_polarization'],
-                       color=color, linewidth=0.8, alpha=0.6, linestyle='--')  # Thinner lines
-    
-    # Add colorbar for stubbornness
-    cbar = plt.colorbar(scatter, ax=ax, shrink=0.8, pad=0.02)
-    cbar.set_label('Stubbornness Parameter', fontsize=FONT_SIZE-1)
-    cbar.ax.tick_params(labelsize=FONT_SIZE-2)
-    
-    # Customize axes
-    ax.set_xlabel('Cooperation ($a$)', fontsize=FONT_SIZE-1)
-    ax.set_ylabel('Polarization ($⟨P⟩$)', fontsize=FONT_SIZE-1)
-    ax.grid(True, alpha=0.3, linewidth=0.3)
-    ax.tick_params(labelsize=FONT_SIZE-2)
-    
-    # Legend for algorithms (outside plot area)
-    legend = ax.legend(bbox_to_anchor=(1.25, 1), loc='upper left', 
-                      fontsize=FONT_SIZE-2, title='Algorithm', framealpha=0.9)
-    legend.get_title().set_fontsize(FONT_SIZE-1)
-    
-    # Add text explaining point size
-    ax.text(0.02, 0.98, 'Point size ∝ Cooperative Volume', 
-           transform=ax.transAxes, fontsize=FONT_SIZE-3, 
-           verticalalignment='top', alpha=0.7,
-           bbox=dict(boxstyle='round,pad=0.3', facecolor='white', alpha=0.8))
-    
-    plt.tight_layout()
-    return fig
+# REMOVED: create_performance_landscape_plot - unused visualization
 
-def create_continuous_landscape_plot(df):
-    """Create continuous landscape plot with cooperative volume as elevation"""
-    setup_style()
-    
-    fig, ax = plt.subplots(1, 1, figsize=(10*cm, 8*cm))
-    
-    # Use all data points for landscape generation
-    coop_vals = df['mean_cooperation'].values
-    polar_vals = df['mean_polarization'].values
-    volume_vals = df['cooperative_volume_percent'].values
-    stub_vals = df['stubbornness_numeric'].values
-    
-    # Create high-resolution grid for smooth landscape
-    coop_range = np.linspace(coop_vals.min(), coop_vals.max(), 100)
-    polar_range = np.linspace(polar_vals.min(), polar_vals.max(), 100)
-    coop_grid, polar_grid = np.meshgrid(coop_range, polar_range)
-    
-    # Interpolate cooperative volume for landscape
-    volume_grid = griddata((coop_vals, polar_vals), volume_vals, 
-                          (coop_grid, polar_grid), method='cubic')
-    
-    # Interpolate stubbornness for color overlay
-    stub_grid = griddata((coop_vals, polar_vals), stub_vals, 
-                        (coop_grid, polar_grid), method='cubic')
-    
-    # Create filled contour for cooperative volume (landscape elevation)
-    contourf = ax.contourf(coop_grid, polar_grid, volume_grid, levels=20, 
-                          cmap='RdYlBu_r', alpha=0.6)
-    
-    # Add contour lines for cooperative volume
-    contours = ax.contour(coop_grid, polar_grid, volume_grid, levels=15, 
-                         colors='white', alpha=0.8, linewidths=0.5)
-    ax.clabel(contours, inline=True, fontsize=FONT_SIZE-3, fmt='%1.0f%%', 
-             colors='white')
-    
-    # Overlay stubbornness information with second contour set
-    stub_contours = ax.contour(coop_grid, polar_grid, stub_grid, 
-                              levels=[0.3, 0.6], colors='black', 
-                              linewidths=1, linestyles=['--', ':'])
-    ax.clabel(stub_contours, inline=True, fontsize=FONT_SIZE-2, 
-             fmt={0.3: 'Low/Med', 0.6: 'Med/High'}, colors='black')
-    
-    # Plot all data points with algorithm-specific colors
-    main_algorithms = ['Opposite', 'Similar', 'WTF', 'Node2Vec', 'Static', 'Random']
-    algorithm_colors = {
-        'Opposite': FRIENDLY_COLORS['local (opposite)'],
-        'Similar': FRIENDLY_COLORS['local (similar)'],
-        'WTF': FRIENDLY_COLORS['empirical wtf'],
-        'Node2Vec': FRIENDLY_COLORS['empirical node2vec'],
-        'Static': FRIENDLY_COLORS['static'],
-        'Random': FRIENDLY_COLORS['random']
-    }
-    
-    # Plot points with varying size based on stubbornness
-    for alg in main_algorithms:
-        alg_data = df[df['algorithm'] == alg]
-        if len(alg_data) > 0:
-            for _, row in alg_data.iterrows():
-                stub_val = row['stubbornness_numeric']
-                size = 15 + stub_val * 25  # Size increases with stubbornness
-                
-                ax.scatter(row['mean_cooperation'], row['mean_polarization'],
-                          c=algorithm_colors.get(alg, '#666666'), 
-                          s=size, alpha=0.9, edgecolors='white', linewidth=0.5)
-            
-            # Draw trajectory
-            alg_data_sorted = alg_data.sort_values('stubbornness_numeric')
-            if len(alg_data_sorted) >= 2:
-                ax.plot(alg_data_sorted['mean_cooperation'], 
-                       alg_data_sorted['mean_polarization'],
-                       color=algorithm_colors.get(alg, '#666666'), 
-                       linewidth=1.5, alpha=0.8)
-    
-    # Color bar for landscape
-    cbar = plt.colorbar(contourf, ax=ax, shrink=0.8)
-    cbar.set_label('Cooperative Volume (%)', fontsize=FONT_SIZE-1)
-    cbar.ax.tick_params(labelsize=FONT_SIZE-2)
-    
-    # Customize axes
-    ax.set_xlabel('Cooperation ($a$)', fontsize=FONT_SIZE-1)
-    ax.set_ylabel('Polarization ($⟨P⟩$)', fontsize=FONT_SIZE-1)
-    ax.grid(True, alpha=0.2, linewidth=0.3)
-    ax.tick_params(labelsize=FONT_SIZE-2)
-    
-    # Legend for algorithms
-    from matplotlib.lines import Line2D
-    alg_legend = [Line2D([0], [0], marker='o', color='w', 
-                        markerfacecolor=algorithm_colors.get(alg, '#666666'),
-                        markersize=5, label=alg, alpha=0.9) 
-                 for alg in main_algorithms]
-    
-    ax.legend(handles=alg_legend, loc='upper left', 
-             fontsize=FONT_SIZE-2, title='Algorithm', framealpha=0.9)
-    
-    plt.tight_layout()
-    return fig
+# REMOVED: create_continuous_landscape_plot - unused visualization
 
 def create_stubbornness_trajectory_plot(df):
     """Create plot showing how cooperation and polarization change with stubbornness"""
@@ -530,15 +259,15 @@ def create_stubbornness_trajectory_plot(df):
                     alpha=0.8, label=alg)
     
     # Customize cooperation plot
-    ax1.set_ylabel('Cooperation ($a$)', fontsize=FONT_SIZE-1)
+    ax1.set_ylabel('$\\langle a^* \\rangle$', fontsize=FONT_SIZE-1)
     ax1.grid(True, alpha=0.3, linewidth=0.3)
     ax1.tick_params(labelsize=FONT_SIZE-2)
     ax1.legend(bbox_to_anchor=(1.05, 1), loc='upper left', 
               fontsize=FONT_SIZE-2, title='Algorithm')
     
     # Customize polarization plot
-    ax2.set_xlabel('Stubbornness Parameter', fontsize=FONT_SIZE-1)
-    ax2.set_ylabel('Polarization ($⟨P⟩$)', fontsize=FONT_SIZE-1)
+    ax2.set_xlabel('Stubbornness, $w_i$', fontsize=FONT_SIZE-1)
+    ax2.set_ylabel('$\\langle P \\rangle$', fontsize=FONT_SIZE-1)
     ax2.grid(True, alpha=0.3, linewidth=0.3)
     ax2.tick_params(labelsize=FONT_SIZE-2)
     
@@ -681,8 +410,8 @@ def create_stubbornness_parameter_space(df):
                         stub_sorted['mean_cooperation'],
                         color=color, linewidth=1, alpha=0.7)
 
-    ax1.set_xlabel('Stubbornness Parameter', fontsize=FONT_SIZE-1)
-    ax1.set_ylabel('Cooperation ($a$)', fontsize=FONT_SIZE-1)
+    ax1.set_xlabel('Stubbornness, $w_i$', fontsize=FONT_SIZE-1)
+    ax1.set_ylabel('$\\langle a^* \\rangle$', fontsize=FONT_SIZE-1)
     ax1.grid(True, alpha=0.3, linewidth=0.3)
     ax1.tick_params(labelsize=FONT_SIZE-2)
     ax1.set_title('A', fontsize=FONT_SIZE, fontweight='bold')
@@ -707,8 +436,8 @@ def create_stubbornness_parameter_space(df):
                         stub_sorted['mean_polarization'],
                         color=color, linewidth=1, alpha=0.7)
 
-    ax2.set_xlabel('Stubbornness Parameter', fontsize=FONT_SIZE-1)
-    ax2.set_ylabel('Polarization ($⟨P⟩$)', fontsize=FONT_SIZE-1)
+    ax2.set_xlabel('Stubbornness, $w_i$', fontsize=FONT_SIZE-1)
+    ax2.set_ylabel('$\\langle P \\rangle$', fontsize=FONT_SIZE-1)
     ax2.grid(True, alpha=0.3, linewidth=0.3)
     ax2.tick_params(labelsize=FONT_SIZE-2)
     ax2.set_title('B', fontsize=FONT_SIZE, fontweight='bold')
@@ -716,6 +445,73 @@ def create_stubbornness_parameter_space(df):
     # Add regime boundaries
     ax2.axvline(0.4, color='gray', linestyle='--', alpha=0.5)
     ax2.axvline(0.7, color='gray', linestyle='--', alpha=0.5)
+
+    # Shared legend
+    fig.legend(bbox_to_anchor=(0.5, 0.02), loc='upper center', ncol=3,
+              fontsize=FONT_SIZE-2, frameon=True, fancybox=False,
+              edgecolor='black', facecolor='white')
+
+    plt.tight_layout()
+    plt.subplots_adjust(bottom=0.2)
+    return fig
+
+def create_backfirer_parameter_space(df):
+    """Create parameter space plot showing backfirer fraction as continuous variable"""
+    setup_style()
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12*cm, 6*cm))
+
+    # Filter main algorithms
+    main_algorithms = ['Opposite', 'Similar', 'WTF', 'Node2Vec', 'Static', 'Random']
+    df_main = df[df['algorithm'].isin(main_algorithms)]
+
+    algorithm_colors = {
+        'Opposite': FRIENDLY_COLORS['local (opposite)'],
+        'Similar': FRIENDLY_COLORS['local (similar)'],
+        'WTF': FRIENDLY_COLORS['empirical wtf'],
+        'Node2Vec': FRIENDLY_COLORS['empirical node2vec'],
+        'Static': FRIENDLY_COLORS['static'],
+        'Random': FRIENDLY_COLORS['random']
+    }
+
+    # Panel 1: Backfirer Fraction vs Cooperation
+    for alg in main_algorithms:
+        alg_data = df_main[df_main['algorithm'] == alg]
+        if len(alg_data) > 0:
+            color = algorithm_colors.get(alg, '#666666')
+            ax1.scatter(alg_data['backfirer_fraction'], alg_data['mean_cooperation'],
+                       color=color, alpha=0.8, s=25, label=alg)
+            # Fit trend line
+            if len(alg_data) >= 2:
+                bf_sorted = alg_data.sort_values('backfirer_fraction')
+                ax1.plot(bf_sorted['backfirer_fraction'],
+                        bf_sorted['mean_cooperation'],
+                        color=color, linewidth=1, alpha=0.7)
+
+    ax1.set_xlabel('Backfirer Fraction, $\\rho$', fontsize=FONT_SIZE-1)
+    ax1.set_ylabel('$\\langle a^* \\rangle$', fontsize=FONT_SIZE-1)
+    ax1.grid(True, alpha=0.3, linewidth=0.3)
+    ax1.tick_params(labelsize=FONT_SIZE-2)
+    ax1.set_title('A', fontsize=FONT_SIZE, fontweight='bold')
+
+    # Panel 2: Backfirer Fraction vs Polarization
+    for alg in main_algorithms:
+        alg_data = df_main[df_main['algorithm'] == alg]
+        if len(alg_data) > 0:
+            color = algorithm_colors.get(alg, '#666666')
+            ax2.scatter(alg_data['backfirer_fraction'], alg_data['mean_polarization'],
+                       color=color, alpha=0.8, s=25)
+            if len(alg_data) >= 2:
+                bf_sorted = alg_data.sort_values('backfirer_fraction')
+                ax2.plot(bf_sorted['backfirer_fraction'],
+                        bf_sorted['mean_polarization'],
+                        color=color, linewidth=1, alpha=0.7)
+
+    ax2.set_xlabel('Backfirer Fraction, $\\rho$', fontsize=FONT_SIZE-1)
+    ax2.set_ylabel('$\\langle P \\rangle$', fontsize=FONT_SIZE-1)
+    ax2.grid(True, alpha=0.3, linewidth=0.3)
+    ax2.tick_params(labelsize=FONT_SIZE-2)
+    ax2.set_title('B', fontsize=FONT_SIZE, fontweight='bold')
 
     # Shared legend
     fig.legend(bbox_to_anchor=(0.5, 0.02), loc='upper center', ncol=3,
@@ -778,7 +574,7 @@ def create_2d_heatmap_grid(df_2d):
             ax_coop.set_xticklabels([])
 
         if idx == 0:  # Top row
-            ax_coop.text(0.5, 1.15, 'Cooperation ($a$)', transform=ax_coop.transAxes,
+            ax_coop.text(0.5, 1.15, '$\\langle a^* \\rangle$', transform=ax_coop.transAxes,
                         ha='center', fontsize=FONT_SIZE, fontweight='bold')
 
         ax_coop.set_ylabel('Backfirer Fraction', fontsize=FONT_SIZE-2)
@@ -800,7 +596,7 @@ def create_2d_heatmap_grid(df_2d):
             ax_polar.set_xticklabels([])
 
         if idx == 0:  # Top row
-            ax_polar.text(0.5, 1.15, 'Polarization ($⟨P⟩$)', transform=ax_polar.transAxes,
+            ax_polar.text(0.5, 1.15, '$\\langle P \\rangle$', transform=ax_polar.transAxes,
                          ha='center', fontsize=FONT_SIZE, fontweight='bold')
 
         ax_polar.set_ylabel('')
@@ -1456,70 +1252,43 @@ def main():
     df = load_continuous_data()
     if df is None:
         return
-    
+
     print(f"Working with {len(df)} data points")
     print(f"Algorithms found: {sorted(df['algorithm'].unique())}")
     print(f"Stubbornness range: {df['stubbornness_numeric'].min():.3f} - {df['stubbornness_numeric'].max():.3f}")
-    
+
     # Create output directory
     output_dir = "../../Figs/Regime_Analysis"
     os.makedirs(output_dir, exist_ok=True)
     today = date.today().strftime("%Y%m%d")
-    
-    # Generate 2D phase diagram
-    print("Creating 2D phase diagram...")
-    fig1 = create_2d_phase_diagram(df)
-    output_path1 = f"{output_dir}/continuous_phase_diagram_{today}.pdf"
-    fig1.savefig(output_path1, dpi=300, bbox_inches='tight')
-    print(f"Phase diagram saved: {output_path1}")
-    plt.show()
-    plt.close()
-    
-    # Generate performance landscape
-    print("Creating performance landscape...")
-    fig2 = create_performance_landscape_plot(df)
-    output_path2 = f"{output_dir}/continuous_performance_landscape_{today}.pdf"
-    fig2.savefig(output_path2, dpi=300, bbox_inches='tight')
-    print(f"Performance landscape saved: {output_path2}")
-    plt.show()
-    plt.close()
-    
-    # Generate continuous landscape with elevation
-    print("Creating continuous landscape with elevation...")
-    fig3 = create_continuous_landscape_plot(df)
-    output_path3 = f"{output_dir}/continuous_landscape_elevation_{today}.pdf"
-    fig3.savefig(output_path3, dpi=300, bbox_inches='tight')
-    print(f"Continuous landscape saved: {output_path3}")
-    plt.show()
-    plt.close()
-    
+
     # Generate stubbornness trajectory plot
     print("Creating stubbornness trajectory plot...")
-    fig4 = create_stubbornness_trajectory_plot(df)
-    output_path4 = f"{output_dir}/stubbornness_trajectories_{today}.pdf"
-    fig4.savefig(output_path4, dpi=300, bbox_inches='tight')
-    print(f"Trajectory plot saved: {output_path4}")
+    fig1 = create_stubbornness_trajectory_plot(df)
+    output_path1 = f"{output_dir}/stubbornness_trajectories_{today}.pdf"
+    fig1.savefig(output_path1, dpi=300, bbox_inches='tight')
+    print(f"Trajectory plot saved: {output_path1}")
     plt.show()
     plt.close()
-    
+
     # Generate continuous single panel plot
     print("Creating continuous single panel plot...")
-    fig5 = create_continuous_single_panel_plot(df)
-    output_path5 = f"{output_dir}/continuous_single_panel_{today}.pdf"
-    fig5.savefig(output_path5, dpi=300, bbox_inches='tight')
-    print(f"Single panel plot saved: {output_path5}")
+    fig2 = create_continuous_single_panel_plot(df)
+    output_path2 = f"{output_dir}/continuous_single_panel_{today}.pdf"
+    fig2.savefig(output_path2, dpi=300, bbox_inches='tight')
+    print(f"Single panel plot saved: {output_path2}")
     plt.show()
     plt.close()
-    
+
     # Generate stubbornness parameter space
     print("Creating stubbornness parameter space...")
-    fig6 = create_stubbornness_parameter_space(df)
-    output_path6 = f"{output_dir}/stubbornness_parameter_space_{today}.pdf"
-    fig6.savefig(output_path6, dpi=300, bbox_inches='tight')
-    print(f"Parameter space plot saved: {output_path6}")
+    fig3 = create_stubbornness_parameter_space(df)
+    output_path3 = f"{output_dir}/stubbornness_parameter_space_{today}.pdf"
+    fig3.savefig(output_path3, dpi=300, bbox_inches='tight')
+    print(f"Parameter space plot saved: {output_path3}")
     plt.show()
     plt.close()
-    
+
     print("Consolidated continuous visualization generation complete!")
 
 def main_regime():
@@ -1616,6 +1385,15 @@ def main_backfirer():
     output_path2 = f"{output_dir}/backfirer_regimes_{today}.pdf"
     fig2.savefig(output_path2, dpi=300, bbox_inches='tight')
     print(f"Backfirer regime plot saved: {output_path2}")
+    plt.show()
+    plt.close()
+
+    # Generate backfirer parameter space plot
+    print("Creating backfirer parameter space...")
+    fig3 = create_backfirer_parameter_space(df)
+    output_path3 = f"{output_dir}/backfirer_parameter_space_{today}.pdf"
+    fig3.savefig(output_path3, dpi=300, bbox_inches='tight')
+    print(f"Backfirer parameter space plot saved: {output_path3}")
     plt.show()
     plt.close()
 

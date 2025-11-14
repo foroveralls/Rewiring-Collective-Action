@@ -779,7 +779,52 @@ def plot_network_properties(df, topology_filter=None, output_file=None):
     """
     return plot_network_properties_supplementary(df, topology_filter, output_file)
 
-def main(topology_filter=None, production_plots=True, supplementary_plots=False, combine_topologies=False):
+def save_processed_data(df, output_file=None):
+    """
+    Save processed network properties data to CSV file.
+
+    Parameters:
+    -----------
+    df : pd.DataFrame
+        DataFrame with network properties data
+    output_file : str, optional
+        Output file path. If None, uses default location with timestamp
+    """
+    if output_file is None:
+        today = date.today()
+        output_file = f"../../Output/network_properties_data_{today}.csv"
+
+    # Create directory if it doesn't exist
+    os.makedirs(os.path.dirname(output_file), exist_ok=True)
+
+    df.to_csv(output_file, index=False)
+    print(f"Saved processed data to: {output_file}")
+    print(f"Data shape: {df.shape}")
+    return output_file
+
+def load_processed_data(input_file):
+    """
+    Load processed network properties data from CSV file.
+
+    Parameters:
+    -----------
+    input_file : str
+        Path to CSV file containing processed data
+
+    Returns:
+    --------
+    pd.DataFrame : Loaded network properties data
+    """
+    if not os.path.exists(input_file):
+        raise FileNotFoundError(f"Data file not found: {input_file}")
+
+    df = pd.read_csv(input_file)
+    print(f"Loaded processed data from: {input_file}")
+    print(f"Data shape: {df.shape}")
+    return df
+
+def main(topology_filter=None, production_plots=True, supplementary_plots=False, combine_topologies=False,
+         process_only=False, plot_only=False, data_file=None):
     """Main function to load data and create plots
 
     Parameters:
@@ -793,26 +838,49 @@ def main(topology_filter=None, production_plots=True, supplementary_plots=False,
         Whether to create comprehensive supplementary plots with all metrics
     combine_topologies : bool, default False
         If True, combine all topologies into one plot using different line styles
+    process_only : bool, default False
+        If True, only process data and save to CSV without creating plots
+    plot_only : bool, default False
+        If True, skip processing and load data from CSV file for plotting
+    data_file : str, optional
+        Path to CSV file for loading/saving processed data
     """
     set_plot_style()
 
-    print("Loading snapshot data...")
-    snapshot_data = load_snapshot_data()
+    # Handle plot-only mode: load from CSV
+    if plot_only:
+        if data_file is None:
+            raise ValueError("Must specify --data-file when using --plot-only mode")
 
-    if not snapshot_data:
-        print("No snapshot data found. Make sure you have run simulations with save_snapshots=True")
-        return
+        print(f"Plot-only mode: Loading data from {data_file}...")
+        df = load_processed_data(data_file)
+    else:
+        # Process data from snapshots
+        print("Loading snapshot data...")
+        snapshot_data = load_snapshot_data()
 
-    print(f"Found {len(snapshot_data)} scenarios with snapshot data")
+        if not snapshot_data:
+            print("No snapshot data found. Make sure you have run simulations with save_snapshots=True")
+            return
 
-    print("Processing snapshots to calculate network properties...")
-    df = process_snapshots_to_properties(snapshot_data)
+        print(f"Found {len(snapshot_data)} scenarios with snapshot data")
 
-    if df.empty:
-        print("No valid network properties data generated")
-        return
+        print("Processing snapshots to calculate network properties...")
+        df = process_snapshots_to_properties(snapshot_data)
 
-    print(f"Processed {len(df)} data points")
+        if df.empty:
+            print("No valid network properties data generated")
+            return
+
+        print(f"Processed {len(df)} data points")
+
+        # Save processed data to CSV
+        saved_file = save_processed_data(df, data_file)
+
+        # If process-only mode, return after saving
+        if process_only:
+            print(f"Process-only mode: Data saved to {saved_file}")
+            return df
 
     today = date.today()
 
@@ -856,8 +924,14 @@ if __name__ == "__main__":
     production_plots = True
     supplementary_plots = False
     combine_topologies = False
+    process_only = False
+    plot_only = False
+    data_file = None
 
-    for arg in sys.argv[1:]:
+    i = 1
+    while i < len(sys.argv):
+        arg = sys.argv[i]
+
         if arg in ['cl', 'DPAH', 'FB', 'Twitter']:
             topology_filter = arg
         elif arg == '--supplementary':
@@ -870,17 +944,49 @@ if __name__ == "__main__":
             supplementary_plots = True
         elif arg == '--combined':
             combine_topologies = True
+        elif arg == '--process-only':
+            process_only = True
+        elif arg == '--plot-only':
+            plot_only = True
+        elif arg == '--data-file':
+            if i + 1 < len(sys.argv):
+                data_file = sys.argv[i + 1]
+                i += 1  # Skip next arg since it's the filename
+            else:
+                print("Error: --data-file requires a filename argument")
+                sys.exit(1)
         elif arg == '--help':
             print("Usage: python plot_network_properties.py [topology] [options]")
-            print("  topology: cl, DPAH, FB, or Twitter (optional)")
+            print("\nTopology options:")
+            print("  cl, DPAH, FB, or Twitter (optional - filters to specific network)")
+            print("\nPlot type options:")
             print("  --supplementary: also create supplementary plots with all metrics")
             print("  --production-only: create only production plots (default)")
             print("  --both: create both production and supplementary plots")
             print("  --combined: combine all topologies into one plot using different line styles")
-            print("  --help: show this help message")
+            print("\nProcessing options:")
+            print("  --process-only: only process snapshots and save to CSV (no plots)")
+            print("  --plot-only: skip processing, load from CSV and create plots")
+            print("  --data-file <path>: specify CSV file path for saving/loading")
+            print("                      (default: ../../Output/network_properties_data_<date>.csv)")
+            print("\nExamples:")
+            print("  # Process data and save to CSV (no plots)")
+            print("  python plot_network_properties.py --process-only")
+            print()
+            print("  # Create plots from saved CSV")
+            print("  python plot_network_properties.py --plot-only --data-file ../../Output/network_properties_data_2025-11-14.csv --combined")
+            print()
+            print("  # Process and plot in one go (saves CSV automatically)")
+            print("  python plot_network_properties.py --combined")
+            print("\n  --help: show this help message")
             sys.exit(0)
+
+        i += 1
 
     df = main(topology_filter=topology_filter,
               production_plots=production_plots,
               supplementary_plots=supplementary_plots,
-              combine_topologies=combine_topologies)
+              combine_topologies=combine_topologies,
+              process_only=process_only,
+              plot_only=plot_only,
+              data_file=data_file)
