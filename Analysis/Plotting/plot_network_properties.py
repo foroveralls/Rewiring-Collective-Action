@@ -33,7 +33,7 @@ line_params = {
 }
 
 cm = 1/2.54
-FONT_SIZE = 7
+FONT_SIZE = 8
 
 # Color scheme matching plots_lines.py
 PLOT_COLORS = {
@@ -60,6 +60,14 @@ NETWORK_LINE_STYLES = {
     'DPAH': '--',        # dashed
     'Twitter': '-.',     # dash-dot
     'FB': ':'            # dotted
+}
+
+# Markers for different network topologies (distinct shapes for better visibility)
+NETWORK_MARKERS = {
+    'cl': 'o',           # circle
+    'DPAH': 's',         # square
+    'Twitter': '^',      # triangle up
+    'FB': 'D'            # diamond
 }
 
 def set_plot_style():
@@ -488,8 +496,8 @@ def plot_network_properties_production(df, topology_filter=None, combine_topolog
     # Set up the grid: metrics (rows) × algorithms (columns)
     fig = plt.figure(figsize=(4*n_algorithms*cm, 12*cm))
     gs = GridSpec(n_properties, n_algorithms, figure=fig,
-                 top=0.92, bottom=0.08, hspace=0.3, wspace=0.2,
-                 left=0.08, right=0.98)
+                 top=0.94, bottom=0.12, hspace=0.25, wspace=0.15,
+                 left=0.10, right=0.98)
     
     # Plot grid: each metric gets a row, each algorithm gets a column
     for prop_idx, prop in enumerate(properties):
@@ -518,11 +526,15 @@ def plot_network_properties_production(df, topology_filter=None, combine_topolog
 
                             if not grouped.empty and not grouped['mean'].isna().all():
                                 linestyle = NETWORK_LINE_STYLES.get(topology, '-')
+                                marker = NETWORK_MARKERS.get(topology, 'o')
 
-                                # Plot mean line
+                                # Plot mean line with markers
                                 ax.plot(grouped['timestep'], grouped['mean'],
                                        color=color,
                                        linestyle=linestyle,
+                                       marker=marker,
+                                       markersize=4,
+                                       markevery=max(1, len(grouped)//8),  # Show ~8 markers per line
                                        linewidth=line_params["data_line_width"],
                                        label=NETWORK_DISPLAY_NAMES.get(topology, topology))
 
@@ -587,12 +599,14 @@ def plot_network_properties_production(df, topology_filter=None, combine_topolog
 
     # Add legend for topologies if combining
     if combine_topologies:
-        # Create custom legend handles for topologies
+        # Create custom legend handles for topologies with both markers and line styles
         legend_handles = []
         for topology in available_topologies:
             linestyle = NETWORK_LINE_STYLES.get(topology, '-')
+            marker = NETWORK_MARKERS.get(topology, 'o')
             label = NETWORK_DISPLAY_NAMES.get(topology, topology)
             handle = Line2D([0], [0], color='black', linestyle=linestyle,
+                          marker=marker, markersize=5,
                           linewidth=line_params["data_line_width"], label=label)
             legend_handles.append(handle)
 
