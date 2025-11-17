@@ -8,9 +8,9 @@ Andrew K. Ringsmuth
 
 This paper has been submitted for publication in Nature Communications Physics.
 
-In this project, we use an agent based model where agents are embedded in a social network to analyse the effect of different rewiring strategies on the speed and magnitude of cooperative consensus formation, and depolariazion in social groups. We are interested in these dynamics because socio-political polarization is a major barrier to collective action problems such as climate change, which must urgently be addressed. We investigate the effect of rewiring algorithms based on widely used link recommender algorithms such as Who to Follow and node2vec . We find that building lasting links between polarized individuals and communities can accelerate consensus formation when the sociopolitical environment is favourable, even taking into account backfiring interactions between agents. This strengthens the evidence that promoting connection between polarized communities could accelerate collective action on urgent global challenges. 
+In this project, we use an agent based model where agents are embedded in a social network to analyse the effect of different rewiring strategies on the speed and magnitude of cooperative consensus formation, and depolariazion in social groups. We are interested in these dynamics because socio-political polarization is a major barrier to collective action problems such as climate change, which must urgently be addressed. We investigate the effect of rewiring algorithms based on widely used recommender algorithms such as Who to Follow and node2vec . We find that building lasting links between polarized individuals and communities can accelerate consensus formation when the sociopolitical environment is favourable, even taking into account backfiring interactions between agents. This strengthens the evidence that promoting connection between polarized communities could accelerate collective action on urgent global challenges. 
 &nbsp; 
-| ![](Figs/Combined/combined_trajectory_grid_2025-11-17.png) |
+| ![](combined_trajectory_grid_2025-11-17.png) |
 |:--:| 
 | *Comparing network evolutions for all rewiring algorithms* |
 
@@ -29,27 +29,37 @@ sensitivity analyses are run by scripts ending in "..parameter_sweep". Results g
 ├── Analysis
 │   ├── Old_other
 │   ├── Plotting
+│   │   ├── Diagnostics
+│   │   ├── old_other
+│   │   └── __pycache__
 │   ├── __pycache__
 │   └── Stats
+│       └── old_other
 ├── Auxillary
 │   ├── fast_wtf
 │   │   └── src
 │   └── __pycache__
+├── claude_stuff
 ├── Figs
+│   ├── Combined
 │   ├── Convergence
 │   │   └── Tests
-│   ├── ConvergenceRates
 │   ├── Diagnostics
 │   ├── Heatmaps
+│   ├── Illustrations
 │   ├── Networks
-│   ├── ParameterSweep
+│   ├── Regime_Analysis
+│   ├── Sensitivity
 │   └── Trajectories
 ├── Output
+│   ├── polclimate
 │   ├── ProcessedRates
 │   └── Stats
+│       └── stubborness_backfirer
 └── Pre_processing
     └── networks_processed
- files
+        └── other
+
 ```
 
 ## Getting the code

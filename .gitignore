@@ -15,3 +15,4 @@ manuscript.txt
 claude_stuff
 .claude
 CLAUDE.md
+__pycache__/
