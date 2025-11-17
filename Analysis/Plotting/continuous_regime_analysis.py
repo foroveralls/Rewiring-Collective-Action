@@ -267,7 +267,7 @@ def create_stubbornness_trajectory_plot(df):
     
     # Customize polarization plot
     ax2.set_xlabel('Stubbornness, $w_i$', fontsize=FONT_SIZE-1)
-    ax2.set_ylabel('$\\langle P \\rangle$', fontsize=FONT_SIZE-1)
+    ax2.set_ylabel('$\\langle P^* \\rangle$', fontsize=FONT_SIZE-1)
     ax2.grid(True, alpha=0.3, linewidth=0.3)
     ax2.tick_params(labelsize=FONT_SIZE-2)
     
@@ -352,7 +352,7 @@ def create_continuous_single_panel_plot(df, for_combined=False, show_uncertainty
     ax1.tick_params(labelsize=FONT_SIZE-2, length=2, width=0.5)
 
     # Customize right axis (polarization)
-    ax2.set_ylabel('$\\langle P \\rangle$', fontsize=ylabel_fontsize, labelpad=3, color='black')
+    ax2.set_ylabel('$\\langle P^* \\rangle$', fontsize=ylabel_fontsize, labelpad=3, color='black')
     ax2.tick_params(labelsize=FONT_SIZE-2, length=2, width=0.5)
     
     # Add regime boundary lines (but don't label them as regimes)
@@ -437,7 +437,7 @@ def create_stubbornness_parameter_space(df):
                         color=color, linewidth=1, alpha=0.7)
 
     ax2.set_xlabel('Stubbornness, $w_i$', fontsize=FONT_SIZE-1)
-    ax2.set_ylabel('$\\langle P \\rangle$', fontsize=FONT_SIZE-1)
+    ax2.set_ylabel('$\\langle P^* \\rangle$', fontsize=FONT_SIZE-1)
     ax2.grid(True, alpha=0.3, linewidth=0.3)
     ax2.tick_params(labelsize=FONT_SIZE-2)
     ax2.set_title('B', fontsize=FONT_SIZE, fontweight='bold')
@@ -508,7 +508,7 @@ def create_backfirer_parameter_space(df):
                         color=color, linewidth=1, alpha=0.7)
 
     ax2.set_xlabel('Backfirer Fraction, $\\rho$', fontsize=FONT_SIZE-1)
-    ax2.set_ylabel('$\\langle P \\rangle$', fontsize=FONT_SIZE-1)
+    ax2.set_ylabel('$\\langle P^* \\rangle$', fontsize=FONT_SIZE-1)
     ax2.grid(True, alpha=0.3, linewidth=0.3)
     ax2.tick_params(labelsize=FONT_SIZE-2)
     ax2.set_title('B', fontsize=FONT_SIZE, fontweight='bold')
@@ -596,7 +596,7 @@ def create_2d_heatmap_grid(df_2d):
             ax_polar.set_xticklabels([])
 
         if idx == 0:  # Top row
-            ax_polar.text(0.5, 1.15, '$\\langle P \\rangle$', transform=ax_polar.transAxes,
+            ax_polar.text(0.5, 1.15, '$\\langle P^* \\rangle$', transform=ax_polar.transAxes,
                          ha='center', fontsize=FONT_SIZE, fontweight='bold')
 
         ax_polar.set_ylabel('')
@@ -761,7 +761,7 @@ def create_regime_three_panel_plot(algorithm_data):
     # Customize Panel A - Cooperation & Polarization Combined with dual y-axes
     ax1.set_xlabel('Stubbornness Regime', fontsize=FONT_SIZE-1, labelpad=2)
     ax1.set_ylabel('$a$', fontsize=FONT_SIZE-1, labelpad=2, color='black')
-    ax1_twin.set_ylabel('$\\langle P \\rangle$', fontsize=FONT_SIZE-1, labelpad=2, color='black')
+    ax1_twin.set_ylabel('$\\langle P^* \\rangle$', fontsize=FONT_SIZE-1, labelpad=2, color='black')
     ax1.set_title('A', fontsize=FONT_SIZE, pad=5, fontweight='bold')
     ax1.set_xticks(x_pos)
     ax1.set_xticklabels(regime_labels, fontsize=FONT_SIZE-2)
@@ -841,7 +841,7 @@ def create_regime_single_panel_plot(algorithm_data):
     # Customize Panel - Cooperation & Polarization Combined with dual y-axes
     ax1.set_xlabel('Stubbornness Regime', fontsize=FONT_SIZE-1, labelpad=2)
     ax1.set_ylabel('$a$', fontsize=FONT_SIZE-1, labelpad=2, color='black')
-    ax1_twin.set_ylabel('$\\langle P \\rangle$', fontsize=FONT_SIZE-1, labelpad=2, color='black')
+    ax1_twin.set_ylabel('$\\langle P^* \\rangle$', fontsize=FONT_SIZE-1, labelpad=2, color='black')
     ax1.set_xticks(x_pos)
     ax1.set_xticklabels(regime_labels, fontsize=FONT_SIZE-2)
     ax1.grid(True, alpha=0.3, linewidth=0.3)
@@ -1020,7 +1020,7 @@ def create_continuous_backfirer_single_panel_plot(df):
     # Customize Panel - Cooperation & Polarization with dual y-axes
     ax1.set_xlabel('Backfirer Fraction ($\\rho$)', fontsize=FONT_SIZE-1, labelpad=2)
     ax1.set_ylabel('$a$', fontsize=FONT_SIZE-1, labelpad=2, color='black')
-    ax1_twin.set_ylabel('$\\langle P \\rangle$', fontsize=FONT_SIZE-1, labelpad=2, color='black')
+    ax1_twin.set_ylabel('$\\langle P^* \\rangle$', fontsize=FONT_SIZE-1, labelpad=2, color='black')
     ax1.grid(True, alpha=0.3, linewidth=0.3)
     ax1.tick_params(labelsize=FONT_SIZE-2)
     ax1_twin.tick_params(labelsize=FONT_SIZE-2)
@@ -1035,23 +1035,90 @@ def create_continuous_backfirer_single_panel_plot(df):
 
     return fig
 
-def prepare_backfirer_regime_data():
-    """Prepare algorithm data organized by backfirer fraction levels using comprehensive comparison files"""
+def prepare_backfirer_regime_data(df_continuous=None):
+    """Prepare algorithm data organized by backfirer fraction levels using continuous data
+
+    Args:
+        df_continuous: DataFrame from load_continuous_backfirer_data() with continuous backfirer fraction data
+                      If None, will attempt to load from comprehensive comparison files (legacy behavior)
+    """
+    # If continuous data provided, use it directly
+    if df_continuous is not None:
+        # Filter to main algorithms
+        main_algorithms = ['Opposite', 'Similar', 'WTF', 'Node2Vec', 'Static', 'Random']
+        df = df_continuous[df_continuous['algorithm'].isin(main_algorithms)].copy()
+
+        # Determine thresholds using tertiles
+        bf_values = df['backfirer_fraction'].unique()
+        bf_values.sort()
+
+        if len(bf_values) > 0:
+            min_val, max_val = bf_values.min(), bf_values.max()
+            low_threshold = min_val + (max_val - min_val) / 3
+            high_threshold = min_val + 2 * (max_val - min_val) / 3
+        else:
+            low_threshold = 0.33
+            high_threshold = 0.67
+
+        print(f"Using backfirer thresholds: Low ≤ {low_threshold:.3f}, Medium {low_threshold:.3f}-{high_threshold:.3f}, High > {high_threshold:.3f}")
+
+        # Initialize data structure
+        backfirer_regime_data = {}
+        for regime_name in ['low_backfirer', 'medium_backfirer', 'high_backfirer']:
+            backfirer_regime_data[regime_name] = {
+                'algorithms': main_algorithms.copy(),
+                'cooperation': [],
+                'polarization': [],
+                'cooperative_volume': []
+            }
+
+        # Classify data points into regimes and aggregate by algorithm
+        for alg in main_algorithms:
+            alg_data = df[df['algorithm'] == alg]
+
+            for regime_key in ['low_backfirer', 'medium_backfirer', 'high_backfirer']:
+                # Filter by regime
+                if regime_key == 'low_backfirer':
+                    regime_data = alg_data[alg_data['backfirer_fraction'] <= low_threshold]
+                elif regime_key == 'medium_backfirer':
+                    regime_data = alg_data[(alg_data['backfirer_fraction'] > low_threshold) &
+                                          (alg_data['backfirer_fraction'] <= high_threshold)]
+                else:  # high_backfirer
+                    regime_data = alg_data[alg_data['backfirer_fraction'] > high_threshold]
+
+                # Calculate averages for this regime
+                if len(regime_data) > 0:
+                    avg_coop = regime_data['mean_cooperation'].mean()
+                    avg_polar = regime_data['mean_polarization'].mean()
+                    avg_volume = regime_data['cooperative_volume_percent'].mean()
+                else:
+                    avg_coop = np.nan
+                    avg_polar = np.nan
+                    avg_volume = np.nan
+
+                backfirer_regime_data[regime_key]['cooperation'].append(avg_coop)
+                backfirer_regime_data[regime_key]['polarization'].append(avg_polar)
+                backfirer_regime_data[regime_key]['cooperative_volume'].append(avg_volume)
+
+        return backfirer_regime_data, low_threshold, high_threshold
+
+    # Legacy behavior: Load from comprehensive comparison files
     base_dir = "../../Output/Stats/stubborness_backfirer"
 
     # Load all regime data first - use comprehensive files for consistency
     all_regime_data = {}
     for regime_key in ['low', 'medium', 'high']:
-        file_path = f"{base_dir}/comprehensive_algorithm_comparison_{regime_key}_20250925.csv"
-        if not os.path.exists(file_path):
-            file_path = f"{base_dir}/comprehensive_algorithm_comparison_{regime_key}_20250924.csv"
-
-        if os.path.exists(file_path):
-            df = pd.read_csv(file_path)
-            all_regime_data[regime_key] = df
+        # Try multiple date patterns
+        for date_pattern in ['20251023', '20250925', '20250924']:
+            file_path = f"{base_dir}/comprehensive_algorithm_comparison_{regime_key}_{date_pattern}.csv"
+            if os.path.exists(file_path):
+                df = pd.read_csv(file_path)
+                all_regime_data[regime_key] = df
+                break
 
     # Get all algorithms and their backfirer fractions across regimes
     if 'medium' not in all_regime_data:
+        print("Warning: Could not find comprehensive algorithm comparison files")
         return {}, 0, 0
 
     algorithms = [col for col in all_regime_data['medium'].columns[1:] if col in ['Opposite', 'Similar', 'WTF', 'Node2Vec', 'Static', 'Random']]
@@ -1213,7 +1280,7 @@ def create_backfirer_regime_plot(backfirer_data, low_threshold, high_threshold):
     # Customize Panel A
     ax1.set_xlabel('Backfirer Regime', fontsize=FONT_SIZE-1, labelpad=2)
     ax1.set_ylabel('$a$', fontsize=FONT_SIZE-1, labelpad=2, color='black')
-    ax1_twin.set_ylabel('$\\langle P \\rangle$', fontsize=FONT_SIZE-1, labelpad=2, color='black')
+    ax1_twin.set_ylabel('$\\langle P^* \\rangle$', fontsize=FONT_SIZE-1, labelpad=2, color='black')
     ax1.set_title('A', fontsize=FONT_SIZE, pad=5, fontweight='bold')
     ax1.set_xticks(x_pos)
     ax1.set_xticklabels(regime_labels, fontsize=FONT_SIZE-2)
@@ -1380,7 +1447,7 @@ def main_backfirer():
 
     # Generate backfirer regime plot
     print("Creating backfirer regime analysis...")
-    backfirer_data, low_thresh, high_thresh = prepare_backfirer_regime_data()
+    backfirer_data, low_thresh, high_thresh = prepare_backfirer_regime_data(df)
     fig2 = create_backfirer_regime_plot(backfirer_data, low_thresh, high_thresh)
     output_path2 = f"{output_dir}/backfirer_regimes_{today}.pdf"
     fig2.savefig(output_path2, dpi=300, bbox_inches='tight')

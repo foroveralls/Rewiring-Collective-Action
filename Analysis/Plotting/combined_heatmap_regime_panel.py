@@ -98,7 +98,7 @@ def create_combined_figure(conv_data, coop_data=None, regime_df=None):
         # Customize axes
         ax_right.set_xlabel('Stubbornness, $\\rho$', fontsize=7)
         ax_right.set_ylabel('$\\langle a^* \\rangle$', fontsize=7, color='black')
-        ax_right_twin.set_ylabel('$\\langle P \\rangle$', fontsize=7, color='black')
+        ax_right_twin.set_ylabel('$\\langle P^* \\rangle$', fontsize=7, color='black')
         ax_right.grid(True, alpha=0.3, linewidth=0.3)
         ax_right.tick_params(labelsize=6)
         ax_right_twin.tick_params(labelsize=6)
