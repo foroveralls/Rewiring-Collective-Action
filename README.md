@@ -1,8 +1,8 @@
 # *Guided rewiring of social networks reduces polarization and accelerates collective action*
 
 by
+Jordan P. Everall
 Lilli Frei,
-Jordan Everall,
 Andrew K. Ringsmuth
 
 
