@@ -54,12 +54,12 @@ NETWORK_DISPLAY_NAMES = {
     'FB': 'FB'
 }
 
-# Line styles for different network topologies
+# Line styles for different network topologies (all solid since markers distinguish them)
 NETWORK_LINE_STYLES = {
     'cl': '-',           # solid
-    'DPAH': '--',        # dashed
-    'Twitter': '-.',     # dash-dot
-    'FB': ':'            # dotted
+    'DPAH': '-',         # solid
+    'Twitter': '-',      # solid
+    'FB': '-'            # solid
 }
 
 # Markers for different network topologies (distinct shapes for better visibility)
@@ -533,7 +533,7 @@ def plot_network_properties_production(df, topology_filter=None, combine_topolog
                                        color=color,
                                        linestyle=linestyle,
                                        marker=marker,
-                                       markersize=4,
+                                       markersize=3,
                                        markevery=max(1, len(grouped)//8),  # Show ~8 markers per line
                                        linewidth=line_params["data_line_width"],
                                        label=NETWORK_DISPLAY_NAMES.get(topology, topology))
@@ -606,13 +606,13 @@ def plot_network_properties_production(df, topology_filter=None, combine_topolog
             marker = NETWORK_MARKERS.get(topology, 'o')
             label = NETWORK_DISPLAY_NAMES.get(topology, topology)
             handle = Line2D([0], [0], color='black', linestyle=linestyle,
-                          marker=marker, markersize=5,
+                          marker=marker, markersize=3,
                           linewidth=line_params["data_line_width"], label=label)
             legend_handles.append(handle)
 
         # Place legend below the x-axis
         fig.legend(handles=legend_handles, loc='upper center', ncol=len(available_topologies),
-                  frameon=False, fontsize=FONT_SIZE, bbox_to_anchor=(0.5, -0.02))
+                  frameon=False, fontsize=FONT_SIZE, bbox_to_anchor=(0.5, 0.02))
 
     if output_file:
         # Create directory if it doesn't exist
