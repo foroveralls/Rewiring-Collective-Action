@@ -596,9 +596,9 @@ def plot_network_properties_production(df, topology_filter=None, combine_topolog
                           linewidth=line_params["data_line_width"], label=label)
             legend_handles.append(handle)
 
-        # Place legend above the plot
-        fig.legend(handles=legend_handles, loc='upper center', ncol=len(available_topologies),
-                  frameon=False, fontsize=FONT_SIZE, bbox_to_anchor=(0.5, 0.98))
+        # Place legend on left side, below the y-axis
+        fig.legend(handles=legend_handles, loc='upper left', ncol=1,
+                  frameon=False, fontsize=FONT_SIZE, bbox_to_anchor=(0.0, 0.92))
 
     if output_file:
         # Create directory if it doesn't exist
@@ -802,19 +802,49 @@ def save_processed_data(df, output_file=None):
     print(f"Data shape: {df.shape}")
     return output_file
 
-def load_processed_data(input_file):
+def find_latest_data_file(data_dir="../../Output"):
+    """
+    Find the most recent network properties data CSV file.
+
+    Parameters:
+    -----------
+    data_dir : str
+        Directory to search for data files
+
+    Returns:
+    --------
+    str : Path to most recent data file, or None if not found
+    """
+    pattern = os.path.join(data_dir, "network_properties_data_*.csv")
+    data_files = glob.glob(pattern)
+
+    if not data_files:
+        return None
+
+    # Sort by modification time, most recent first
+    data_files.sort(key=os.path.getmtime, reverse=True)
+    return data_files[0]
+
+def load_processed_data(input_file=None):
     """
     Load processed network properties data from CSV file.
 
     Parameters:
     -----------
-    input_file : str
-        Path to CSV file containing processed data
+    input_file : str, optional
+        Path to CSV file containing processed data.
+        If None, automatically finds and loads the most recent file.
 
     Returns:
     --------
     pd.DataFrame : Loaded network properties data
     """
+    if input_file is None:
+        input_file = find_latest_data_file()
+        if input_file is None:
+            raise FileNotFoundError("No network properties data files found in ../../Output/")
+        print(f"Auto-detected latest data file: {input_file}")
+
     if not os.path.exists(input_file):
         raise FileNotFoundError(f"Data file not found: {input_file}")
 
@@ -849,11 +879,8 @@ def main(topology_filter=None, production_plots=True, supplementary_plots=False,
 
     # Handle plot-only mode: load from CSV
     if plot_only:
-        if data_file is None:
-            raise ValueError("Must specify --data-file when using --plot-only mode")
-
-        print(f"Plot-only mode: Loading data from {data_file}...")
-        df = load_processed_data(data_file)
+        print(f"Plot-only mode: Loading data...")
+        df = load_processed_data(data_file)  # Will auto-detect if data_file is None
     else:
         # Process data from snapshots
         print("Loading snapshot data...")
@@ -968,12 +995,16 @@ if __name__ == "__main__":
             print("  --process-only: only process snapshots and save to CSV (no plots)")
             print("  --plot-only: skip processing, load from CSV and create plots")
             print("  --data-file <path>: specify CSV file path for saving/loading")
-            print("                      (default: ../../Output/network_properties_data_<date>.csv)")
+            print("                      (default for saving: ../../Output/network_properties_data_<date>.csv)")
+            print("                      (default for loading: most recent network_properties_data_*.csv)")
             print("\nExamples:")
             print("  # Process data and save to CSV (no plots)")
             print("  python plot_network_properties.py --process-only")
             print()
-            print("  # Create plots from saved CSV")
+            print("  # Create plots from most recent saved CSV (auto-detects)")
+            print("  python plot_network_properties.py --plot-only --combined")
+            print()
+            print("  # Create plots from specific CSV file")
             print("  python plot_network_properties.py --plot-only --data-file ../../Output/network_properties_data_2025-11-14.csv --combined")
             print()
             print("  # Process and plot in one go (saves CSV automatically)")
