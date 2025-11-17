@@ -596,9 +596,9 @@ def plot_network_properties_production(df, topology_filter=None, combine_topolog
                           linewidth=line_params["data_line_width"], label=label)
             legend_handles.append(handle)
 
-        # Place legend on left side, below the y-axis
-        fig.legend(handles=legend_handles, loc='upper left', ncol=1,
-                  frameon=False, fontsize=FONT_SIZE, bbox_to_anchor=(0.0, 0.92))
+        # Place legend below the x-axis
+        fig.legend(handles=legend_handles, loc='upper center', ncol=len(available_topologies),
+                  frameon=False, fontsize=FONT_SIZE, bbox_to_anchor=(0.5, -0.02))
 
     if output_file:
         # Create directory if it doesn't exist
