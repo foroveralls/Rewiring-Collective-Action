@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Combined visualization: Stubbornness/Backfirer heatmap + Regime performance panel
-Horizontally combines the stubbornness/backfirer heatmap with the continuous regime performance plot
+Two-row layout: heatmap on top, regime performance panel below
 Uses matplotlib's figure combination approach
 """
 
@@ -25,7 +25,10 @@ from plots_jordan_heatmaps_alternate_big import (
 from continuous_regime_analysis import (
     load_continuous_data,
     create_continuous_single_panel_plot,
-    setup_style
+    create_split_panel_plot,
+    setup_style,
+    FRIENDLY_COLORS as REGIME_COLORS,
+    FONT_SIZE as REGIME_FONT_SIZE
 )
 
 def create_combined_figure(conv_data, coop_data=None, regime_df=None):
@@ -96,12 +99,12 @@ def create_combined_figure(conv_data, coop_data=None, regime_df=None):
                                  alpha=0.6)
 
         # Customize axes
-        ax_right.set_xlabel('Stubbornness, $\\rho$', fontsize=7)
-        ax_right.set_ylabel('$\\langle a^* \\rangle$', fontsize=7, color='black')
-        ax_right_twin.set_ylabel('$\\langle P^* \\rangle$', fontsize=7, color='black')
+        ax_right.set_xlabel('Stubbornness, $w_i$', fontsize=7)
+        ax_right.set_ylabel('Opinion, $\\langle a^* \\rangle$', fontsize=7, color='black')
+        ax_right_twin.set_ylabel('Polarization, $\\langle P^* \\rangle$', fontsize=7, color='black')
         ax_right.grid(True, alpha=0.3, linewidth=0.3)
-        ax_right.tick_params(labelsize=6)
-        ax_right_twin.tick_params(labelsize=6)
+        ax_right.tick_params(axis='both', which='major', direction='out', length=3, width=0.5, labelsize=6)
+        ax_right_twin.tick_params(axis='both', which='major', direction='out', length=3, width=0.5, labelsize=6)
 
         # Add regime boundaries
         ax_right.axvline(0.33, color='black', linestyle='--', alpha=0.7, linewidth=0.7)
@@ -160,13 +163,13 @@ def crop_whitespace(img, threshold=0.95):
 
     return img[row_min:row_max+1, col_min:col_max+1]
 
-def combine_figures_horizontally(fig_path1, fig_path2, output_path):
+def combine_figures_vertically(fig_path1, fig_path2, output_path):
     """
-    Combine two figures horizontally with maximum quality preservation
+    Combine two figures vertically (heatmap on top, regime below) — two-row layout
 
     Args:
-        fig_path1: Path to left figure (heatmap) - PNG format
-        fig_path2: Path to right figure (regime) - PNG format
+        fig_path1: Path to top figure (heatmap) - PNG format
+        fig_path2: Path to bottom figure (regime) - PNG format
         output_path: Path for combined output (saves as both PDF and PNG)
     """
     try:
@@ -178,25 +181,23 @@ def combine_figures_horizontally(fig_path1, fig_path2, output_path):
         img1_cropped = crop_whitespace(img1)
         img2_cropped = crop_whitespace(img2)
 
-        # Create combined figure with matched heights
-        # Using full two-column width (17.8cm) for manuscript
-        # Increased height from 5.5cm to 12cm for better visibility in manuscript
+        # Two-row layout: full width, stacked vertically
         # Use higher DPI (600) for publication quality
         cm = 1/2.54
-        fig = plt.figure(figsize=(17.8*cm, 12*cm), dpi=600)
-        gs = GridSpec(1, 2, figure=fig, width_ratios=[1.5, 1],
-                     left=0.01, right=0.99, bottom=0.01, top=0.99, wspace=0.002)
+        fig = plt.figure(figsize=(17.8*cm, 13*cm), dpi=600)
+        gs = GridSpec(2, 1, figure=fig, height_ratios=[0.85, 1],
+                     left=0.01, right=0.99, bottom=0.01, top=0.99, hspace=0.03)
 
-        # Add panel a (heatmap)
+        # Add panel a (heatmap) — top row
         ax1 = fig.add_subplot(gs[0, 0])
-        ax1.imshow(img1_cropped, interpolation='none')  # No interpolation for sharpness
+        ax1.imshow(img1_cropped, interpolation='none')
         ax1.axis('off')
         ax1.text(0.01, 0.99, 'a', transform=ax1.transAxes,
                 fontsize=7, fontweight='bold', va='top', ha='left')
 
-        # Add panel b (regime)
-        ax2 = fig.add_subplot(gs[0, 1])
-        ax2.imshow(img2_cropped, interpolation='none')  # No interpolation for sharpness
+        # Add panel b (regime) — bottom row
+        ax2 = fig.add_subplot(gs[1, 0])
+        ax2.imshow(img2_cropped, interpolation='none')
         ax2.axis('off')
         ax2.text(0.01, 0.99, 'b', transform=ax2.transAxes,
                 fontsize=7, fontweight='bold', va='top', ha='left')
@@ -205,10 +206,8 @@ def combine_figures_horizontally(fig_path1, fig_path2, output_path):
         pdf_output = output_path if output_path.endswith('.pdf') else output_path.replace('.png', '.pdf')
         png_output = pdf_output.replace('.pdf', '.png')
 
-        # Save PDF with embedded high-quality raster and metadata
         fig.savefig(pdf_output, dpi=600, bbox_inches='tight', format='pdf',
                    metadata={'Creator': 'Collective Rewiring Analysis'})
-        # Save PNG at high DPI for preview/web use
         fig.savefig(png_output, dpi=600, bbox_inches='tight')
 
         print(f"✓ Combined figure saved:")
@@ -259,11 +258,15 @@ def main():
     os.makedirs(output_dir, exist_ok=True)
     today = date.today().strftime("%Y-%m-%d")
 
+    cm = 1/2.54
+
     # Generate the stubbornness/backfirer heatmap separately
     print("\nGenerating stubbornness/backfirer heatmap...")
     value_columns = ['state', 'state_std']
     column_labels = {'state': 'avg(x)', 'state_std': 'std(x)'}
-    fig_heatmap = create_heatmap_grid(df, value_columns, column_labels, for_combined=True)
+    fig_heatmap = create_heatmap_grid(df, value_columns, column_labels, for_combined=False)
+    # Shrink heatmap height for better proportions in combined layout
+    fig_heatmap.set_size_inches(17.8*cm, 6.5*cm)
     heatmap_pdf_path = f'{output_dir}/heatmap_stubbornness_backfirer_{today}.pdf'
     heatmap_png_path = f'{output_dir}/heatmap_stubbornness_backfirer_{today}.png'
     fig_heatmap.savefig(heatmap_pdf_path, bbox_inches='tight', dpi=300)
@@ -272,12 +275,57 @@ def main():
     plt.show()
     plt.close()
 
-    # Generate the regime panel separately
+    # Generate the regime panel separately (side-by-side: cooperation + polarization)
     regime_png_path = None
     if regime_df is not None:
-        print("\nGenerating regime performance panel...")
+        print("\nGenerating regime performance panel (side-by-side)...")
         setup_style()
-        fig_regime = create_continuous_single_panel_plot(regime_df, for_combined=True)
+
+        fig_regime, (ax_coop, ax_polar) = plt.subplots(1, 2, figsize=(17.8*cm, 5*cm))
+
+        main_algorithms = ['Opposite', 'Similar', 'WTF', 'Node2Vec', 'Static', 'Random']
+        algorithm_colors = {
+            'Opposite': REGIME_COLORS['local (opposite)'],
+            'Similar': REGIME_COLORS['local (similar)'],
+            'WTF': REGIME_COLORS['empirical wtf'],
+            'Node2Vec': REGIME_COLORS['empirical node2vec'],
+            'Static': REGIME_COLORS['static'],
+            'Random': REGIME_COLORS['random']
+        }
+
+        df_main = regime_df[regime_df['algorithm'].isin(main_algorithms)]
+
+        for alg in main_algorithms:
+            alg_data = df_main[df_main['algorithm'] == alg].sort_values('stubbornness_numeric')
+            if len(alg_data) > 0:
+                color = algorithm_colors.get(alg, '#666666')
+                ax_coop.plot(alg_data['stubbornness_numeric'], alg_data['mean_cooperation'],
+                             'o-', color=color, linewidth=1, markersize=2.5, alpha=0.8, label=alg)
+                ax_polar.plot(alg_data['stubbornness_numeric'], alg_data['mean_polarization'],
+                              'o-', color=color, linewidth=1, markersize=2.5, alpha=0.8)
+
+        for ax in [ax_coop, ax_polar]:
+            ax.axvline(0.4, color='black', linestyle='--', alpha=0.7, linewidth=0.8)
+            ax.axvline(0.7, color='black', linestyle='--', alpha=0.7, linewidth=0.8)
+            ax.grid(True, alpha=0.3, linewidth=0.3)
+            ax.tick_params(labelsize=REGIME_FONT_SIZE-2, length=2, width=0.5)
+            ax.set_xlabel('Stubbornness, $w_i$', fontsize=REGIME_FONT_SIZE-1)
+
+        ax_coop.set_ylabel(r'Opinion, $\langle a^* \rangle$', fontsize=REGIME_FONT_SIZE-1)
+        ax_polar.set_ylabel(r'Polarization, $\langle P^* \rangle$', fontsize=REGIME_FONT_SIZE-1)
+
+        # Regime labels on cooperation panel
+        ylim = ax_coop.get_ylim()
+        label_y = ylim[1] + (ylim[1] - ylim[0]) * 0.08
+        ax_coop.text(0.2, label_y, 'Low', ha='center', fontsize=REGIME_FONT_SIZE-1, clip_on=False)
+        ax_coop.text(0.55, label_y, 'Medium', ha='center', fontsize=REGIME_FONT_SIZE-1, clip_on=False)
+        ax_coop.text(0.85, label_y, 'High', ha='center', fontsize=REGIME_FONT_SIZE-1, clip_on=False)
+
+        fig_regime.legend(bbox_to_anchor=(0.5, -0.05), loc='upper center', ncol=6,
+                          fontsize=REGIME_FONT_SIZE-2, frameon=True, fancybox=False,
+                          edgecolor='black', facecolor='white')
+        plt.tight_layout()
+
         regime_pdf_path = f'{output_dir}/regime_panel_{today}.pdf'
         regime_png_path = f'{output_dir}/regime_panel_{today}.png'
         fig_regime.savefig(regime_pdf_path, bbox_inches='tight', dpi=300)
@@ -290,7 +338,7 @@ def main():
     if regime_png_path and os.path.exists(heatmap_png_path) and os.path.exists(regime_png_path):
         print("\nCombining figures...")
         combined_path = f'{output_dir}/combined_heatmap_regime_{today}.pdf'
-        success = combine_figures_horizontally(heatmap_png_path, regime_png_path, combined_path)
+        success = combine_figures_vertically(heatmap_png_path, regime_png_path, combined_path)
 
         if not success:
             print("\n" + "="*60)

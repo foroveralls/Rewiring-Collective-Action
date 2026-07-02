@@ -96,7 +96,7 @@ def configure_axis_style_truncated(ax, t_max, scale_type='linear', show_ylabel=T
 
 def plot_network_dynamics_truncated(data, t_max=80000, scale_type='linear',
                                    add_steady_state_markers=True, output_file=None,
-                                   for_combined=False):
+                                   for_combined=False, bands_df=None):
     """
     Plot network dynamics with truncated time window and steady-state markers
 
@@ -107,6 +107,11 @@ def plot_network_dynamics_truncated(data, t_max=80000, scale_type='linear',
         add_steady_state_markers: If True, add markers on right spine showing steady state from max timestep
         output_file: Path to save figure
         for_combined: If True, use taller figure size (14cm) to match transformation grid height
+        bands_df: Optional DataFrame from Output/trajectory_bands.csv with across-run
+            IQR of the per-run mean opinion (cols: type,scenario,rewiring,t,
+            opinion_q25/q50/q75). If given, q25-q75 ribbons are drawn behind the
+            opinion lines (R1.7 ensemble uncertainty). Polarization is left unbanded
+            to keep the panel readable.
     """
     # Create color mapping
     scenario_color_map = {}
@@ -167,6 +172,24 @@ def plot_network_dynamics_truncated(data, t_max=80000, scale_type='linear',
                     linewidth=line_params["data_line_width"]
                 )
 
+    # Across-run IQR ribbons around the opinion lines (R1.7 ensemble uncertainty).
+    # Drawn behind the data lines (zorder 1.2 > grid, < lines); opinion only.
+    if bands_df is not None:
+        color_by_norm = {k.lower(): v for k, v in scenario_color_map.items()}
+        bdf = bands_df.copy()
+        bdf['sg_norm'] = (bdf['scenario'].astype(str) + '_'
+                          + bdf['rewiring'].astype(str)).str.lower()
+        bdf = bdf[bdf['t'] <= t_max]
+        for ax_idx, ax in enumerate(g.axes.flat):
+            network_type = list(avg_state_data['type'].unique())[ax_idx]
+            for sg_norm, color in color_by_norm.items():
+                sub = bdf[(bdf['sg_norm'] == sg_norm)
+                          & (bdf['type'] == network_type)].sort_values('t')
+                if sub.empty:
+                    continue
+                ax.fill_between(sub['t'], sub['opinion_q25'], sub['opinion_q75'],
+                                color=color, alpha=0.18, linewidth=0, zorder=1.2)
+
     # Calculate steady-state values from the actual max timestep in the FULL data
     # (not limited by display t_max - we want the true steady state)
     steady_state_values = {}
@@ -224,7 +247,7 @@ def plot_network_dynamics_truncated(data, t_max=80000, scale_type='linear',
             ax.xaxis.offsetText.set_visible(False)
 
     # Set axis labels
-    g.set_axis_labels(xlabel, r"Cooperation, $\langle a \rangle$")
+    g.set_axis_labels(xlabel, r"Opinion, $\langle a \rangle$")
 
     # Reduced spacing for compactness - further reduce horizontal white space
     # Increased bottom margin from 0.18 to 0.20 to add more space for legend
@@ -237,7 +260,7 @@ def plot_network_dynamics_truncated(data, t_max=80000, scale_type='linear',
     legend_ax.axis('off')
 
     line_style_elements = [
-        Line2D([], [], color='black', linestyle='-', label='cooperation'),
+        Line2D([], [], color='black', linestyle='-', label='opinion'),
         Line2D([], [], color='black', linestyle='--', dashes=(4, 2), label='polarization')
     ]
     if add_steady_state_markers:
@@ -324,17 +347,29 @@ if __name__ == "__main__":
     today = date.today()
     suffix = f"_{scale}" if scale != 'linear' else ""
 
+    # Load across-run IQR bands if available (produced by summarize_individual_csv.py)
+    bands_path = os.path.join("../../Output", "trajectory_bands.csv")
+    bands_df = None
+    if os.path.exists(bands_path):
+        bands_df = pd.read_csv(bands_path, keep_default_na=False)
+        for c in ['t', 'opinion_q25', 'opinion_q50', 'opinion_q75']:
+            bands_df[c] = pd.to_numeric(bands_df[c], errors='coerce')
+        print(f"Loaded IQR bands: {bands_path} ({len(bands_df)} rows)")
+    else:
+        print(f"No bands file at {bands_path}; plotting without ribbons")
+
     # Generate standard version
     plot_network_dynamics_truncated(
         processed_data, t_max, scale, add_steady_state_markers=True,
-        output_file=f"../../Figs/Trajectories/network_dynamics_truncated_N{get_N}_n{get_n}_{today}{suffix}.png"
+        output_file=f"../../Figs/Trajectories/network_dynamics_truncated_N{get_N}_n{get_n}_{today}{suffix}.png",
+        bands_df=bands_df
     )
 
     # Generate version for combination with transformation grid (taller)
     plot_network_dynamics_truncated(
         processed_data, t_max, scale, add_steady_state_markers=True,
         output_file=f"../../Figs/Trajectories/network_dynamics_truncated_for_combined_N{get_N}_n{get_n}_{today}{suffix}.png",
-        for_combined=True
+        for_combined=True, bands_df=bands_df
     )
 
     plt.show()

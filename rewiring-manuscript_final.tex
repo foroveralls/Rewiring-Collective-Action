@@ -1,0 +1,426 @@
+
+\documentclass[unnumsec,webpdf,contemporary,large]{oup-authoring-template}%
+
+% Additional packages not provided by oup-authoring-template.cls
+\usepackage{booktabs}%
+\usepackage{amsfonts}%
+
+\theoremstyle{thmstyleone}%
+\newtheorem{theorem}{Theorem}%
+\newtheorem{proposition}[theorem]{Proposition}%
+\theoremstyle{thmstyletwo}%
+\newtheorem{example}{Example}%
+\newtheorem{remark}{Remark}%
+\theoremstyle{thmstylethree}%
+\newtheorem{definition}{Definition}
+
+\begin{document}
+
+\journaltitle{PNAS Nexus}
+\DOI{DOI HERE}
+\copyrightyear{2026}
+\pubyear{2026}
+\access{Advance Access Publication Date: Day Month Year}
+\appnotes{Paper}
+
+\firstpage{1}
+
+\title[Guided rewiring of social networks]{Guided rewiring of social networks reduces polarization and accelerates consensus}
+
+\author[1,$\ast$]{Jordan P. Everall}
+\author[1]{Lilli Frei}
+\author[1, 2]{Andrew K. Ringsmuth}
+
+\authormark{Everall et al.}
+
+\address[1]{\orgname{Wegener Center for Climate and Global Change, University of Graz}, Graz, \country{Austria}}
+\address[2]{\orgname{Complexity Science Hub}, Vienna, \country{Austria}}
+
+\corresp[$\ast$]{To whom correspondence should be addressed: \href{mailto:jordan.everall@uni-graz.at}{jordan.everall@uni-graz.at}}
+
+\received{Date}{0}{Year}
+\accepted{Date}{0}{Year}
+
+%\editor{Associate Editor: Name}
+
+\abstract{Achieving collective action on global challenges like climate change requires sufficient consensus, soon enough to be effective. Socio-political polarization is a barrier to achieving consensus. Prior agent-based models have shown that opinion polarization emerges naturally in structured social networks, and the dissolution rate of polarized clusters limits the rate of consensus formation. However, few models have explored how social link rewiring mechanisms, such as recommender algorithms used by online social media, interact with opinion dynamics. Here we study how guided link rewiring affects polarization and consensus formation across empirical (Facebook, Twitter) and synthetic network topologies. We compare heuristic rewiring algorithms representing random meetings, mutual acquaintance introductions, and community bridging, alongside topology-based link recommender algorithms (Who to Follow and node2vec). Heuristic algorithms all outperform Who to Follow in promoting consensus. Homophilic rewiring aids consensus formation with amenable agents. However, heterophilic rewiring achieves this over broader conditions. By bridging opposing communities, it can accelerate consensus formation by $\approx20\%$, including populations where up to $33\%$ experience backfiring interactions, thereby vastly outperforming topology-based recommenders. Surprisingly, random rewiring emerged as a robust generalist, outperforming seven out of eight more complex algorithms in promoting consensus formation. This advantage is strongest when community knowledge is low, where conversely, recommenders produce large variation in opinion states across network structures, highlighting the need for community-level considerations in their design. }
+
+\keywords{Social network, polarization, consensus formation, link rewiring, dynamic network}
+
+% Research reports require a significance statement of between 50 and 120 words.
+\boxedtext{Production link recommendation algorithms employ topology based mechanisms such as local structure preservation and embedding similarity that our simulations show are insufficient for consensus building on collective action problems. Our results show that heuristic algorithms which bridge opposing communities outperform these recommenders, even under adverse conditions, such as when a third of agents exhibit backfire effects in opinion exchanges. Even simple random rewiring outperforms topology-based recommenders. These findings provide a quantitative evidence base for platform governance frameworks such as the EU Digital Services Act, which mandate transparency and risk assessment of recommender systems.}
+
+
+\maketitle
+
+\section{Introduction}\label{sec:introduction}
+
+Although the urgency of global socio-ecological challenges such as climate action and pandemic containment has become clearer \citep{ipcc_climate_2022, ringsmuth_2022}, governments struggle to enforce mitigation policies that facilitate collective action \citep{ringsmuth_2022,vasconcelos_segregation_2021,pawloff_contrarians_2014}. Political and social polarization around such global challenges is high \citep{carothers_democracies_2019,gladston_social_2019,mccarty_polarization_2019} and significantly inhibits collective action \citep{vasconcelos_segregation_2021,carothers_democracies_2019,axelrod_preventing_2021}, which requires sufficient consensus around pro-social norms. For instance, widespread adoption of climate mitigation behaviours or compliance with public health measures. Since individuals' opinions are strongly shaped by social context \citep{janssen_evolution_2008,gowdy_behavioral_2008,tavoni_survival_2012}, polarization is catalyzed by social structures that exclude external information and thus reinforce ideological separation \citep{gladston_social_2019,williams_network_2015,nguyen_echo_2020}.
+
+For example, recommender systems frequently used by very large online platforms (VLOPs) like X (formerly Twitter), Meta, and TikTok reshape user connections to maximize engagement and advertisement exposure \cite{pappalardo_survey_2024}.  These objectives are frequently incongruent with socially beneficial network states, leading to extreme homophily \cite{stoica_algorithmic_2018,starniniEmergenceMetapopulationsEcho2016}, rich-get-richer phenomena \cite{merton_matthew_1988, su_effect_2016} and other network inequalities \cite{cinus_effect_2022}. Besides network topology, recommender systems work on categorical attributes (user traits), which together with the former produce recommendations that may degrade social cohesion and increase polarization \cite{santos_link_2021, lasser_designing_2025}. These dynamics are highly influential, with $68.7\%$ of the global population using social media \citep{noauthor_internet_nodate}. This problem, and the need for alternative rewiring of digital commons, are increasingly recognised in the legal sphere, with legislative responses such as the EU Digital Services Act (DSA) recently coming into effect.
+
+Rewiring social links (link rewiring) to increase interaction between disagreeing agents can accelerate consensus formation toward a pro-social norm such as climate mitigation and reduce polarization under some conditions \cite{pappalardo_survey_2024}. However, the efficacy of link rewiring varies substantially between contexts. Modelling studies show that depolarization rates depend critically on the frequency of interactions between different opinion clusters and the response dynamics that govern opinion exchange \citep{axelrod_preventing_2021,fotouhi_conjoining_2018,andersson_dynamics_2021}. Some research \cite{borges_how_2024}, for example, suggests that a mix of homophily and heterophily are required for effective depolarization. The \textit{backfire effect}, in which interactions between strongly disagreeing individuals may reinforce their polarization, has been demonstrated empirically\citep{santoroPromisePitfallsCrosspartisan2022, bail_exposure_2018}, though its prevalence remains difficult to estimate \cite{wood_elusive_2019}.
+
+Gaps remain in understanding how to harness recommender systems to instead promote depolarization and facilitate consensus \citep{pappalardo_survey_2024}. First, while simulation and empirical studies have analysed conventional recommender algorithms' impact on network-inequalities \cite{ferrara_link_2022, espin-noboa_inequality_2022}, and in other cases explored idealized rewiring strategies with opinion dynamics \citep{santos_link_2021, borges_how_2024, sasahara_social_2021}, few have integrated conventional recommender algorithms with opinion dynamics frameworks. Second, the interplay between link rewiring and the backfire effect is not yet understood for consensus formation in polarized populations  \cite{pappalardo_survey_2024}.
+
+To address these gaps, we systematically evaluate how conventional recommender algorithms, and alternatives based on simple heuristics, affect the emergence of consensus across diverse network structures (empirical and synthetic). To do so, we extend an agent-based model (ABM) formulated by Andersson et al. \citep{andersson_dynamics_2021}, who investigated how polarization affects collective action in the context of large-scale societal challenges. Crucially, the model avoids assuming `bounded confidence' - agents interact regardless of opinion distance - so that network topology, rather than opinion thresholds bounds interactions. Andersson et al \citep{andersson_dynamics_2021} analysed the dynamics on static networks. We extend this to dynamic networks by comparing how different link rewiring strategies modify the dynamics observed in that work. We compare all structured rewiring algorithms against two baselines: the static network (no rewiring) of the original model, and random rewiring.
+
+\begin{figure*}[!t]
+    \centering
+    \includegraphics[width=\textwidth]{Scenarios_final_new.png}
+    \caption{\textbf{Rewiring algorithms.} The colour of a node shows the sign of its opinion (blue = aligned, orange = opposed). We focus on individual \(i\) and mark available rewiring targets with dashed circles. \textbf{A} and \textbf{B} show local rewiring, in which \(i\) can choose among agents within 2 network steps (friends of friends). Dashed lines show an exemplary new link. In \textbf{A} (\textbf{B}) \(i\) only links to an agent whose opinion is similarly (oppositely) signed. In \textbf{D} and \textbf{E}, \(i\) can establish links to agents outside its own topological cluster and the opinion constraint (similar, opposite) is the same as above. \textbf{C} illustrates the Who to Follow algorithm, which calculates a circle of trust (COT, green dashed lines) for $i$ and suggests a connection to an agent commonly followed by the COT. \textbf{F} shows node2vec, which calculates and compares embeddings for all nodes, then suggests that $i$ should link to the agent with the highest structural similarity to itself. When agent $i$ forms a new link, an existing link is removed to maintain average degree. On directed networks, we assume an agent $i$ chooses others to follow by selecting from outgoing links.}
+    \label{algos}
+\end{figure*}
+
+
+ Our model simulates the formation of consensus around a pro-social behavioural norm on dynamic social networks.  We proxy behavioural intentions with continuous opinions evolving through social influence \citep{ajzenTheoryPlannedBehavior1991}. A positive external field ($\phi>0$) represents the pro-social norm introduced above (e.g., climate mitigation). Agents whose opinions align with the norm ($a_i>0$) are termed aligned, those who oppose it ($a_i < 0$) are opposed. Respectively, 1 and -1, represent full alignment, or full opposition to the norm. \textit{Consensus} denotes population wide convergence toward the norm (mean opinion $\langle a \rangle \to +1$). The external field breaks the symmetry between positive and negative opinion states, without it, aligned/opposed would be interchangeable.
+
+We analyse two widely-used \cite{espin-noboa_inequality_2022} link-recommender algorithms - \textit{Who to Follow}, (WTF) and \textit{node2vec} (N2V) - alongside two heuristic-based algorithms, which link agents to others in either their local network community (`local rewiring') or topologically distant communities (`bridge rewiring'), based only on topology and independent of opinions. To isolate how opinions, in contrast to topology, affect the dynamics, we introduce two variations of local and bridge rewiring which constrain the formation of new links to agents with the same or different opinion. We tested these algorithms (Fig. \ref{algos}) across four different types of network topology, two synthetic and two empirical (Facebook and Twitter).
+
+WTF and N2V represent building blocks of production recommender systems. They employ foundational graph-topological mechanisms, namely local structure preservation (WTF) and embedding-space similarity (N2V) that have informed production systems, including X/Twitters' community based representations and graph embeddings (see Discussion). However, our goal is to isolate how these topological mechanisms\footnote{ We refer to WTF and N2V as recommender algorithms  to reflect their real-world origins, while the term rewiring algorithms is used when collectively referring to all algorithms, i.e., both recommender-based and heuristic.} interact with opinion dynamics, not to benchmark full production systems which use much richer features.
+
+In addition to different rewiring algorithms, we also investigated how different levels of the backfire effect influenced consensus formation. Our findings add to the evidence that promoting connections between polarized communities could accelerate consensus on urgent global challenges, even accounting for the effect of backfiring interactions.
+
+
+\section{Results}\label{sec:results}
+
+We study how rewiring algorithms affect consensus formation by examining both transient dynamics and equilibria of mean agent opinion ($a = \sum_{i}^{N}a_i/N$) and polarization (standard deviation of opinion, $P = \sigma(a_1, ..., a_N)$). Here, $N$ is the number of agents in the network. Results are ensemble averages over 90 independent simulation runs, denoted $\langle a \rangle$ for opinion, and $\langle P \rangle$ for ensemble polarization. For simplicity, we denote system (mean) opinion state ($\langle a^* \rangle > 0$) as \textit{aligned}, with the complement \textit{opposed}.
+
+Agents change their opinion through pairwise interaction according to Eq. \ref{eq:interaction}. If their opinions differ, interacting reduces the difference unless one agent is a diverger, e.g. an agent who exhibits the backfirer effect, responding to opinion exchange by moving further from their counterparts opinion. We also include an agent stubbornness parameter which dampens the effect of  interactions. After interacting, agents' links are rewired according to an algorithm selected from Fig. \ref{algos}. As social change depends more on achieving a consenting majority than converting all holdouts \citep{andersson_dynamics_2021,otto_social_2020,gardiner_perfect_2011}, we examine the convergence rate within the exponential stage of cluster dissolution, as well as steady state opinion, $\langle a^* \rangle$, and polarization $\langle P^* \rangle$. Convergence rate denotes the discrete-time change in opinion, $\Delta\langle a\rangle/\Delta t$, during depolarization (Fig. \ref{convergence}). The notation $x(y)$ denotes our heuristic algorithms, where $x \in \{\text{local}, \text{bridge}\}$ specifies the topological constraint, and $y \in \{\text{similar}, \text{opposite}\}$ the opinion constraint (similar=homophilic, opposite=heterophilic).
+
+We analyse sensitivity of mean equilibrium opinion to the model parameters by studying their distributions over 30 independent simulation runs per parameter combination (see \ref{sec:robustness}). Sensitivity to parameter $\theta$ is defined as $S_{\theta}$, lower $S_\theta$ indicates less sensitivity. A full account of the model set up, measures, and parameters is provided in \textit{Methods}. We established the characteristics of each rewiring algorithm group (recommender and heuristic), and their effects. First, relative to static and random baselines (sections \ref{sec:recommenders} and \ref{sec:heuristic}), and then relative to each-other (section \ref{sec:comparing}). Last, in section \ref{sec:robustness}, we show that our findings also hold over a wider parameter space.
+
+\subsection{Representative Dynamics}\label{sec:rep_dynamics}
+
+
+\begin{figure*}[!t]
+    \centering
+    \includegraphics[width=\textwidth]{combined_trajectory_grid_2026-03-27.pdf}
+
+    \caption{{Comparing the evolution of network structure and opinion across all rewiring scenarios.} (a) A dynamic network topology does not guarantee higher alignment or lower polarization than a  static baseline (orange line). Of those that do, $x(\text{similar})$ and random rewiring algorithms consistently support the emergence of aligned steady states (solid arrows). (b) Representative ($N=100)$ network states for selected rewiring algorithms, given a shared, fixed initial ($t=0$) network state. The Who to Follow (WTF) algorithm dramatically increases in-degree inequality and clustering producing the visible core-periphery structure, with the high in-degree nodes on the outside, and followers clustered around. This is less pronounced in the local(similar) and bridge(opposite) algorithms. Local$(y)$ algorithms cluster nodes together more tightly than the $\text{bridge}(y)$ algorithms, which have a more diffuse core, for example in bridge(opposite) (B-opp). This allows nodes with contrasting opinions to meet more frequently, and drives consensus building. Panel (b) does not always correspond to evolutions at the default N=800 (see \ref{sec:methods}); B-sim shows the N<150 with two distinct opinion clusters.
+    \label{main_comparison}}
+\end{figure*}
+
+Figure \ref{main_comparison} shows that the qualitative dynamic stages observed by Andersson et al. for static networks \citep{andersson_dynamics_2021} are maintained in dynamic networks. In the first stage, the slight opposed majority at $t=0$ dominates and mean opinion declines. Agents with strong opinions spread them to their neighbours, resulting in growing opinion clusters that gradually polarize the network. Interactions within the opinion clusters reinforce polarization, and this cluster formation stage ends in a fully polarized, homophilous state.
+
+The next stage of the dynamics is a slower process of cluster dissolution (depolarization). Two substages comprise the depolarization stage: First, mean opinion increases approximately exponentially. Second, the convergence slows due to shrinking cluster sizes and fluctuations \citep{andersson_dynamics_2021}. In this slower stage of cluster dissolution, non-trivial interactions occur only at the cluster perimeters, between agents holding different opinions. In this dynamical stage, a slightly positive external field ($\phi$) representing a socio-political environment that encourages consensus is pivotal. Although this field enables aligned regimes ($\langle a^* \rangle > 0$) in all scenarios except WTF, polarization remains high ($0.84$) unless the fraction of diverging nodes ($\rho$) approaches $0$ (see section \ref{sec:robustness}).
+
+\begin{figure}[!tp]
+    \centering
+    \includegraphics[width=\columnwidth]{pareto_speed_cooperativity_inflection_2026-03-27.pdf}
+    \caption{Convergence rates and steady state mean opinion, $\langle a^* \rangle$ for all rewiring algorithms under default parameters, faceted by network topology. The grey reference line $x+y=1$ represents a perfect trade off between convergence rate and final mean opinion, i.e., where improvements in convergence rate necessarily reduce final mean opinion. The red dashed line estimates the Pareto front by indicating scenarios that have no better alternative in terms of mean opinion and convergence rate. Bridge(similar) appears on the Pareto front across all four topologies, achieving both high mean opinion and rapid convergence particularly on FB ($\langle a^* \rangle \approx 0.84$, convergence rate $\approx 0.85$). Local(similar) is also Pareto-optimal on DPA, CSF, and Twitter, favouring mean opinion over convergence speed. On directed topologies (DPA, Twitter) the trade-off space is broader and algorithms cluster at lower convergence rates, in contrast to undirected topologies (CSF, FB). The $x(\text{opposite})$ algorithms skew toward rapid convergence at the cost of lower mean opinion. Notably bridge(opposite) on Twitter and local(opposite) on CSF and FB. Random rewiring reaches the Pareto front only on DPA but is otherwise a balanced solution on all topologies.}
+    \label{convergence}
+\end{figure}
+
+
+\subsection{Recommender algorithms}\label{sec:recommenders}
+
+N2V produced higher steady-state mean opinion than the static baseline on directed preferential attachment (DPA) networks, while WTF diverged substantially to below this baseline (Fig. \ref{main_comparison}a). Both algorithms underperformed the static baseline on Twitter and the random baseline on both directed networks (Fig. \ref{main_comparison}a,b). Polarization varied between the two algorithms. N2V matched or slightly exceeded the static baseline, whereas WTF reduced steady-state polarization by $0.20$ below the static and $0.30$ below random baselines. This was exaggerated on DPA networks, where WTF had simultaneously the second lowest steady-state polarization and lowest steady-state mean opinion.
+
+Both N2V and WTF depend on topological structure but interact with it differently. N2V's results align with literature showing that rewiring between structurally similar nodes leads to polarization \cite{santos_link_2021}. Its embedding-based mechanism preserves local network structure while gradually increasing clustering. This emergence of well defined communities (visible in Fig. \ref{main_comparison}b) prevents interactions between different opinions except at community boundaries, which leads to coexistence of low (Twitter, $\langle a^*\rangle \approx 0.24$) to moderate (DPA, $\langle a^* \rangle \approx 0.45$ ) mean opinion and moderate (DPA) to high (Twitter) polarization in the steady state.
+
+
+WTF's interaction with DPA topologies leads to opposed system states ($\langle a \rangle \approx -0.19$) through a process that reinforces defective clusters in the following way. Visible in Fig. \ref{main_comparison}b, WTF dramatically increases clustering coefficient (from $\approx 0.30$ to $\approx 0.90$) and modularity $Q$ (from $\approx 0.20$ to $\approx 0.80$). This structural reinforcement amplifies existing opinion distributions within tightly clustered communities (predominantly opposed agents) which become echo chambers. Polarization ($\approx 0.20$) is thus reduced via homogenization of agent states (as opposed) rather than diverse opinion exchange.
+
+On Twitter, higher initial modularity and assortativity produce the opposite behaviour: WTF initially preserves community structure but eventually reduces modularity from 0.70 to 0.30, allowing aligned pockets to spread and producing moderate mean opinion ($\langle  a \rangle  \approx0.31$). Despite this, it creates severe network inequality, increasing in-degree Gini coefficient from $0.50$ to almost $1.0$. A few highly connected nodes hold influence.
+
+Our findings are consistent with prior work \cite{ferrara_link_2022}: on directed networks, N2V moderately increased clustering which is required for spreading processes \citep{everall_pareto_2025}, and reduced cumulative advantage (in-degree Gini), but avoided extreme clustering which can produce echo chambers. On the other hand, WTF dramatically increased both.
+
+The observed discrepancy in N2V convergence speed and steady-state opinion, which both increased by $24\%$ from DPA ($Q=0.20$) to Twitter ($Q=0.62$) is likely due to N2V increasing modularity in comparison to WTF. This allows aligned agent pockets to consolidate before spreading. N2V also showed greater robustness to topological changes, contrasting WTF's topology-sensitivity seen here and in other research \cite{espin-noboa_inequality_2022}. Time evolutions of key network metrics are presented in SI Fig. S2.
+
+
+\subsection{Heuristic algorithms and their variants}\label{sec:heuristic}
+Figure \ref{main_comparison} shows that opinion-constrained algorithms (similar/opposite) result in more similar mean opinion state trajectories than topologically-constrained variants (bridge/local). The $x(\text{similar})$ algorithms also produce higher mean steady-state opinion than the static baseline ($\langle a^* \rangle  = 0.75$ vs $0.46$), whereas $x(\text{opposite})$ algorithms yield lower mean opinion ($\langle a^* \rangle = 0.17$), but faster convergence, particularly in the earlier dynamical phase. These patterns also hold relative to the random rewiring baseline. At low diverger fractions ($\rho = 0.10$),  $x(\text{opposite})$ algorithms force exchanges between agents of large opinion differences ($\lvert a_i - a_j \rvert$), and the positive external field ($\phi$) quickly drives the network to an aligned state. Under these conditions, regular interactions between agents dominate less frequent backfiring interactions.
+
+Whereas mean opinion increases for all heuristic algorithms in the first stage of depolarization, dynamics shift in the second stage. After $t \approx 3 \times10^4$, the $x(\text{opposite})$ trajectories enter a slow decline, in contrast to $x(\text{similar})$, where mean opinion slowly inclines to equilibrium. Homophilic variants achieve higher steady-state mean opinion by isolating divergers within homophilic clusters, preventing cascading changes of opinion reversal initiated by divergers. Conversely, heterophilic variants trigger this process, particularly in the second dynamical stage, when exchanges occur at cluster edges between opposing agents.
+
+Relative performance of the local and bridge variants depends strongly on the diverger fraction. Without divergers ($\rho = 0$), heterophilic variants $x(\text{opposite})$ achieve faster convergence with steady-state mean opinion identical to homophilic variants $x(\text{similar})$ (SI Fig. S1). Notably, $x(\text{opposite})$ algorithms reach aligned steady states ($\langle a \rangle \ > 0$) approximately 21\% faster than $x(\text{similar})$ algorithms.
+
+\begin{table*}[t]
+\centering
+\caption{Algorithm performance against random rewiring (baseline). Includes results from default parameters as well as sensitivity analyses (SI section 1). Results for heuristic algorithms varied principally with the opinion constraint, i.e., opposite vs similar, and we group them here respectively.}
+\label{tab:algorithm_comparison}
+\small
+\begin{tabular}{lp{2.5cm}p{1.8cm}p{1.7cm}p{1.6cm}}
+\toprule
+\textbf{Algorithm} & \textbf{Use-case}& \textbf{Mean opinion, $\langle a^* \rangle $}& \textbf{Polarization, $\langle P^* \rangle $}& \textbf{Convergence rate}\\
+\midrule
+\textbf{Heterophilic: $x(\text{opposite})$}&
+Urgent consensus; weak/neutral environment; medium-high stubbornness.&
+Higher &
+Lower &
+Faster \\
+\midrule
+\textbf{Homophilic: $x(\text{similar})$}&
+Consensus focus; favorable socio-political environment; low divergers; medium stubbornness.&
+Higher at default params., lower overall&
+Much lower &
+Slower \\
+\midrule
+\textbf{WTF (Who to Follow)}&
+High stubbornness; in specific cases, with unfavourable socio-political environments.&
+Much lower &
+Lower &
+Slower \\
+\midrule
+\textbf{N2V (node2vec)} &
+Uncertain conditions; preserve structure &
+Lower &
+Slightly lower &
+Comparable \\
+\midrule
+\textbf{Random} &
+High uncertainty; neutral environment; balanced needs.&
+Reference &
+Reference &
+Reference \\
+\bottomrule
+\end{tabular}
+\vspace{2mm}
+\par\noindent\footnotesize{Note: Full sweeps $\rho \in [0, 1]$, $w \in [0, 1]$, $\phi \in [-0.05, 0.10]$}
+\end{table*}
+
+
+\subsection{Comparing heuristic vs recommender algorithms}\label{sec:comparing}
+Figure \ref{convergence} reveals a trade-off between convergence speed and steady-state mean opinion across algorithms and topologies. However, several algorithms achieve Pareto-optimal\footnote{Those algorithms for which no alternative achieves both higher convergence speed and higher mean opinion.} solutions (red dashed line) that outperform this constraint. Bridge(similar) is along the Pareto front in all topologies, achieving either rapid convergence ($>0.70$), or high  mean opinion ($>0.8$), or both (FB). Random rewiring emerges as a balanced generalist, though it is Pareto-dominated by heuristic algorithms on a per-topology basis. The $x(\text{opposite})$ algorithms converge quickly on Twitter ($\sim 0.95)$, CSF ($\sim1.0$), and FB ($\sim1$) while maintaining positive (albeit lower) mean opinion states. In contrast,  WTF shows extreme variability on DPA (opinion range: $-0.58 < \langle a^* \rangle < 0.29$).  Moreover, WTF shows slower convergence than $83\%$ of other scenarios and produced the lowest mean opinion across the tested algorithms.  Although the magnitude of WTF-driven depolarization on the DPA topologies was comparable to $x(\text{similar})$ algorithms, this resulted from the undesirable spread of opposed, rather than aligned agent states. The other recommender, N2V, performed consistently across topologies but was dominated either in convergence speed (vs $x(\text{bridge})$) or mean opinion (vs $x(\text{similar})$). Overall, directed topologies (DPA, Twitter) are subject to broader trade-off penalties with generally lower convergence rates, while undirected topologies show higher convergence rates.
+
+Examining steady-state opinion outcomes more closely, heuristic algorithms generally outperform recommenders in consensus building. Patterns of advantage were consistent: $x(\text{similar})$ variants produced higher steady-state mean opinion ($0.75$ vs $0.25$), and maintained lower steady-state polarization ($\Delta$-$0.16$) compared to N2V and WTF.  A mean opinion state of $0.75$ suggests homophilic rewiring can approach consensus under a favourable socio-political environment ($\phi)$. The advantage of homophilic rewiring intensifies on directed topologies, where it does not display the extent of sensitive dependence on network structure seen in N2V and WTF results (section \ref{sec:recommenders}). Comparing local and bridge variants of $x$(similar) across DPA and Twitter topologies yields a difference of $2.5\%$ in steady-state mean opinion, in contrast to $8-20\times$ larger differences for recommender algorithms (N2V: $0.21$, WTF: $0.50$). A smaller difference is observed for steady-state polarization ($<2\%$ for both DPA and Twitter).
+
+Two additional elements stand out in the broader comparison: (1) invariance of steady-state mean opinion to topological constraints ($<3$\% difference) despite bridge and local algorithms connecting nodes in very different ways. (2) Recommenders are $20 \times$ more sensitivity to network structure, which shows opinion-agnostic algorithms produce highly variable outcomes, which could explain differential algorithmic amplification across social media platforms (e.g Reddit vs X/Twitter).
+
+Overall, relative to random rewiring, only one of eight algorithms converged faster, and only half achieved higher steady-state mean opinion; WTF and N2V were in the lower half for both. Furthermore, random rewiring showed consistent results across topologies, which, coupled with its balanced performance, highlights its versatility. Finally, directed networks produced lower mean opinion states ($\langle  a ^* \rangle=0.36$ vs $0.48$) and convergence rates (Fig. \ref{convergence}) compared to undirected networks. This confirms that in-degree inequalities limit opinion exchange \cite{karimi_homophily_2018}, and has direct implications for platform design choices between reciprocal (Facebook--style) and asymmetric (Bluesky or X) following relationships.
+
+\subsection{Algorithmic robustness}\label{sec:robustness}
+
+Sensitivity analyses over the diverger fraction $\rho$ and stubbornness $w$ (SI Fig. S1) show that final mean opinion declines monotonically with increasing $\rho$ across algorithms, with diverger fractions above $\rho \approx 0.33$ preventing aligned states as backfiring interactions dominate dynamics. Overall, the $x(\text{opposite})$ algorithms produce the highest final mean opinion state at each $\rho$ value; the faster opinion exchange facilitated by heterophilic rewiring under a positive external field dominated dynamics even at higher $\rho$. Stubbornness mitigated these backfire effects, because it dampened agent interactions, allowing the external field to dominate dynamics.
+
+Across the $(\rho, w)$ parameter space, $x(\text{opposite})$ variations were generally more insensitive to parameters than $x(\text{similar})$, though they produced higher polarization ($0.72$ vs $0.63$). This aligns with prior work showing that heterophilic rewiring better achieves consensus in polarized networks \cite{borges_how_2024}. WTF shows a counter-intuitive improvement at high stubbornness, where hub nodes act as stable opinion anchors, consistent with hub-driven dynamics in prior work \citep{meng_dynamics_2024}; however, this only emerges in a limited parameter space (SI Fig. S1). Full results across the external field $\phi$ are presented in SI Fig. S3.
+
+
+
+\section{Discussion}\label{sec:discussion}
+
+Our results show that, compared to a static network, dynamic network structure can lead to the desired outcomes of faster convergence, higher steady-state mean opinion, or lower steady-state polarization. However, these outcomes seldom co-occur. Algorithms that converge fastest may lead to higher final polarization, or lower final mean opinion (e.g. N2V and WTF). We saw faster convergence and higher steady-state mean opinion when links are established to agents holding different opinions, or if they are selected at random. If instead agents establish links homophilically, convergence is slower than on a static network and aligned states do not necessarily emerge in the wider $(\rho, w)$ parameter space. However, steady-state polarization is also low in such cases.
+
+Essentially, performance depends on regime and context. This raises the question of desired outcome. Does the system need urgent change or high long-term consensus? We summarise where each algorithm performs best in Table \ref{tab:algorithm_comparison}. Across algorithms, mean opinion increased with stubbornness (up to $w > 0.8$), decreased with diverger fraction (mitigated by stubbornness), and was assisted by a pro-consensus environment ($\phi$); though heterophilic and random rewiring produced aligned states even without it (SI Fig. S4).
+
+Based on our results, WTF algorithms struggled more than others to produce consensus, consistent with evidence that WTF can increase polarization and decrease other network properties conducive to collective action \cite{su_effect_2016, ferrara_link_2022, espin-noboa_inequality_2022}. For example, we corroborate the finding that WTF tends to raise the in-degree Gini coefficient. It also severely increased clustering in some model configurations (DPA), which locked the system into an opposed state. An opinion-agnostic algorithm designed to connect similar users produces undesirable system outcomes given certain starting conditions. Our finding that WTF without explicit bridging fails to facilitate consensus is consistent with existing audits of X's (formerly Twitter) recommendation pipeline. That pipeline relied on community based representations and graph embeddings analogous to our WTF and N2V implementations \citep{el-kishkyTwHINEmbeddingTwitter2022, satuluriSimClustersCommunityBasedRepresentations2020}. Audits found it amplifies in-group content \citep{bouchaudCrowdsourcedAuditTwitters2023} and emotionally divisive material.
+
+One exception is the ability of WTF to sustain aligned states under high stubbornness, which dampens interactions. Consistent with hub driven dynamics in prior work \citep{meng_dynamics_2024}, where they act as stable opinion anchors. A planner could utilise the WTF hub-follower network structure to facilitate system consensus where behavioural change is recalcitrant, as with dietary behaviour or religious belief \citep{everall_pareto_2025}.  N2V was less sensitive to topological changes than WTF, potentially related to N2V's reliance on embedding space proximity, not topological or opinion closeness. Prior work has also found that N2V helps mitigate rich-get-richer network effects \cite{ferrara_link_2022}. Embedding-space proximity may preserve structures that hinder cascading effects toward opposed states.
+
+Our finding that homophilic rewiring generates lower mean opinion in more polarised systems is consistent with those by Axelrod et al. \citep{axelrod_preventing_2021} and Nguyen \citep{nguyen_echo_2020}: Interactions between polarized clusters sustain polarization when opposite opinions are actively discredited. Conversely, $x(\text{opposite})$ algorithms produced the highest consensus over the
+$(\rho, w)$ parameter space, remaining effective even at higher diverger fractions, and stubbornness values (section \ref{sec:robustness}). Such characteristics support the usage of heterophilic algorithms in fractious social contexts. Existing work \cite{borges_how_2024} parallels this. Under complex contagion, heterophilic rewiring plays a key role in facilitating consensus, while homophilic rewiring is more suitable under simple contagion. However, categorizing real social dynamics as simple or complex contagion remains difficult \citep{fink_investigating_2016, horsevad_transition_2022}, precluding a single prescription (homophilic or heterophilic). For example, simple contagion-type exchanges may be a general feature of modern digital interaction \cite{bak-coleman_stewardship_2021}.
+
+To maintain interpretability, our model makes several simplifying assumptions that limit the generality of our results.  Opinion constraints in our heuristic rewiring algorithms are limited to a binary decision (homo- or heterophily). In reality, interaction likelihoods depend on a continuous distribution of preferences. Agent stubbornness is fixed; heterogeneous stubbornness could produce clustering around influencers that reinforces polarization \cite{andersson_dynamics_2021}. Further, expanding the current one-dimensional agent opinion state into a multidimensional vector would represent multiple character and cultural traits \citep{Pham2021, Axelrod1997}, which can substantially affect model dynamics \cite{baumannEmergencePolarizedIdeological2021}. Such an approach could test recommender design targetting partial similarities between agents \citep{dunbar_anatomy_2018, gladston_social_2019}. Richer agent representations and interactions via generative ABMs (GABM) with LLM-based agents are also a promising avenue for extension \cite{vezhnevets_generative_2023, tornberg_simulating_2023}. However the field is emerging and equation-based models can reproduce similar dynamics \cite{gu_large_2025}. 
+
+We assumed that newly established connections are stable regardless of the agent opinion states. Evidence shows that disagreeing individuals tend to avoid contact \citep{dunbar_anatomy_2018}, and that connections are dynamic, typically decaying over time \cite{roberts_costs_2011}. Future extensions of this work could address this by adding link decay rates that depend on the agents' states. Similarly, agents' natural linking preferences (e.g triadic closure, preferential attachment) could compete with algorithmic rewiring, attenuating or amplifying any effects observed here.
+
+Our results show that our heuristic algorithm which joins agents of different opinions outperformed a WTF--based rewiring algorithm in aiding consensus formation, even in the face of the backfirer effect, or weaker (also absent) external influence ($\phi$). Moreover, random rewiring similarly outperformed WTF, which supports prior indictments of recommender algorithms  \cite{espin-noboa_inequality_2022, lasser_designing_2025}. These findings corroborate evidence that  recommender algorithms redesigned to bridge opposing opinion groups can reduce polarization \citep{santos_link_2021, pappalardo_survey_2024}. To reduce convergence time (by approximately 21\%) and promote consensus it is thus advisable to connect people holding different opinions. When little is known about a given social network, randomly rewiring links can be an effective alternative.
+
+\section{Methods}\label{sec:methods}
+
+\begin{table*}[t]
+    \centering
+    \caption{Summary of default model parameters.}
+    \label{tab:parameters}
+    \begin{tabular}{lp{5cm}l}
+        \toprule
+        \textbf{Parameter/Variable}          & \textbf{Represents}                                                                            & \textbf{Value} \\
+        \midrule
+        External field (\(\phi\))       & Global factors: Policy regulation, mass media, morals, etc                            & 0.05 \\
+        Stubbornness (\(w_i\))& Resistance to influence: Stubbornness, ideological commitment, etc                    & 0.6 \\
+        Agent-agent weight (\(w_{ij}\)) & Susceptibility: Friendship, animosity, charisma, etc                                  & 0.5 \\
+        Agent-agent weight SD     & Susceptibility variance                                                               & 0.15 \\
+        Initial opinion    & Initial average opinion                                                         & -0.25 \\
+        Initial opinion SD      & Variance in initial opinion                                                     & 0.15 \\
+        Randomness (\(r\))          & Noise intensity in agent interactions                                                 & 0.1 \\
+        Average degree ($\langle k \rangle$)             & Degree of nodes added during network growth  & 8 \\
+        Clustering                  & Probability of a triad formation step in network generation     & 0.5 \\
+        diverger fraction ($\rho$)       & Probability of an agent to be a diverger & 0.10 \\
+        \bottomrule
+    \end{tabular}
+\end{table*}
+
+\subsection{Agent-based model}\label{sec:abm}
+
+Each agent's state \(a \in [-1,1]\)  represents behavioural intention, though we use `opinion' since our formalism borrows from opinion dynamics modelling.  We refer to agents for whom $-1\leq a<0$ as opposed and $0<a\leq1$ as aligned. We distinguish between topological clusters, detected using the Louvain algorithm \citep{blondel_fast_2008}, and opinion clusters, which are made up of agents sharing the same opinion. Following Andersson et al \cite{andersson_dynamics_2021}, simulations begin with mildly opposed agents because we are concerned with building consensus from an opposed state.
+
+Each model time-step in an independent network simulation constitutes eight operations, these repeat until the network converges to a steady state:
+
+\begin{enumerate}
+    \item Randomly select an agent \(i\)
+    \item Randomly select a neighbour \(j\) of \(i\)
+    \item Perform interaction between agent \(i\) and \(j\) as described in section \ref{sec:agentinteraction}
+    \item Update \(i\)'s opinion according to interaction outcome
+    \item Select a non-neighbour \(k\) of \(i\) following the chosen rewiring algorithm
+    \item  Establish a new link between \(i\) and \(k\) as with probability $p_{join}=0.5$ (section \ref{sec:linkrw})
+    \item Randomly select a neighbour \(l\) of \(i\)
+    \item  Break a link between \(i\) and \(l\) as described in section \ref{sec:linkrw}
+\end{enumerate}
+
+While the probability of being chosen as agent \(i\) is independent of an agent's degree, the likelihood of being selected as a neighbour \(j\) for interaction increases with $j$'s degree. Updating $i$'s behaviour, rather than $j$'s, ensures that agents with more connections are more influential as their opinion states change more slowly over time.
+
+\subsection{Agent interaction}\label{sec:agentinteraction}
+
+The change in the opinion \(a\) of an agent \(i\) when interacting with a neighbouring agent \(j\) is given by
+
+\begin{equation}
+\Delta a_i = \lvert a_i - a_j\rvert [w^- (1-a_i)-w^+ (1+a_i)]
+\end{equation}
+
+Where \(w^+\) and \(w^-\) are the weights for an agent becoming more or less aligned respectively. To simplify we set \(w^+ = f(x_{ij},r,\xi\)) and \(w^- = 1- w^+\) and obtain
+
+\begin{equation}\label{eq:interaction}
+\Delta a_i = \lvert a_i - a_j \rvert [2f(x_{ij},r,\xi) - 1 - a_i]
+\end{equation}
+
+where,
+
+\begin{equation}
+    f(x_{ij},r,\xi) =
+    \begin{cases}
+    0                           & \text{if $x_{ij}+\xi < -r$}\\
+    \frac{1}{2r}(x_{ij}+r-\xi)         & \text{if $x_{ij}+\xi \in [-r,r] $}\\
+    1                           & \text{if $x_{ij}+\xi > r$}
+    \end{cases}
+\end{equation}
+
+and,
+\begin{equation}
+    x_{ij} = w_i a_i + w_{ij} a_j + \phi
+\end{equation}
+
+The function \(f(x_{ij},r,\xi)\) captures the response of the affected agent. The parameters \(w_i\) and \(w_{ij}\) represent the self-weight and the weight between agents \(i\) and \(j\). This captures the local mechanisms of stubbornness as well as the susceptibility, which determines the effect of an agent on another. \(\xi\) is a random noise term that is distributed over the interval \(\pm r\) and represents stochastic external factors that may affect the interaction, such as agent mood. \(\phi\) captures global effects that influence all agents at all times, referred to as the external field. This simulates channels shared by all actors such as relevant political policies, media reporting or the moral hegemony of society \citep{andersson_simple_2020}.
+
+In addition to the dynamics described above, we follow Santos et al. \cite{santos_link_2021}, and include a second equation to describe the backfire effect. Where interactions lead to diverging opinions. Due to the difficulty in estimating the prevalence of the diverger effect in a given social interaction, we set our default diverger fraction quite conservatively, but deal with model sensitivity to this parameter in \ref{sec:robustness}. Adapting a similar approach to Santos et al. \cite{santos_link_2021}, we define an alternative version of Eq. \ref{eq:interaction}:
+
+\begin{equation}
+\Delta a_i = \lvert a_i - a_j \rvert \left[ 2f(x_{ij}, r, \xi) - 1 \right] [ a_i a_j ]^\lambda
+\end{equation}
+
+where \(a_i a_j = -1\) if individuals have opposing viewpoints and \(\lambda \in \{0,1\}\) dictates whether the interaction is governed by a converging dynamic ($\lambda = 0$), or a backfiring dynamic ($\lambda = 1$). In the former we simply obtain Eq. \ref{eq:interaction}. The parameters are chosen according to Andersson et al. \citep{andersson_dynamics_2021} and are summarized in Table \ref{tab:parameters}.
+
+The external field is taken to be \(\phi = 0.05\) to reflect a society that incentivized consensus with a pro-social (mitigation) norm. Self-weight reflects the assumption \(w_i = 0.6\) that people are slightly more likely to keep their own opinion than change it \citep{mallinson_effects_2018}. The random noise term \(\xi\) is uncorrelated with the interaction and hence uniformly rather than normally distributed. For a more detailed discussion of parameters we refer to \citep{andersson_dynamics_2021}.
+
+Simulations run for $T$ timesteps, chosen per algorithm and topology to ensure dynamics have plateaued (see code repository). We define the steady-state value of a quantity $X$ as its mean over the final 10\% of the trajectory, $X^* = \langle X \rangle_{t \in [0.9T, T]}$. We verified that the mean absolute rate of change $|\Delta \langle a \rangle / \Delta t|$ averaged over the final 10\% of each trajectory was below $10^{-4}$ for all algorithm-topology combinations.
+
+
+\subsection{Sensitivity analysis}\label{sec:sensitivity}
+
+To measure the sensitivity of model state variables to parameters we use the Sobol sensitivity index \cite{sobol_global_2001}. We define $S_{\theta} = \sigma(\{A(\theta_i)\}_{i=1}^n)$, where $\theta_i$ represents the $i$-th of $n$ sampled values of parameter $\theta_i$, and $A(\theta_i)$ is the corresponding mean equilibrium opinion.
+
+\subsection{Network typology}\label{sec:network}
+
+We define a network as a graph $G = (V, E)$ with $V$ the set of nodes $V = \{ v_i, ..., v_n \}$, and $E \subseteq V \times V$ as the set of weighted, directed(undirected) links. We employ both synthetic, i.e generated networks, as well as empirical networks in exploring the evolution of model dynamics. These categories are split again into undirected and directed examples. All our synthetic networks have cardinality $\vert V \vert = N = 800$ to match the scale of our empirical networks (Facebook: 786, Twitter 789 nodes).
+
+For our undirected synthetic network, we focus on clustered scale free networks and use the Holme-Kim clustered scale-free network growth algorithm \citep{holme_growing_2002} with an average degree of \(\langle k \rangle = 8\). Directly linked agents are referred to as neighbours or friends interchangeably. For our synthetic directed network we use the DPA (directed preferential attachment) model, an extension of the BA (Barabási-Albert) model \citep{espin-noboa_inequality_2022}. Networks based on these models are generated with the NetIn package in python \citep{pynetin}(see SI Tab. 1 for parameters).
+
+We consider two empirical networks representing two popular digital spaces, Twitter (directed) and Facebook (undirected). In Table \ref{tab:network_properties} we summarize relevant network properties, and define which elements of the real social networks are represented as nodes and links.
+
+\begin{table}[!t]
+\centering
+\caption{Structural properties of empirical networks used in simulations}
+\label{tab:network_properties}
+\begin{tabular}{lcc}
+\toprule
+\textbf{Property} & \textbf{Facebook} & \textbf{Twitter} \\
+\midrule
+Nodes ($N$) & 786 & 789 \\
+Edges ($M$) & 14,024 & 12,110 \\
+Average degree ($\langle k \rangle$) & 35.7 & 30.7 \\
+Clustering coefficient ($C$) & 0.476 & 0.426 \\
+Assortativity ($r$) & 0.33 & 0.17 \\
+Modularity ($Q$) & 0.52 & 0.63 \\
+Avg. path length ($\langle \ell \rangle$) & 3.04 & 4.33 \\
+Small-world coeff. ($\sigma$) & 7.32 & 13.6\\
+\bottomrule
+\end{tabular}
+\vspace{2mm}
+\par\noindent\footnotesize{*Networks are undirected for Facebook and directed for Twitter.}
+\end{table}
+
+\subsection{Link rewiring}\label{sec:linkrw}
+
+Link rewiring allows for a dynamic network structure where the neighbours of agent \(i\) can change over time.  We introduce six rewiring algorithms in total. One random rewiring algorithm as a baseline. Two of which are topology-based recommender algorithms, and represent part of real-world strategies employed by digital network operators such as Google and Twitter \cite{gupta_wtf_2013} and detailed in section \ref{sec:recommenderalgs}.
+
+The remaining three are heuristic and formulated based on a literature review and introduced in section \ref{sec:heuristicalgs}. The latter represent limiting cases on extreme ends of probability spectra. We introduce two algorithm (sub)variants for the heuristic rewiring algorithms, each differing by only one assumption, to isolate the effects of each algorithm. The Who-to-follow algorithm was only tested on directed networks. Although VLOPs recommend new connections, all rewiring algorithms implemented in this work keep degree constant, i.e break an existing link on link creation in order to isolate topological effects. 
+
+\subsubsection{Recommender Algorithms}\label{sec:recommenderalgs}
+
+\paragraph{Who to follow (WTF)}
+
+Introduced by Twitter (now X) \cite{gupta_wtf_2013}, the Who to Follow (WTF) algorithm seeks to connect a user with similar users. Given a set of users $V$ on a network, it does so by calculating a $\textit{circle of trust}$ for each user $u \in V$. It then ranks each user $u \neq i$ using the $\texttt{SALSA}$ algorithm \cite{lempelSALSAStochasticApproach2001}. The user with the highest WTF score who is not directly connected to $i$, but connected through $i$'s circle of trust will be recommended to $i$. The $WTF$ score for a given user $u$ can be expressed:
+
+\begin{equation}
+\text{WTF}(u) = \text{SALSA}(\text{COT}_u)
+\end{equation}
+where
+\begin{equation}
+\text{COT}_u = \{v \in V \mid \text{PPR}_u(v) \in \text{top}_k\}
+\end{equation}
+represents the circle of trust for user $u$, determined by the top $k$ nodes with highest personalized PageRank scores relative to $u$, and $SALSA(COT_u)$ computes authority scores in the bipartite graph formed between nodes in the circle of trust (acting as hubs) and their respective neighbour (acting as authorities).
+
+
+\paragraph{node2vec (N2V)}
+
+N2V produces a low-level feature representation of nodes as embedded vectors in a vector space \cite{grover_node2vec_2016}. This representation retains critical information about the nodes which can also be extended to their edges. It does this by optimising the likelihood that a network neighbourhood of a node is preserved based on its feature representation. N2V lends itself to link prediction tasks on social networks, where it scores exceptionally well in comparison to other state of the art techniques \cite{saxena_nodesim_2022}. These include both heuristic predictors such as the common neighbours, and preferential attachment algorithms, as well as other feature learning algorithms \cite{grover_node2vec_2016}.
+
+Each node $i \in V$ is rewired based on the cosine similarity of their respective vector representation in the embedding space. For a given pair of embedded vector projections $(\vec{v}_i, \vec{v}_j)$, the cosine similarity is:
+
+\begin{equation}
+    \theta(\vec{v}_i, \vec{v}_j) = \frac{\vec{v}_i \cdot \vec{v}_j}{\|\vec{v}_i\| \|\vec{v}_j\|}
+\end{equation}
+
+where $\theta$ is the cosine similarity, $\vec{v}_i \cdot \vec{v}_j$ is the dot product of the vectors, and $\|\vec{v}_i\|$, $\|\vec{v}_j\|$ are the norms of the vectors, respectively. The vector projection $\vec{v}_j$ which maximises \(\theta(\vec{v}_i, \vec{v}_j)\) with respect to a given \(\vec{v}_i\) will be recommended to $i$. More information on N2V and a reference implementation can be found on github \cite{groverAdityagrovernode2vec2025a}. For our model, we use a SNAP implementation in C++ \cite{snapSnapstanfordSnap2025}.
+
+\subsubsection{Heuristic Algorithms}\label{sec:heuristicalgs}
+
+\paragraph{Random rewiring}
+
+A baseline scenario in order to evaluate the role of unguided network change. Agent \(i\) establishes a link to a random non-neighbour \(k\) with a probability \(p\). With a probability \(q\) a link between agent \(i\), and a neighbour, \(l\) is removed. \(q\) does not change with the number of neighbours. The finding that cognitive capacity and available time limit the number of friends an individual is able to hold \citep{dunbar_anatomy_2018} is included only indirectly, as an agent with high degree has a higher likelihood of being chosen as the neighbour with whom a link is cut.  To maintain a stable average degree we assume \(q=2p\).
+
+\paragraph{Local rewiring}
+
+An individual's social surroundings make them more likely to engage with people who are topologically close \citep{santos_link_2021,nasiri_new_2021,dunbar_anatomy_2018}, and their engagements are subject to homophily, meaning they will most likely show preferential attachment to similar individuals \citep{williams_network_2015,dunbar_anatomy_2018,kozma_consensus_2008}.
+
+For implementation we use an approach similar to Crawford et al. \citep{crawford_resisting_2018}. Figure \ref{algos}A illustrates our assumptions. The colour of a node depicts its opinion. We focus on agent \(i\) and limit the pool of available agents \(k\) for rewiring to those non-neighbours that are within \(d\) network steps. These are marked with dashed circles. We set \(d = 2\) (i.e. agent \(i\) can only choose among friends of friends). This is a practical choice as \(d = 3\) ($\langle k \rangle ^3 = 512$) would allow agent \(i\) to establish links with almost half of our chosen network. For breaking a link, a random neighbour \(l\) of agent \(i\) is selected. 
+
+\paragraph{Bridge rewiring}
+
+In the bridge rewiring algorithm we incorporate recommendations for dissolving polarization. They focus on inter-community interactions and their importance as information channels to increase individuals' exposure to differing views \citep{andersson_dynamics_2021,gladston_social_2019,williams_network_2015,lee_homophily_2019,fotouhi_conjoining_2018}. As figure \ref{algos}E, and  D illustrate, we limit the potential new neighbours of agent \(i\) to the non-neighbours outside of \(i\)'s own cluster. Clusters are identified by the Louvain algorithm \citep{blondel_fast_2008}. Nevertheless it is likely that multiple communities of opposed agents separated by those of aligned agents exist within a network.
+
+\paragraph{Rewiring variations}
+
+Two additional assumptions are tested in the local and bridge rewiring algorithms with an opinion constraint. A notation of (similar) and (opposite) is added to indicate whether links are established only if agents are of the same opinion (i.e homophily) or only if they are of a different opinion (i.e heterophily). Local(similar) therefore refers to the rewiring algorithm in which agent \(i\) chooses a random agent \(k\) within two network steps and establishes a link if they are of the same general opinion (see Figure \ref{algos}) i.e., if \(a_i \wedge a_k < 0\) or \(a_i \wedge a_k \geq 0\). Local(opposite) describes the inverse, i.e., if \(a_i \geq 0 \wedge a_k < 0\) or \(a_i < 0 \wedge a_k \geq 0\).
+
+Bridge(similar) (see figure \ref{algos}D) and bridge(opposite) (see figure \ref{algos}C) both limit the potential neighbours of agent \(i\) to non-neighbours outside of \(i\)'s own cluster. However, a link is established only if the agents agree in the former, and only if they disagree in the latter.
+
+\section{Acknowledgments}
+We thank D. Andersson, who provided us with the initial code and significantly helped during the first phase of the project. We also thank Fariba Karimi, who provided valuable feedback on the manuscript.
+
+\section{Supplementary Material}
+Supplementary materials including additional figures and parameter details are available at PNAS Nexus online.
+
+\section{Funding}
+The authors acknowledge financial support from the University of Graz.
+
+\section{Conflict of interest}
+The authors declare no competing interests.
+
+\section{Author contributions statement}
+J.P.E, L.F. and A.K.R. designed the research. All authors developed the model. J.P.E and L.F developed the software. J.P.E carried out the simulations. J.P.E and L.F analysed the results with advice from A.K.R.. J.P.E wrote the manuscript with contributions and editing by A.K.R and L.F. All authors gave final approval for publication.
+
+\section{Preprints}
+A preprint of this article is published at [DOI].
+
+\section{Data availability}
+The Facebook and Twitter network topologies used in the main analysis are provided in the associated Zenodo repository: [placeholder]
+
+All code used for the numerical simulations, plotting, and statistical analysis are available on Zenodo [placeholder] and GitHub (\href{https://github.com/foroveralls/Rewiring-Collective-Action}{github.com/foroveralls/Rewiring-Collective-Action}).
+
+
+\bibliographystyle{plain}
+\bibliography{reference}
+
+
+\end{document}

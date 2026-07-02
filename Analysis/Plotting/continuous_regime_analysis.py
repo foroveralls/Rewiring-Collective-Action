@@ -39,8 +39,8 @@ def setup_style():
         'font.size': FONT_SIZE, 
         'pdf.fonttype': 42, 
         'ps.fonttype': 42,
-        'axes.linewidth': 0.5, 
-        'xtick.major.width': 0.5, 
+        'axes.linewidth': 0.8,
+        'xtick.major.width': 0.5,
         'ytick.major.width': 0.5,
         'xtick.labelsize': FONT_SIZE-1, 
         'ytick.labelsize': FONT_SIZE-1,
@@ -259,7 +259,7 @@ def create_stubbornness_trajectory_plot(df):
                     alpha=0.8, label=alg)
     
     # Customize cooperation plot
-    ax1.set_ylabel('$\\langle a^* \\rangle$', fontsize=FONT_SIZE-1)
+    ax1.set_ylabel('Opinion, $\\langle a^* \\rangle$', fontsize=FONT_SIZE-1)
     ax1.grid(True, alpha=0.3, linewidth=0.3)
     ax1.tick_params(labelsize=FONT_SIZE-2)
     ax1.legend(bbox_to_anchor=(1.05, 1), loc='upper left', 
@@ -267,7 +267,7 @@ def create_stubbornness_trajectory_plot(df):
     
     # Customize polarization plot
     ax2.set_xlabel('Stubbornness, $w_i$', fontsize=FONT_SIZE-1)
-    ax2.set_ylabel('$\\langle P^* \\rangle$', fontsize=FONT_SIZE-1)
+    ax2.set_ylabel('Polarization, $\\langle P^* \\rangle$', fontsize=FONT_SIZE-1)
     ax2.grid(True, alpha=0.3, linewidth=0.3)
     ax2.tick_params(labelsize=FONT_SIZE-2)
     
@@ -347,12 +347,12 @@ def create_continuous_single_panel_plot(df, for_combined=False, show_uncertainty
     xlabel_fontsize = 7 if for_combined else FONT_SIZE-1
     ylabel_fontsize = 7 if for_combined else FONT_SIZE-1
     ax1.set_xlabel('Stubbornness, $w_i$', fontsize=xlabel_fontsize, labelpad=3)
-    ax1.set_ylabel('$\\langle a^* \\rangle$', fontsize=ylabel_fontsize, labelpad=3, color='black')
+    ax1.set_ylabel('Opinion, $\\langle a^* \\rangle$', fontsize=ylabel_fontsize, labelpad=3, color='black')
     ax1.grid(True, alpha=0.3, linewidth=0.3)
     ax1.tick_params(labelsize=FONT_SIZE-2, length=2, width=0.5)
 
     # Customize right axis (polarization)
-    ax2.set_ylabel('$\\langle P^* \\rangle$', fontsize=ylabel_fontsize, labelpad=3, color='black')
+    ax2.set_ylabel('Polarization, $\\langle P^* \\rangle$', fontsize=ylabel_fontsize, labelpad=3, color='black')
     ax2.tick_params(labelsize=FONT_SIZE-2, length=2, width=0.5)
     
     # Add regime boundary lines (but don't label them as regimes)
@@ -376,6 +376,105 @@ def create_continuous_single_panel_plot(df, for_combined=False, show_uncertainty
     plt.subplots_adjust(bottom=0.12)  # Reduced from 0.25 to minimize whitespace
     
     return fig
+
+def create_split_panel_plot(df, for_combined=False, show_uncertainty_bands=False):
+    """Create two stacked sub-panels: cooperation on top, polarization on bottom.
+
+    Replaces the twin-axis single-panel approach with separate axes for clarity.
+
+    Args:
+        df: DataFrame with regime data
+        for_combined: If True, adjust figure size for combined panel figure
+        show_uncertainty_bands: If True, show shaded bands for WTF
+    """
+    setup_style()
+
+    figsize = (8*cm, 10*cm) if for_combined else (8*cm, 10*cm)
+    fig, (ax_coop, ax_polar) = plt.subplots(2, 1, figsize=figsize, sharex=True,
+                                             gridspec_kw={'hspace': 0.12})
+
+    main_algorithms = ['Opposite', 'Similar', 'WTF', 'Node2Vec', 'Static', 'Random']
+    df_main = df[df['algorithm'].isin(main_algorithms)]
+
+    algorithm_colors = {
+        'Opposite': FRIENDLY_COLORS['local (opposite)'],
+        'Similar': FRIENDLY_COLORS['local (similar)'],
+        'WTF': FRIENDLY_COLORS['empirical wtf'],
+        'Node2Vec': FRIENDLY_COLORS['empirical node2vec'],
+        'Static': FRIENDLY_COLORS['static'],
+        'Random': FRIENDLY_COLORS['random']
+    }
+
+    xlabel_fontsize = 7 if for_combined else FONT_SIZE-1
+    ylabel_fontsize = 7 if for_combined else FONT_SIZE-1
+
+    # Uncertainty bands (behind lines)
+    if show_uncertainty_bands:
+        wtf_data = df_main[df_main['algorithm'] == 'WTF'].sort_values('stubbornness_numeric')
+        if len(wtf_data) > 0 and 'min_cooperation' in wtf_data.columns:
+            color = algorithm_colors.get('WTF', '#666666')
+            ax_coop.fill_between(wtf_data['stubbornness_numeric'],
+                                 wtf_data['min_cooperation'],
+                                 wtf_data['max_cooperation'],
+                                 color=color, alpha=0.15, linewidth=0)
+            ax_polar.fill_between(wtf_data['stubbornness_numeric'],
+                                  wtf_data['min_polarization'],
+                                  wtf_data['max_polarization'],
+                                  color=color, alpha=0.1, linewidth=0)
+
+    # Plot each algorithm
+    for alg in main_algorithms:
+        alg_data = df_main[df_main['algorithm'] == alg]
+        if len(alg_data) > 0:
+            color = algorithm_colors.get(alg, '#666666')
+            alg_data_sorted = alg_data.sort_values('stubbornness_numeric')
+
+            ax_coop.plot(alg_data_sorted['stubbornness_numeric'],
+                         alg_data_sorted['mean_cooperation'],
+                         'o-', color=color, linewidth=1, markersize=2.5,
+                         alpha=0.8, label=alg)
+
+            ax_polar.plot(alg_data_sorted['stubbornness_numeric'],
+                          alg_data_sorted['mean_polarization'],
+                          'o-', color=color, linewidth=1, markersize=2.5,
+                          alpha=0.8)
+
+    # Cooperation axis (top)
+    ax_coop.set_ylabel('Opinion, $\\langle a^* \\rangle$', fontsize=ylabel_fontsize, labelpad=3)
+    ax_coop.grid(True, alpha=0.3, linewidth=0.3)
+    ax_coop.tick_params(labelsize=FONT_SIZE-2, length=2, width=0.5)
+
+    # Polarization axis (bottom)
+    ax_polar.set_xlabel('Stubbornness, $w_i$', fontsize=xlabel_fontsize, labelpad=3)
+    ax_polar.set_ylabel('Polarization, $\\langle P^* \\rangle$', fontsize=ylabel_fontsize, labelpad=3)
+    ax_polar.grid(True, alpha=0.3, linewidth=0.3)
+    ax_polar.tick_params(labelsize=FONT_SIZE-2, length=2, width=0.5)
+
+    # Regime boundaries on both panels
+    for ax in [ax_coop, ax_polar]:
+        ax.axvline(0.4, color='black', linestyle='--', alpha=0.7, linewidth=0.8)
+        ax.axvline(0.7, color='black', linestyle='--', alpha=0.7, linewidth=0.8)
+
+    # Regime labels at top of cooperation panel
+    ylim = ax_coop.get_ylim()
+    label_y = ylim[1] + (ylim[1] - ylim[0]) * 0.08
+    ax_coop.text(0.2, label_y, 'Low', ha='center',
+                 fontsize=FONT_SIZE-1, color='black', clip_on=False)
+    ax_coop.text(0.55, label_y, 'Medium', ha='center',
+                 fontsize=FONT_SIZE-1, color='black', clip_on=False)
+    ax_coop.text(0.85, label_y, 'High', ha='center',
+                 fontsize=FONT_SIZE-1, color='black', clip_on=False)
+
+    # Legend at bottom
+    fig.legend(bbox_to_anchor=(0.5, -0.02), loc='upper center', ncol=3,
+               fontsize=FONT_SIZE-2, frameon=True, fancybox=False,
+               edgecolor='black', facecolor='white')
+
+    plt.tight_layout()
+    plt.subplots_adjust(bottom=0.12)
+
+    return fig
+
 
 def create_stubbornness_parameter_space(df):
     """Create parameter space plot showing stubbornness as continuous variable"""
@@ -411,7 +510,7 @@ def create_stubbornness_parameter_space(df):
                         color=color, linewidth=1, alpha=0.7)
 
     ax1.set_xlabel('Stubbornness, $w_i$', fontsize=FONT_SIZE-1)
-    ax1.set_ylabel('$\\langle a^* \\rangle$', fontsize=FONT_SIZE-1)
+    ax1.set_ylabel('Opinion, $\\langle a^* \\rangle$', fontsize=FONT_SIZE-1)
     ax1.grid(True, alpha=0.3, linewidth=0.3)
     ax1.tick_params(labelsize=FONT_SIZE-2)
     ax1.set_title('A', fontsize=FONT_SIZE, fontweight='bold')
@@ -437,7 +536,7 @@ def create_stubbornness_parameter_space(df):
                         color=color, linewidth=1, alpha=0.7)
 
     ax2.set_xlabel('Stubbornness, $w_i$', fontsize=FONT_SIZE-1)
-    ax2.set_ylabel('$\\langle P^* \\rangle$', fontsize=FONT_SIZE-1)
+    ax2.set_ylabel('Polarization, $\\langle P^* \\rangle$', fontsize=FONT_SIZE-1)
     ax2.grid(True, alpha=0.3, linewidth=0.3)
     ax2.tick_params(labelsize=FONT_SIZE-2)
     ax2.set_title('B', fontsize=FONT_SIZE, fontweight='bold')
@@ -489,7 +588,7 @@ def create_backfirer_parameter_space(df):
                         color=color, linewidth=1, alpha=0.7)
 
     ax1.set_xlabel('Backfirer Fraction, $\\rho$', fontsize=FONT_SIZE-1)
-    ax1.set_ylabel('$\\langle a^* \\rangle$', fontsize=FONT_SIZE-1)
+    ax1.set_ylabel('Opinion, $\\langle a^* \\rangle$', fontsize=FONT_SIZE-1)
     ax1.grid(True, alpha=0.3, linewidth=0.3)
     ax1.tick_params(labelsize=FONT_SIZE-2)
     ax1.set_title('A', fontsize=FONT_SIZE, fontweight='bold')
@@ -508,7 +607,7 @@ def create_backfirer_parameter_space(df):
                         color=color, linewidth=1, alpha=0.7)
 
     ax2.set_xlabel('Backfirer Fraction, $\\rho$', fontsize=FONT_SIZE-1)
-    ax2.set_ylabel('$\\langle P^* \\rangle$', fontsize=FONT_SIZE-1)
+    ax2.set_ylabel('Polarization, $\\langle P^* \\rangle$', fontsize=FONT_SIZE-1)
     ax2.grid(True, alpha=0.3, linewidth=0.3)
     ax2.tick_params(labelsize=FONT_SIZE-2)
     ax2.set_title('B', fontsize=FONT_SIZE, fontweight='bold')
@@ -574,7 +673,7 @@ def create_2d_heatmap_grid(df_2d):
             ax_coop.set_xticklabels([])
 
         if idx == 0:  # Top row
-            ax_coop.text(0.5, 1.15, '$\\langle a^* \\rangle$', transform=ax_coop.transAxes,
+            ax_coop.text(0.5, 1.15, 'Opinion, $\\langle a^* \\rangle$', transform=ax_coop.transAxes,
                         ha='center', fontsize=FONT_SIZE, fontweight='bold')
 
         ax_coop.set_ylabel('Backfirer Fraction', fontsize=FONT_SIZE-2)
@@ -596,7 +695,7 @@ def create_2d_heatmap_grid(df_2d):
             ax_polar.set_xticklabels([])
 
         if idx == 0:  # Top row
-            ax_polar.text(0.5, 1.15, '$\\langle P^* \\rangle$', transform=ax_polar.transAxes,
+            ax_polar.text(0.5, 1.15, 'Polarization, $\\langle P^* \\rangle$', transform=ax_polar.transAxes,
                          ha='center', fontsize=FONT_SIZE, fontweight='bold')
 
         ax_polar.set_ylabel('')
@@ -605,7 +704,7 @@ def create_2d_heatmap_grid(df_2d):
     # Add colorbars at the bottom
     cbar1 = fig.colorbar(im1, ax=axes[:, 0], orientation='horizontal',
                          pad=0.08, aspect=40, shrink=0.8)
-    cbar1.set_label('Cooperation', fontsize=FONT_SIZE-1)
+    cbar1.set_label('Opinion', fontsize=FONT_SIZE-1)
     cbar1.ax.tick_params(labelsize=FONT_SIZE-2)
 
     cbar2 = fig.colorbar(im2, ax=axes[:, 1], orientation='horizontal',
@@ -761,7 +860,7 @@ def create_regime_three_panel_plot(algorithm_data):
     # Customize Panel A - Cooperation & Polarization Combined with dual y-axes
     ax1.set_xlabel('Stubbornness Regime', fontsize=FONT_SIZE-1, labelpad=2)
     ax1.set_ylabel('$a$', fontsize=FONT_SIZE-1, labelpad=2, color='black')
-    ax1_twin.set_ylabel('$\\langle P^* \\rangle$', fontsize=FONT_SIZE-1, labelpad=2, color='black')
+    ax1_twin.set_ylabel('Polarization, $\\langle P^* \\rangle$', fontsize=FONT_SIZE-1, labelpad=2, color='black')
     ax1.set_title('A', fontsize=FONT_SIZE, pad=5, fontweight='bold')
     ax1.set_xticks(x_pos)
     ax1.set_xticklabels(regime_labels, fontsize=FONT_SIZE-2)
@@ -841,7 +940,7 @@ def create_regime_single_panel_plot(algorithm_data):
     # Customize Panel - Cooperation & Polarization Combined with dual y-axes
     ax1.set_xlabel('Stubbornness Regime', fontsize=FONT_SIZE-1, labelpad=2)
     ax1.set_ylabel('$a$', fontsize=FONT_SIZE-1, labelpad=2, color='black')
-    ax1_twin.set_ylabel('$\\langle P^* \\rangle$', fontsize=FONT_SIZE-1, labelpad=2, color='black')
+    ax1_twin.set_ylabel('Polarization, $\\langle P^* \\rangle$', fontsize=FONT_SIZE-1, labelpad=2, color='black')
     ax1.set_xticks(x_pos)
     ax1.set_xticklabels(regime_labels, fontsize=FONT_SIZE-2)
     ax1.grid(True, alpha=0.3, linewidth=0.3)
@@ -1020,7 +1119,7 @@ def create_continuous_backfirer_single_panel_plot(df):
     # Customize Panel - Cooperation & Polarization with dual y-axes
     ax1.set_xlabel('Backfirer Fraction ($\\rho$)', fontsize=FONT_SIZE-1, labelpad=2)
     ax1.set_ylabel('$a$', fontsize=FONT_SIZE-1, labelpad=2, color='black')
-    ax1_twin.set_ylabel('$\\langle P^* \\rangle$', fontsize=FONT_SIZE-1, labelpad=2, color='black')
+    ax1_twin.set_ylabel('Polarization, $\\langle P^* \\rangle$', fontsize=FONT_SIZE-1, labelpad=2, color='black')
     ax1.grid(True, alpha=0.3, linewidth=0.3)
     ax1.tick_params(labelsize=FONT_SIZE-2)
     ax1_twin.tick_params(labelsize=FONT_SIZE-2)
@@ -1280,7 +1379,7 @@ def create_backfirer_regime_plot(backfirer_data, low_threshold, high_threshold):
     # Customize Panel A
     ax1.set_xlabel('Backfirer Regime', fontsize=FONT_SIZE-1, labelpad=2)
     ax1.set_ylabel('$a$', fontsize=FONT_SIZE-1, labelpad=2, color='black')
-    ax1_twin.set_ylabel('$\\langle P^* \\rangle$', fontsize=FONT_SIZE-1, labelpad=2, color='black')
+    ax1_twin.set_ylabel('Polarization, $\\langle P^* \\rangle$', fontsize=FONT_SIZE-1, labelpad=2, color='black')
     ax1.set_title('A', fontsize=FONT_SIZE, pad=5, fontweight='bold')
     ax1.set_xticks(x_pos)
     ax1.set_xticklabels(regime_labels, fontsize=FONT_SIZE-2)
