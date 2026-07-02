@@ -39,7 +39,6 @@ sensitivity analyses are run by scripts ending in "..parameter_sweep". Results g
 │   ├── fast_wtf
 │   │   └── src
 │   └── __pycache__
-├── claude_stuff
 ├── Figs
 │   ├── Combined
 │   ├── Convergence
