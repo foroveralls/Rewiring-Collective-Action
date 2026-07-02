@@ -88,9 +88,43 @@ polarisingNode_f = 0
 establishlinkprob = 0.5 # breaklinkprob and establishlinkprob are used in random rewiring. Are always chosen to be the same to keep average degree constant!
 rewiringAlgorithm = 'None' #None, random, biased, bridge
 #the rewiringAlgorithm variable was meant to enable to do multiple runs at once. However the loop where the specification 
-#given in the ArgList in run.py file overrules what is given in line 65 does not work. Unclear why. 
+#given in the ArgList in run.py file overrules what is given in line 65 does not work. Unclear why.
 #long story short. All changes to breaklinkprob, establishlinkprob and rewiringAlgorithm have to be specified here in the models file
 lock = None
+
+WEIGHT_BATCH = 4096 # friendship weights are drawn from scipy in blocks of this size; only affects speed, not the distribution
+USE_NETWORK_CACHE = True # DPAH/PATCH generation is fully seeded (seed=42), so the graph is identical every run and can be cached
+NETWORK_CACHE_DIR = os.path.join(current_dir, "network_cache")
+_network_cache = {}
+
+def _cached_network(kind, params, builder):
+    """Disk + in-process cache for seeded synthetic networks.
+
+    Generation is deterministic (hardcoded seed=42), so every simulation would
+    rebuild the identical graph (~28s for DPAH). Cached graphs skip generate()'s
+    global-RNG consumption, so runs are statistically equivalent but not
+    bit-identical to uncached ones. Delete Analysis/network_cache/ if generator
+    parameters hardcoded in the model classes change.
+    """
+    if not USE_NETWORK_CACHE:
+        return builder()
+    key = (kind,) + tuple(params)
+    blob = _network_cache.get(key)
+    if blob is None:
+        fname = os.path.join(NETWORK_CACHE_DIR, kind + "_" + "_".join(str(p) for p in params) + ".pkl")
+        if os.path.exists(fname):
+            with open(fname, "rb") as f:
+                blob = f.read()
+        else:
+            g = builder()
+            blob = pickle.dumps(g, protocol=pickle.HIGHEST_PROTOCOL)
+            os.makedirs(NETWORK_CACHE_DIR, exist_ok=True)
+            tmp = f"{fname}.{os.getpid()}.tmp"
+            with open(tmp, "wb") as f:
+                f.write(blob)
+            os.replace(tmp, fname) # atomic, so concurrent pool workers can't see a half-written file
+        _network_cache[key] = blob
+    return pickle.loads(blob)
 
 #print(os.getcwd())
 # the arguments provided in run.py overrides these values
@@ -165,8 +199,11 @@ def simulate(i, newArgs, func_changes = False): #RG for random graph (used for t
     
     save_snapshots = newArgs.get('save_snapshots', False) and (i % 2 == 0)
     
-    res = model.runSim(newArgs["timesteps"], clusters=True, drawModel=newArgs["plot"], 
+    res = model.runSim(newArgs["timesteps"], clusters=True, drawModel=newArgs["plot"],
                        save_snapshots=save_snapshots)
+
+    model.rx_graph = None # rustworkx objects should not ride along when models are pickled back through the pool
+
     if save_snapshots:
         return model, model.snapshots
     
@@ -272,6 +309,11 @@ class Model:
         self.process_id = os.getpid()
         self.degree_distributions = {}
         self.wtf_cache_threshold = args.get("wtf_freq", 10)
+        self.rx_graph = None # persistent rustworkx mirror of self.graph (wtf only); kept in sync by _graph_add_edge/_graph_remove_edge
+        self._track_states = False # running state aggregates are only maintained once runSim has synced them
+        self._weight_pool = None
+        self._weight_pool_i = 0
+        self._bridge_complements = None # per-cluster "nodes outside cluster" lists, built on first bridgerewiring call
         
          
     
@@ -341,8 +383,10 @@ class Model:
         chosenNeighbour = self.graph.nodes[chosenNeighbourIndex]['agent']
         weight = self.graph[nodeIndex][chosenNeighbourIndex]['weight']
 
+        old_state = node.state
         node.consider(chosenNeighbour, weight, self.politicalClimate)
-        
+        self._apply_state_delta(old_state, node.state)
+
         self.call_algo(nodeIndex)
     
     
@@ -362,8 +406,10 @@ class Model:
         chosenNeighbour = self.graph.nodes[chosenNeighbourIndex]['agent']
         weight = self.graph[nodeIndex][chosenNeighbourIndex]['weight']
 
+        old_state = node.state
         node.consider(chosenNeighbour, weight, self.politicalClimate)
-        
+        self._apply_state_delta(old_state, node.state)
+
         #print('ending interaction')
         return nodeIndex
     
@@ -399,13 +445,13 @@ class Model:
         For directed graphs: uses in-degree (popularity/followers)
         For undirected graphs: uses total degree
         """
-        # Calculate degrees for all nodes
+        # Calculate degrees for all nodes (one batched view call instead of one lookup per node)
         if nx.is_directed(self.graph):
             # Use in-degree for directed graphs (prefer popular/followed nodes)
-            degrees = {i: self.graph.in_degree(i) for i in node_list}
+            degrees = dict(self.graph.in_degree(node_list))
         else:
             # Use total degree for undirected graphs
-            degrees = {i: self.graph.degree(i) for i in node_list}
+            degrees = dict(self.graph.degree(node_list))
 
         degree_sum = sum(degrees.values())
 
@@ -452,9 +498,9 @@ class Model:
 
         rewired = False
         if random.random() < establishlinkprob:
-            weight = get_truncated_normal(self.local_args["friendship"], self.local_args["friendshipSD"], 0, 1).rvs(1)[0]
+            weight = self.getFriendshipWeight()
 
-            self.graph.add_edge(node_i, neighbour_i, weight = weight)
+            self._graph_add_edge(node_i, neighbour_i, weight)
             #self.TF_step(node_i, neighbour_i, weight = weight)
             rewired = True
 
@@ -474,7 +520,7 @@ class Model:
             neighbour_node = random.sample(adjacency, 1)[0]
             
             #print(neighbour_node)
-            self.graph.add_edge(node, neighbour_node, weight = weight)
+            self._graph_add_edge(node, neighbour_node, weight)
          
             
         return 
@@ -541,7 +587,7 @@ class Model:
                 establishlinkNeighborIndex = random.sample(non_neighbors, 1)
                 if random.random() < establishlinkprob:
                    # print('establishing link')
-                    self.graph.add_edge(nodeIndex, establishlinkNeighborIndex[0], weight = get_truncated_normal(self.local_args["friendship"], self.local_args["friendshipSD"], 0, 1).rvs(1)[0])
+                    self._graph_add_edge(nodeIndex, establishlinkNeighborIndex[0], self.getFriendshipWeight())
                     # print(self.graph.edges[nodeIndex, establishlinkNeighborIndex[0]]['weight'])
                     rewired_rand = True 
                     
@@ -555,7 +601,7 @@ class Model:
                     
                     if len(init_neighbours) >= 1:
                         breaklinkNeighbourIndex = init_neighbours[random.randint(0, len(init_neighbours)-1)]
-                        self.graph.remove_edge(nodeIndex, breaklinkNeighbourIndex)
+                        self._graph_remove_edge(nodeIndex, breaklinkNeighbourIndex)
             
             # print('ending random rewiring')
             
@@ -631,7 +677,7 @@ class Model:
 
                     if len(old_neighbours) >= 1:
                         breaklinkNeighbourIndex = old_neighbours[random.randint(0, len(old_neighbours)-1)]
-                        self.graph.remove_edge(nodeIndex, breaklinkNeighbourIndex)
+                        self._graph_remove_edge(nodeIndex, breaklinkNeighbourIndex)
 
 
 
@@ -648,20 +694,20 @@ class Model:
         #again this could be refined by introducing probability functions
         #links are only broken is a link is established (see above in biasedrewiring)
 
-        if(self.partition == None): #louvain is already used in first step of runSim, this is just to set the variable equal to the partition in the function as well.
-            partition = findClusters(self.graph, self.community_detection_with_leidenalg)
-        else:
-            partition = self.partition
-            
-        for k, v in partition.items():
-            self.graph.nodes[k]["louvain-val"] = v
+        #the partition is computed once (first step of runSim) and never changes during a run,
+        #so the node labelling and the "nodes outside cluster c" lists are built once instead of on every call
+        if self._bridge_complements is None:
+            if self.partition is None:
+                self.partition = findClusters(self.graph, self.community_detection_with_leidenalg)
+            for k, v in self.partition.items():
+                self.graph.nodes[k]["louvain-val"] = v
+            self._bridge_complements = {
+                c: [k for k, v in self.partition.items() if v != c]
+                for c in set(self.partition.values())
+            }
 
-        
-        nodeCluster =  self.graph.nodes[nodeIndex]['louvain-val'] #which cluster does agent i belong to?
-        #print(nodeCluster)
-        other_cluster = []
-        other_cluster.append([k for k in self.graph.nodes if k != nodeIndex and self.graph.nodes[k]['louvain-val'] != nodeCluster]) #a list of all nodes that are not in agent i's cluster
-        other_cluster = other_cluster[0]
+        nodeCluster = self.partition[nodeIndex] #which cluster does agent i belong to?
+        other_cluster = self._bridge_complements[nodeCluster] #a list of all nodes that are not in agent i's cluster
         #print(other_cluster)
         rewired = False
         
@@ -707,7 +753,7 @@ class Model:
 
                     if len(old_neighbours) >= 1:
                         breaklinkNeighbourIndex = old_neighbours[random.randint(0, len(old_neighbours)-1)]
-                        self.graph.remove_edge(nodeIndex, breaklinkNeighbourIndex)
+                        self._graph_remove_edge(nodeIndex, breaklinkNeighbourIndex)
     #-----------------------------------------------------------------------------------
           
         return nodeIndex
@@ -726,7 +772,7 @@ class Model:
         else:
             breaklinkNeighbourIndex = np.random.choice(reduced)
             #assert breaklinkNeighbourIndex != rewiredIndex, "they just became friends!"
-            self.graph.remove_edge(nodeIndex, breaklinkNeighbourIndex)
+            self._graph_remove_edge(nodeIndex, breaklinkNeighbourIndex)
             return breaklinkNeighbourIndex, True
                     
     
@@ -835,7 +881,7 @@ class Model:
             # Use old neighbors (from neighbours_check) for breaking
             if len(neighbours) >= 1:
                 breaklinkNeighbourIndex = neighbours[random.randint(0, len(neighbours)-1)]
-                self.graph.remove_edge(nodeIndex, breaklinkNeighbourIndex)
+                self._graph_remove_edge(nodeIndex, breaklinkNeighbourIndex)
         
         sim_neighbours = list(self.graph.adj[sim].keys()) if sim is not None else []
         affected_nodes = [sim] + sim_neighbours
@@ -880,9 +926,34 @@ class Model:
               
           
 
+    # --- rustworkx mirror (wtf) ---------------------------------------------
+    # Converting the full graph to rustworkx on every cache refresh dominated wtf
+    # runtime, so a persistent mirror is built once and kept in sync on every edge
+    # change. Nodes are never added/removed, only edges, and node labels are
+    # 0..n-1 in insertion order so nx labels double as rx indices (the original
+    # per-call conversion relied on the same property for the personalization dict).
+    def _rx_mirror(self):
+        if self.rx_graph is None:
+            self.rx_graph = rx.networkx_converter(self.graph)
+            assert all(payload == idx for idx, payload in
+                       zip(self.rx_graph.node_indices(), self.rx_graph.nodes())), \
+                "wtf mirror requires node labels 0..n-1 in insertion order"
+        return self.rx_graph
+
+    def _graph_add_edge(self, u, v, weight):
+        self.graph.add_edge(u, v, weight=weight)
+        if self.rx_graph is not None and not self.rx_graph.has_edge(u, v):
+            self.rx_graph.add_edge(u, v, None)
+
+    def _graph_remove_edge(self, u, v):
+        self.graph.remove_edge(u, v)
+        if self.rx_graph is not None:
+            self.rx_graph.remove_edge(u, v)
+    # ------------------------------------------------------------------------
+
     def _get_personalized_recommendations(self, nodeIndex, topk=5):
         """Get personalized recommendations using PageRank + SALSA"""
-        G = rx.networkx_converter(self.graph)
+        G = self._rx_mirror()
 
         pp = {node: 0.0 for node in G.nodes()}
         pp[nodeIndex] = 1.0
@@ -975,7 +1046,7 @@ class Model:
 
                     if len(old_neighbours) > 0:
                         breaklinkNeighbourIndex = old_neighbours[random.randint(0, len(old_neighbours)-1)]
-                        self.graph.remove_edge(nodeIndex, breaklinkNeighbourIndex)
+                        self._graph_remove_edge(nodeIndex, breaklinkNeighbourIndex)
 
                 return True
 
@@ -1011,6 +1082,24 @@ class Model:
         avg = statearray.mean(axis=0)
         sd = statearray.std()
         return (avg, sd)
+
+    # Only one agent changes state per timestep (in Agent.consider), so avg/std/ratio
+    # are maintained as running sums updated in O(1) instead of a full O(N) pass per step.
+    def _sync_state_stats(self):
+        states = [self.graph.nodes[node]['agent'].state for node in self.graph]
+        self._n_agents = len(states)
+        self._state_sum = float(sum(states))
+        self._state_sumsq = float(sum(s * s for s in states))
+        self._n_positive = sum(1 for s in states if s > 0)
+        self._track_states = True
+
+    def _apply_state_delta(self, old, new):
+        if not self._track_states or new == old:
+            return
+        self._state_sum += new - old
+        self._state_sumsq += new * new - old * old
+        if (new > 0) != (old > 0):
+            self._n_positive += 1 if new > 0 else -1
     
     def getAvgDegree(self):
         degrees = [val for (node,val) in nx.degree(self.graph)]
@@ -1033,8 +1122,23 @@ class Model:
 
     
     def getFriendshipWeight(self):
-        weigth = self.friendshipWeightGenerator.rvs(1)
-        return weigth[0]
+        # served from a pre-drawn block: per-call scipy rvs overhead (~0.25ms) otherwise
+        # dominates rewiring; the values still come from the same truncated normal
+        if self._weight_pool is None or self._weight_pool_i >= len(self._weight_pool):
+            self._weight_pool = self._draw_weights(WEIGHT_BATCH)
+            self._weight_pool_i = 0
+        w = self._weight_pool[self._weight_pool_i]
+        self._weight_pool_i += 1
+        return float(w)
+
+    def _draw_weights(self, k):
+        if k == 0:
+            return np.empty(0)
+        gen = self.friendshipWeightGenerator
+        if gen is None:
+            gen = get_truncated_normal(self.local_args["friendship"], self.local_args["friendshipSD"], 0, 1)
+            self.friendshipWeightGenerator = gen
+        return gen.rvs(k)
 
     #majority = 0, minority 1
     def getInitialState(self, skew_temp, node_state = False, gen=None):
@@ -1092,20 +1196,23 @@ class Model:
             #print("initial training complete")
             
        
+        resync_every = 10000 # running sums accumulate float rounding; re-derive them exactly at this cadence
         for i in range(steps):
-            
-        
-            self.t = i 
+            self.t = i
+            if i % resync_every == 0:
+                self._sync_state_stats()
             nodeIndex = self.interact_main()
-            ratio = self.countCooperatorRatio()
-            self.ratio.append(ratio)
-            (state, sd) = self.getAvgState()
-            self.states.append(state)
-            self.statesds.append(sd)
+            n = self._n_agents
+            avg = self._state_sum / n
+            var = self._state_sumsq / n - avg * avg
+            self.ratio.append(self._n_positive / n)
+            self.states.append(avg)
+            self.statesds.append(var ** 0.5 if var > 0 else 0.0)
             if save_snapshots and i in key_timesteps:
                 self.snapshots[i] = deepcopy(self.graph)
-                
-            
+
+        if self.rx_graph is not None:
+            assert self.rx_graph.num_edges() == self.graph.number_of_edges(), "rustworkx mirror desynced from graph"
 
         (avgs, sds, sizes) = findAvgStateInClusters(self, self.partition)
         self.clusteravg.append(avgs)
@@ -1133,10 +1240,9 @@ class Model:
             if(len(neighbours) == 0):    
                 self.randomrewiring(i, establishlinkprob = 1)
                 
-        edges = self.graph.edges() 
-        for e in edges: 
-            weight=self.getFriendshipWeight()
-            self.graph[e[0]][e[1]]['weight'] = weight
+        edges = list(self.graph.edges())
+        for e, w in zip(edges, self._draw_weights(len(edges))):
+            self.graph[e[0]][e[1]]['weight'] = float(w)
             
     # this runs the model without rewiring for a while to align the opinion clusters
     #with the topological clusters
@@ -1159,8 +1265,9 @@ class Model:
                 if not list(self.graph.adj[i].keys()):    
                     self.randomrewiring(i, establishlinkprob=1)
                     
-            for e in self.graph.edges():
-                self.graph[e[0]][e[1]]['weight'] = self.getFriendshipWeight()
+            edges = list(self.graph.edges())
+            for e, w in zip(edges, self._draw_weights(len(edges))):
+                self.graph[e[0]][e[1]]['weight'] = float(w)
      
         def get_metrics():
             """Calculate current network metrics"""
@@ -1307,10 +1414,9 @@ class Model:
         
         
         #print(Homophily.infer_homophily_values(self.graph))
-        edges = self.graph.edges() 
-        for e in edges: 
-            weight=self.getFriendshipWeight()
-            self.graph[e[0]][e[1]]['weight'] = weight
+        edges = list(self.graph.edges())
+        for e, w in zip(edges, self._draw_weights(len(edges))):
+            self.graph[e[0]][e[1]]['weight'] = float(w)
     
 
         
@@ -1484,10 +1590,14 @@ class DPAHModel(Model):
     def __init__(self, n, m, skew= 0, args = None, **kwargs):
         super().__init__(args=args, **kwargs)
         #TODO: make these not hard-coded
-        self.graph = DPAH(n, f_m=0.5, d=0.02, h_MM=args["f_all"], h_mm=args["f_all"], plo_M=2.0, plo_m=2.0,
+        def build():
+            g = DPAH(n, f_m=0.5, d=0.02, h_MM=args["f_all"], h_mm=args["f_all"], plo_M=2.0, plo_m=2.0,
                      seed = 42)
+            g.generate()
+            return g
 
-        self.graph.generate()
+        #generation is fully seeded, so every simulation would rebuild the identical graph
+        self.graph = _cached_network("DPAH", (n, 0.5, 0.02, args["f_all"], 2.0, 2.0, 42), build)
 
         self.populateModel_netin(n, skew)
 
@@ -1502,10 +1612,15 @@ class ClusteredPowerlawModel(Model):
     def __init__(self, n, m, skew = 0, args = None, **kwargs):
         super().__init__(args=args, **kwargs)
 
-        self.graph = PATCH(n =n, k = m, f_m=0.5, h_MM=args["f_all"], h_mm=args["f_all"], tc = clustering,
+        def build():
+            g = PATCH(n =n, k = m, f_m=0.5, h_MM=args["f_all"], h_mm=args["f_all"], tc = clustering,
                      seed = 42)
-        self.graph.generate()
-       
+            g.generate()
+            return g
+
+        #generation is fully seeded, so every simulation would rebuild the identical graph
+        self.graph = _cached_network("PATCH", (n, m, 0.5, args["f_all"], clustering, 42), build)
+
         #print(Homophily.infer_homophily_values(self.graph))
         
         
@@ -1518,9 +1633,13 @@ class ClusteredPowerlawModel_nh(Model):
     def __init__(self, n, m, skew = 0, args = None, **kwargs):
         super().__init__(args=args, **kwargs)
 
-        self.graph = PATCH(n = n, k = m, f_m=0.5, h_MM=args["f_all"], h_mm=args["f_all"], tc = clustering,
+        def build():
+            g = PATCH(n = n, k = m, f_m=0.5, h_MM=args["f_all"], h_mm=args["f_all"], tc = clustering,
                      seed = 42)
-        self.graph.generate()
+            g.generate()
+            return g
+
+        self.graph = _cached_network("PATCH", (n, m, 0.5, args["f_all"], clustering, 42), build)
         #print(Homophily.infer_homophily_values(self.graph))
         
         

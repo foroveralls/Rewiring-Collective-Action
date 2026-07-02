@@ -474,13 +474,13 @@ def create_combined_heatmap_grid(conv_data, coop_data=None):
     if last_coop_im:
         cbar_ax2 = fig.add_axes([0.93, 0.15, 0.015, 0.3])
         cbar2 = fig.colorbar(last_coop_im, cax=cbar_ax2)
-        cbar2.set_label('⟨a⟩', fontsize=LEGEND_FONT_SIZE)
+        cbar2.set_label(r'$\langle a \rangle$', fontsize=LEGEND_FONT_SIZE)
         cbar2.ax.tick_params(labelsize=TICK_FONT_SIZE)
 
     # Axis labels
     fig.text(0.5, 0.04, f'{param_name.replace("_", " ").title()}, $\\mathbf{{\\rho}}$',
              ha='center', fontsize=AXIS_LABEL_FONT_SIZE, fontweight='bold')
-    fig.text(0.02, 0.52, 'Convergence Rate / Cooperation', va='center', rotation=90,
+    fig.text(0.02, 0.52, 'Convergence Rate / Mean Opinion', va='center', rotation=90,
              fontsize=AXIS_LABEL_FONT_SIZE, fontweight='bold')
 
     return fig

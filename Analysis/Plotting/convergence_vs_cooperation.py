@@ -33,7 +33,7 @@ import warnings
 warnings.filterwarnings('ignore')
 
 cm = 1/2.54
-FONT_SIZE = 8
+FONT_SIZE = 10
 
 FRIENDLY_COLORS = {
     'static': '#EE7733', 'random': '#0077BB', 'L-sim': '#33BBEE',
@@ -50,7 +50,7 @@ FRIENDLY_NAMES = {
 def setup_style():
     plt.rcParams.update({
         'font.size': FONT_SIZE, 'pdf.fonttype': 42, 'ps.fonttype': 42,
-        'figure.figsize': (8.7*cm, 8*cm), 'axes.linewidth': 0.8,
+        'figure.figsize': (12*cm, 11*cm), 'axes.linewidth': 0.8,
         'xtick.major.width': 0.8, 'ytick.major.width': 0.8,
         'xtick.labelsize': FONT_SIZE-1, 'ytick.labelsize': FONT_SIZE-1,
         'axes.labelsize': FONT_SIZE, 'axes.titlesize': FONT_SIZE
@@ -166,137 +166,169 @@ def calculate_metrics(data, method='t95'):
     return pd.DataFrame(results)
 
 def find_pareto_front(metrics_df):
-    """Find Pareto optimal algorithms"""
-    pareto_mask = np.zeros(len(metrics_df), dtype=bool)
-    
+    """Find Pareto optimal algorithms. Returns a boolean Series aligned with df index."""
+    import pandas as pd
+    pareto_mask = pd.Series(False, index=metrics_df.index)
+
     for i, row in metrics_df.iterrows():
         is_dominated = False
         for j, other in metrics_df.iterrows():
-            if (i != j and 
-                other['speed'] >= row['speed'] and 
+            if (i != j and
+                other['speed'] >= row['speed'] and
                 other['cooperativity'] >= row['cooperativity'] and
                 (other['speed'] > row['speed'] or other['cooperativity'] > row['cooperativity'])):
                 is_dominated = True
                 break
         pareto_mask[i] = not is_dominated
-    
+
     return pareto_mask
 
-def plot_pareto_analysis(metrics_df, output_path, method='t95'):
-    """Create Pareto frontier analysis showing speed-accuracy trade-offs
+def plot_pareto_analysis(metrics_df, output_path, method='t95', per_run_df=None):
+    """Create faceted Pareto frontier analysis — one panel per topology.
 
-    Algorithms clustering along the frontier demonstrate optimal trade-offs
-    where improvements in convergence speed necessarily reduce cooperation.
+    Each panel shows algorithms as colored points with per-topology Pareto
+    frontiers, making trade-off structure visible without marker confusion.
 
     Parameters
     ----------
     metrics_df : pd.DataFrame
-        Metrics data
+        Metrics data with 'speed', 'cooperativity', 'scenario', 'topology'
     output_path : str
         Output file path
     method : str
         't95' or 'inflection' to indicate which method was used
+    per_run_df : pd.DataFrame, optional
+        Per-run metrics (cols: scenario [friendly], topology, speed_t95,
+        cooperativity) from Output/per_run_summary.csv. If given, asymmetric
+        IQR error bars (R1.7 ensemble uncertainty) are drawn on each point.
+        Markers stay at the ensemble-mean rank; bars show the q25-q75 of the 90
+        per-run metrics mapped through the SAME rank-percentile (aggregate ECDF)
+        transform as the markers, so the marker is not necessarily the bar
+        midpoint (note this in the caption).
     """
     setup_style()
-    fig, ax = plt.subplots(figsize=(8.7*cm, 8*cm))
-    
+
     # Filter valid data
-    valid_mask = (np.isfinite(metrics_df['speed']) & 
+    valid_mask = (np.isfinite(metrics_df['speed']) &
                   np.isfinite(metrics_df['cooperativity']) &
                   (metrics_df['speed'] >= 0))
     valid_data = metrics_df[valid_mask].copy()
-    
+
     if len(valid_data) == 0:
         print("No valid data for plotting")
         return
-    
-    # Convert to rank percentiles (0-1 scale)
-    speed_ranks = valid_data['speed'].rank(pct=True)
-    coop_ranks = valid_data['cooperativity'].rank(pct=True)
-    
-    # Find Pareto front using raw values
-    pareto_mask = find_pareto_front(valid_data)
-    pareto_data = valid_data[pareto_mask]
-    dominated_data = valid_data[~pareto_mask]
-    
-    # Topology markers
-    topology_markers = {'DPAH': 'x', 'cl': '+', 'Twitter': '^', 'FB': '.'}
+
+    # Rank percentiles computed globally so panels share a consistent scale
+    valid_data['speed_rank'] = valid_data['speed'].rank(pct=True)
+    valid_data['coop_rank'] = valid_data['cooperativity'].rank(pct=True)
+
+    # Per-run IQR in the SAME rank space (aggregate ECDF), keyed by (scenario, topology)
+    rank_iqr = {}
+    if per_run_df is not None:
+        agg_speed = np.sort(valid_data['speed'].to_numpy())
+        agg_coop = np.sort(valid_data['cooperativity'].to_numpy())
+        nv = len(valid_data)
+        for (sc, topo), grp in per_run_df.groupby(['scenario', 'topology']):
+            sp = np.searchsorted(agg_speed, grp['speed_t95'].to_numpy(), side='right') / nv
+            cp = np.searchsorted(agg_coop, grp['cooperativity'].to_numpy(), side='right') / nv
+            rank_iqr[(sc, topo)] = (np.percentile(sp, 25), np.percentile(sp, 75),
+                                    np.percentile(cp, 25), np.percentile(cp, 75))
+
+    # Topology ordering and labels
+    topology_order = ['DPAH', 'cl', 'Twitter', 'FB']
     topology_labels = {'DPAH': 'DPA', 'cl': 'CSF', 'Twitter': 'Twitter', 'FB': 'FB'}
-    
-    # Plot dominated points
-    for i, (idx, row) in enumerate(dominated_data.iterrows()):
-        color = FRIENDLY_COLORS.get(row['scenario'], 'black')
-        marker = topology_markers.get(row['topology'], 'o')
-        size = 25 if marker == '.' else 15
-        
-        ax.scatter(speed_ranks.loc[idx], coop_ranks.loc[idx], c=color, marker=marker,
-                  s=size, alpha=0.8, edgecolors='black', linewidth=0.5)
-    
-    # Plot Pareto optimal points (larger, bolder)
-    pareto_points_ranked = []
-    for i, (idx, row) in enumerate(pareto_data.iterrows()):
-        color = FRIENDLY_COLORS.get(row['scenario'], 'black')
-        marker = topology_markers.get(row['topology'], 'o')
-        size = 45 if marker == '.' else 35
-        
-        x_rank, y_rank = speed_ranks.loc[idx], coop_ranks.loc[idx]
-        ax.scatter(x_rank, y_rank, c=color, marker=marker,
-                  s=size, alpha=0.9, edgecolors='black', linewidth=0.7)
-        pareto_points_ranked.append([x_rank, y_rank])
-    
-    # Draw empirical Pareto front line showing algorithmic optimality
-    if len(pareto_points_ranked) > 1:
-        pareto_array = np.array(pareto_points_ranked)
-        sorted_indices = np.argsort(pareto_array[:, 0])
-        sorted_pareto = pareto_array[sorted_indices]
-        
-        ax.plot(sorted_pareto[:, 0], sorted_pareto[:, 1], 
-               'r--', alpha=0.7, linewidth=1.1, 
-               label='Empirical Pareto frontier')
-    
-    # Flip y-axis to show speed-accuracy trade-off
-    ax.invert_yaxis()
-    
-    # Perfect trade-off reference line (now diagonal from top-left to bottom-right)
-    ax.plot([0, 1], [1, 0], 'k--', alpha=0.5, linewidth=0.6, zorder=1, 
-           label='Perfect speed-accuracy trade-off')
-    
-    # Styling - update labels based on method
-    if method == 'inflection':
-        ax.set_xlabel('Convergence Rate')
-    else:
-        ax.set_xlabel('Convergence Rate (t95 method)')
-    ax.set_ylabel(r'$\langle a^* \rangle$')
-    ax.grid(True, alpha=0.3, linewidth=0.4)
-    ax.set_xlim(0, 1.02)
-    ax.set_ylim(0, 1.02)
-    
-    # Adjust subplot to make room for legends
-    plt.subplots_adjust(top=0.81, bottom=0.24)
-    
-    
-    # Algorithm legend at bottom (horizontal) first
-    algo_elements = [Line2D([0], [0], marker='s', color=color, linestyle='None',
-                           markersize=4, label=algo)
-                    for algo, color in FRIENDLY_COLORS.items() 
-                    if algo in valid_data['scenario'].values]
-    algo_legend = ax.legend(handles=algo_elements, bbox_to_anchor=(0.5, -0.25), 
-                           loc='center', columnspacing=0.8, frameon=True, fontsize=FONT_SIZE-2, 
-                           ncol=4)
-    
-    # Topology legend at top using figlegend (more reliable)
-    topo_elements = [Line2D([0], [0], marker=marker, color='black', linestyle='None',
-                           markersize=5, label=topology_labels[topo])
-                    for topo, marker in topology_markers.items()]
-    fig.legend(handles=topo_elements, columnspacing=0.8, bbox_to_anchor=(0.53, 0.995), 
-              loc='center', frameon=True, fontsize=FONT_SIZE-2, 
-              ncol=4)
-    
-    
+    topologies_present = [t for t in topology_order if t in valid_data['topology'].unique()]
+
+    n_panels = len(topologies_present)
+    ncols = 2
+    nrows = int(np.ceil(n_panels / ncols))
+
+    fig, axes = plt.subplots(nrows, ncols, figsize=(17.8*cm, 17.8*cm*nrows/ncols),
+                             sharex=True, sharey=True)
+    axes = np.atleast_2d(axes)
+
+    # Global Pareto front (across all topologies) for reference
+    global_pareto_mask = find_pareto_front(valid_data)
+
+    for idx, topo in enumerate(topologies_present):
+        ax = axes[idx // ncols, idx % ncols]
+        topo_data = valid_data[valid_data['topology'] == topo]
+
+        # Per-topology Pareto front
+        topo_pareto_mask = find_pareto_front(topo_data)
+        pareto_pts = []
+
+        for _, row in topo_data.iterrows():
+            color = FRIENDLY_COLORS.get(row['scenario'], 'black')
+            is_pareto = topo_pareto_mask.loc[row.name]
+            size = 90 if is_pareto else 55
+            edge_w = 0.9 if is_pareto else 0.6
+            alpha = 0.95 if is_pareto else 0.8
+
+            # Asymmetric IQR error bars (drawn under the markers); capped at 0.15 rank units
+            BAR_CAP = 0.10
+            key = (row['scenario'], topo)
+            if key in rank_iqr:
+                s_lo, s_hi, c_lo, c_hi = rank_iqr[key]
+                xerr = [[min(BAR_CAP, max(0.0, row['speed_rank'] - s_lo))],
+                        [min(BAR_CAP, max(0.0, s_hi - row['speed_rank']))]]
+                yerr = [[min(BAR_CAP, max(0.0, row['coop_rank'] - c_lo))],
+                        [min(BAR_CAP, max(0.0, c_hi - row['coop_rank']))]]
+                ax.errorbar(row['speed_rank'], row['coop_rank'], xerr=xerr, yerr=yerr,
+                            fmt='none', ecolor=color, elinewidth=0.8, capsize=1.5,
+                            capthick=0.8, alpha=0.55, zorder=2.5)
+
+            ax.scatter(row['speed_rank'], row['coop_rank'], c=color,
+                       marker='o', s=size, alpha=alpha,
+                       edgecolors='black', linewidth=edge_w, zorder=3)
+
+            if is_pareto:
+                pareto_pts.append([row['speed_rank'], row['coop_rank']])
+
+        # Draw per-topology Pareto front
+        if len(pareto_pts) > 1:
+            pareto_arr = np.array(pareto_pts)
+            sort_idx = np.argsort(pareto_arr[:, 0])
+            sorted_p = pareto_arr[sort_idx]
+            ax.plot(sorted_p[:, 0], sorted_p[:, 1],
+                    'r--', alpha=0.7, linewidth=1.0, zorder=2)
+
+        # Reference diagonal
+        ax.plot([0, 1], [1, 0], 'k--', alpha=0.4, linewidth=0.5, zorder=1)
+
+        ax.invert_yaxis()
+        ax.set_xlim(0, 1.05)
+        ax.set_ylim(0, 1.05)
+        ax.grid(True, alpha=0.25, linewidth=0.3)
+        ax.set_title(topology_labels.get(topo, topo), fontsize=FONT_SIZE, fontweight='bold')
+
+        # Axis labels only on edges
+        if idx // ncols == nrows - 1:
+            ax.set_xlabel('Convergence rate', fontsize=FONT_SIZE)
+        if idx % ncols == 0:
+            ax.set_ylabel(r'Opinion, $\langle a^* \rangle$', fontsize=FONT_SIZE)
+
+    # Hide unused axes
+    for idx in range(n_panels, nrows * ncols):
+        axes[idx // ncols, idx % ncols].set_visible(False)
+
+    # Shared algorithm legend at bottom
+    algo_elements = [Line2D([0], [0], marker='o', color=color, linestyle='None',
+                            markersize=4.5, markeredgecolor='black', markeredgewidth=0.4,
+                            label=algo)
+                     for algo, color in FRIENDLY_COLORS.items()
+                     if algo in valid_data['scenario'].values]
+    fig.legend(handles=algo_elements, bbox_to_anchor=(0.5, -0.01),
+               loc='upper center', columnspacing=0.8, frameon=True,
+               fontsize=FONT_SIZE-1, ncol=4)
+
     plt.tight_layout()
     plt.savefig(output_path, dpi=300, bbox_inches='tight')
     plt.show()
-    
+
+    # Return global pareto split for analysis function
+    pareto_data = valid_data[global_pareto_mask]
+    dominated_data = valid_data[~global_pareto_mask]
     return pareto_data, dominated_data
 
 def analyze_pareto_results(pareto_data, dominated_data):
@@ -383,12 +415,29 @@ def main():
         print("No valid metrics calculated")
         return
 
+    # Optional per-run metrics for ensemble IQR error bars (R1.7).
+    # Only meaningful for t95 (per_run_summary.csv stores speed_t95).
+    per_run_df = None
+    prs = os.path.join("../../Output", "per_run_summary.csv")
+    if method == 't95' and os.path.exists(prs):
+        pr = pd.read_csv(prs)  # default NA parsing maps "None" -> NaN, mirroring calculate_metrics
+        pr['rewiring'] = pr['rewiring'].fillna('none')
+        pr['scenario'] = pr['scenario'].fillna('none')
+        pr['grouped'] = pr['scenario'].str.cat(pr['rewiring'], sep='_')
+        pr['scenario'] = pr['grouped'].map(lambda g: FRIENDLY_NAMES.get(g, g))
+        pr['topology'] = pr['type']
+        per_run_df = pr[['scenario', 'topology', 'speed_t95', 'cooperativity']]
+        print(f"Loaded per-run metrics for error bars: {prs} ({len(per_run_df)} rows)")
+    else:
+        print("No per-run summary (or method!=t95); plotting points without error bars")
+
     # Create plot and analysis
     output_dir = "../../Figs/Convergence"
     os.makedirs(output_dir, exist_ok=True)
     output_path = f"{output_dir}/pareto_speed_cooperativity_{method}_{date.today()}.pdf"
 
-    pareto_data, dominated_data = plot_pareto_analysis(metrics, output_path, method=method)
+    pareto_data, dominated_data = plot_pareto_analysis(metrics, output_path, method=method,
+                                                       per_run_df=per_run_df)
     analyze_pareto_results(pareto_data, dominated_data)
 
     print(f"\nPareto trade-off analysis saved: {output_path}")

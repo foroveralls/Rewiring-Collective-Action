@@ -281,7 +281,7 @@ def create_state_heatmap_grid(df, param_name, max_param_value=0.05):
             
             # Add labels with improved positioning
             if col_idx == 0:  # First column gets ⟨x⟩ label
-                ax.set_ylabel(r'$\langle a^* \rangle$', fontsize=AXIS_LABEL_FONT_SIZE+1, labelpad=5, fontweight='bold')
+                ax.set_ylabel(r'Mean opinion, $\langle a^* \rangle$', fontsize=AXIS_LABEL_FONT_SIZE+1, labelpad=5, fontweight='bold')
 
                 # Add topology label further from plot (adjusted for new spacing)
                 display_name = topology_display_names.get(topology, topology.upper())
@@ -295,10 +295,10 @@ def create_state_heatmap_grid(df, param_name, max_param_value=0.05):
                            color=title_color, pad=2, fontweight='bold')
             
             # if row_idx == n_rows - 1:  # Last row gets x-axis label
-            #     ax.set_xlabel("Poltical climate, $\phi$", fontsize=AXIS_LABEL_FONT_SIZE+1, labelpad=5, fontweight='bold')
+            #     ax.set_xlabel("Political climate, $\phi$", fontsize=AXIS_LABEL_FONT_SIZE+1, labelpad=5, fontweight='bold')
     
     # Add centered x-axis label at bottom of entire figure
-    fig.text(0.5, 0.04, "Poltical climate, $\phi$", ha='center', fontsize=AXIS_LABEL_FONT_SIZE+1, fontweight='bold')
+    fig.text(0.5, 0.04, "Political climate, $\phi$", ha='center', fontsize=AXIS_LABEL_FONT_SIZE+1, fontweight='bold')
 
     # Add a colorbar
     if last_im:

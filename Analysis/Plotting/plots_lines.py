@@ -215,7 +215,7 @@ def plot_network_dynamics(data, t_max=50, scale_type='linear', output_file=None)
             ax.xaxis.offsetText.set_visible(False)
 
     # Set axis labels
-    g.set_axis_labels(xlabel, "Cooperation, ⟨a⟩")
+    g.set_axis_labels(xlabel, r"Opinion, $\langle a \rangle$")
     
     # Adjust spacing
     g.fig.subplots_adjust(top=0.84, bottom=0.20, hspace=0.25, wspace=0.28, left=0.1, right=0.95)
@@ -226,7 +226,7 @@ def plot_network_dynamics(data, t_max=50, scale_type='linear', output_file=None)
     legend_ax.axis('off')
     
     line_style_elements = [
-        Line2D([], [], color='black', linestyle='-', label='cooperativity'),
+        Line2D([], [], color='black', linestyle='-', label='opinion'),
         Line2D([], [], color='black', linestyle='--', dashes=(4, 2), label='polarization')
     ]
     legend_ax.legend(handles=line_style_elements, ncol=2, loc='center', 
@@ -312,7 +312,7 @@ def plot_single_topology_dynamics(data, t_max=50, scale_type='linear', output_fi
     legend_ax.axis('off')
     
     line_style_elements = [
-        Line2D([], [], color='black', linestyle='-', label='cooperation'),
+        Line2D([], [], color='black', linestyle='-', label='opinion'),
         Line2D([], [], color='black', linestyle='--', dashes=(4, 2), label='polarization'),
         Line2D([], [], color='black', linestyle='-', marker='>', markersize=2, 
                markevery=0.1, label='directed (DPA)'),
@@ -429,7 +429,7 @@ def plot_single_topology_dynamics(data, t_max=50, scale_type='linear', output_fi
         # Set labels and title
         ax.set_title(f'{key}')
         if is_left_col:
-            ax.set_ylabel(r'Cooperation, $\langle a \rangle$')
+            ax.set_ylabel(r'Opinion, $\langle a \rangle$')
         if is_bottom_row:
             ax.set_xlabel(xlabel)
         

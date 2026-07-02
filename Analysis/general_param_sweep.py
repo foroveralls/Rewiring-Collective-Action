@@ -78,7 +78,7 @@ def run_algorithm_phase(algo_scenarios, numberOfSimulations, base_args, params):
                 else:
                     top_file, nwsize = None, 800
 
-                adaptive_timesteps = get_adaptive_timesteps(algo, topo)
+                adaptive_timesteps = get_adaptive_timesteps(algo, topo, mode)
 
                 sim_args = {
                     "rewiringAlgorithm": algo, "nwsize": nwsize, "rewiringMode": mode,

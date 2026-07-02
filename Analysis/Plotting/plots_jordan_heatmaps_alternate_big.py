@@ -130,13 +130,12 @@ def create_heatmap_grid(df, value_columns, column_labels, for_combined=False):
     n_rows = n_topology_blocks * 2
     n_cols = len(sorted_scenarios)
 
-    # Use fixed height when combining with regime panel
+    # Use full width when combining — heatmap gets its own row in 2-row layout
     if for_combined:
-        fig = plt.figure(figsize=(12*cm, 7*cm))
-        # Adjust margins for combined layout to accommodate labels without overlap
+        fig = plt.figure(figsize=(17.8*cm, max(8*cm, n_rows * 2*cm)))
         gs = fig.add_gridspec(n_rows, n_cols,
                              hspace=0.15, wspace=0.05,
-                             left=0.12, right=0.86, top=0.9, bottom=0.18)
+                             left=0.08, right=0.86, top=0.9, bottom=0.15)
     else:
         fig = plt.figure(figsize=(17.8*cm, max(10*cm, n_rows * 2*cm)))
         # Leave more space on right for colorbars (0.96 instead of 0.92)
@@ -150,12 +149,8 @@ def create_heatmap_grid(df, value_columns, column_labels, for_combined=False):
     
     # Add scenario labels at top
     # Position depends on whether this is for combined figure or standalone
-    if for_combined:
-        label_left = 0.12
-        label_width = 0.74  # from left=0.12 to right=0.86
-    else:
-        label_left = 0.08
-        label_width = 0.78  # from left=0.08 to right=0.86
+    label_left = 0.08
+    label_width = 0.78  # from left=0.08 to right=0.86
 
     for s, scenario in enumerate(sorted_scenarios):
         friendly_scenario = friendly_scenarios[scenario]
@@ -169,7 +164,7 @@ def create_heatmap_grid(df, value_columns, column_labels, for_combined=False):
     # Create heatmaps
     for t_idx, topology in enumerate(topologies):
         # Add topology label on left (position depends on layout)
-        label_x = 0.005 if for_combined else 0.003
+        label_x = 0.003
         fig.text(label_x, 0.15 + (n_topology_blocks - t_idx - 0.5) * 0.75/n_topology_blocks,
                  topology.upper(),
                  ha='center', va='center',
@@ -201,7 +196,7 @@ def create_heatmap_grid(df, value_columns, column_labels, for_combined=False):
                         cbar_label = '$\\langle a^* \\rangle$'
                     else:
                         cmap, vmin, vmax, center = polar_cmap, 0, 1, None
-                        cbar_label = '$\\langle P \\rangle$'
+                        cbar_label = '$\\langle P^* \\rangle$'
                     
                     # Don't show colorbar in heatmap - we'll add them manually later
                     sns.heatmap(heatmap_data, ax=ax, cmap=cmap, center=center,
@@ -275,9 +270,9 @@ def create_heatmap_grid(df, value_columns, column_labels, for_combined=False):
     
     # Add axis labels (only once at bottom and left)
     # Adjust label positions based on layout
-    y_label_x = 0.04 if for_combined else 0.02
-    x_label_y = 0.04 if for_combined else 0.04
-    y_label_fontsize = AXIS_LABEL_FONT_SIZE if for_combined else AXIS_LABEL_FONT_SIZE
+    y_label_x = 0.02
+    x_label_y = 0.04
+    y_label_fontsize = AXIS_LABEL_FONT_SIZE
 
     fig.text(0.5, x_label_y, 'Stubbornness, $w_i$', ha='center',
              fontsize=y_label_fontsize)
@@ -293,14 +288,14 @@ def create_heatmap_grid(df, value_columns, column_labels, for_combined=False):
     cbar_ax1 = fig.add_axes([0.88, 0.55, 0.015, 0.32])  # [left, bottom, width, height]
     norm1 = Normalize(vmin=-1, vmax=1)
     cb1 = ColorbarBase(cbar_ax1, cmap=coop_cmap, norm=norm1, orientation='vertical')
-    cb1.set_label('$\\langle a^* \\rangle$', fontsize=AXIS_LABEL_FONT_SIZE)
+    cb1.set_label('Opinion, $\\langle a^* \\rangle$', fontsize=AXIS_LABEL_FONT_SIZE)
     cb1.ax.tick_params(labelsize=TICK_FONT_SIZE, length=2, width=0.5)
 
     # Polarization colorbar (bottom half)
     cbar_ax2 = fig.add_axes([0.88, 0.18, 0.015, 0.32])  # [left, bottom, width, height]
     norm2 = Normalize(vmin=0, vmax=1)
     cb2 = ColorbarBase(cbar_ax2, cmap=polar_cmap, norm=norm2, orientation='vertical')
-    cb2.set_label('$⟨P⟩$', fontsize=AXIS_LABEL_FONT_SIZE)
+    cb2.set_label('Polarization, $\\langle P^* \\rangle$', fontsize=AXIS_LABEL_FONT_SIZE)
     cb2.ax.tick_params(labelsize=TICK_FONT_SIZE, length=2, width=0.5)
 
     return fig
