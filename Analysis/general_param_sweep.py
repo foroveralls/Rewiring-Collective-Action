@@ -13,26 +13,41 @@ import gc
 def init(lock_):
     models_checks.init_lock(lock_)
 
-def get_adaptive_timesteps(algo, topology, mode="None", base=45000):
+# Stubbornness slows relaxation: horizons are scaled by
+# ((1 - STUB_REF) / (1 - s))^STUB_EXP for s > STUB_REF, capped at STUB_CAP.
+# Calibrated from the convergence diagnostic (2026-07-02 data): exponential
+# fits give a median required-horizon ratio of ~6.5x between s=0.9 and s=0.6,
+# hence STUB_EXP = ln(6.5)/ln(4) ~= 1.35; STUB_CAP covers the slowest
+# meaningful grid row (s ~= 0.889 -> x5.6). Agents with s >= 1 never update
+# (models_checks.Agent), so that row is frozen and exempt from scaling.
+STUB_REF = 0.6
+STUB_EXP = 1.35
+STUB_CAP = 6.0
+
+
+def get_adaptive_timesteps(algo, topology, mode="None", base=45000, stubbornness=None):
     factors = {
-        ("DPAH", "biased", "same"): 3.0, ("DPAH", "biased", "diff"): 1.4,
-        ("DPAH", "bridge", "same"): 2.0, ("DPAH", "bridge", "diff"): 1.4,
+        ("DPAH", "biased", "same"): 3.0, ("DPAH", "biased", "diff"): 2.2,
+        ("DPAH", "bridge", "same"): 2.0, ("DPAH", "bridge", "diff"): 2.4,
         ("Twitter", "biased", "same"): 3.0, ("Twitter", "biased", "diff"): 3.0,
         ("Twitter", "bridge", "same"): 3.0, ("Twitter", "bridge", "diff"): 3.0,
         ("DPAH", "random"): 1, ("Twitter", "random"): 0.9,
         ("DPAH", "node2vec"): 1.2, ("Twitter", "node2vec"): 1.4,
-        ("DPAH", "wtf"): 2.0, ("Twitter", "wtf"): 1.3,
+        ("DPAH", "wtf"): 2.0, ("Twitter", "wtf"): 2.0,
         ("DPAH", "None"): 1.1, ("Twitter", "None"): 1.3,
         ("cl", "biased", "same"): 2.0, ("cl", "biased", "diff"): 3.0,
         ("cl", "bridge", "same"): 2.0, ("cl", "bridge", "diff"): 3.0,
         ("FB", "biased", "same"): 3.0, ("FB", "biased", "diff"): 3.0,
-        ("FB", "bridge", "same"): 3.0, ("FB", "bridge", "diff"): 3.0,
-        ("cl", "random"): 0.9, ("FB", "random"): 0.9,
+        ("FB", "bridge", "same"): 3.0, ("FB", "bridge", "diff"): 3.6,
+        ("cl", "random"): 1.2, ("FB", "random"): 0.9,
         ("cl", "node2vec"): 0.9, ("FB", "node2vec"): 0.9,
-        ("cl", "None"): 0.9, ("FB", "None"): 0.8
+        ("cl", "None"): 0.9, ("FB", "None"): 1.2
     }
     key = (topology, algo, mode) if mode != "None" else (topology, algo)
     factor = factors.get(key, factors.get((topology, algo), 1.0))
+    if stubbornness is not None and STUB_REF < stubbornness < 1:
+        scale = ((1 - STUB_REF) / (1 - stubbornness)) ** STUB_EXP
+        factor *= min(STUB_CAP, scale)
     return int(base*factor)
 
 def get_optimal_process_count():
@@ -78,7 +93,8 @@ def run_algorithm_phase(algo_scenarios, numberOfSimulations, base_args, params):
                 else:
                     top_file, nwsize = None, 800
 
-                adaptive_timesteps = get_adaptive_timesteps(algo, topo, mode)
+                adaptive_timesteps = get_adaptive_timesteps(
+                    algo, topo, mode, stubbornness=params['stubbornness'])
 
                 sim_args = {
                     "rewiringAlgorithm": algo, "nwsize": nwsize, "rewiringMode": mode,
