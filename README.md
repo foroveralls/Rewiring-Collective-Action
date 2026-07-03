@@ -92,6 +92,8 @@ dependencies in it:
 
     conda env create
 
+For Debian clusters where conda is unavailable, a `uv`-based setup guide is provided in `UV_SETUP_GUIDE.md`.
+
 
 ## Reproducing the results
 

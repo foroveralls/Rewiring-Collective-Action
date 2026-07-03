@@ -8,7 +8,9 @@ joblib
 python-igraph
 leidenalg
 node2vec
-netin
+netin==1.0.7
 rustworkx
 setuptools
 wheel
+powerlaw==1.5
+pqdm
