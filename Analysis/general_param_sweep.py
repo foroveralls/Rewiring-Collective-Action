@@ -38,7 +38,7 @@ def get_adaptive_timesteps(algo, topology, mode="None", base=45000, stubbornness
         ("cl", "biased", "same"): 2.0, ("cl", "biased", "diff"): 3.0,
         ("cl", "bridge", "same"): 2.0, ("cl", "bridge", "diff"): 3.0,
         ("FB", "biased", "same"): 3.0, ("FB", "biased", "diff"): 3.0,
-        ("FB", "bridge", "same"): 3.0, ("FB", "bridge", "diff"): 3.6,
+        ("FB", "bridge", "same"): 3.0, ("FB", "bridge", "diff"): 6.0,
         ("cl", "random"): 1.2, ("FB", "random"): 0.9,
         ("cl", "node2vec"): 0.9, ("FB", "node2vec"): 0.9,
         ("cl", "None"): 0.9, ("FB", "None"): 1.2
