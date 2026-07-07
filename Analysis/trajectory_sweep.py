@@ -8,30 +8,14 @@ import numpy as np
 import glob
 from datetime import date
 
+# Single source of truth for adaptive horizons: import from general_param_sweep
+# so the factor table and stubbornness scaling stay in sync. This file previously
+# kept a stale local copy (old factors, no stubbornness scaling); it now defers to
+# get_adaptive_timesteps in general_param_sweep.py.
+from general_param_sweep import get_adaptive_timesteps
+
 def init(lock_):
     models_checks.init_lock(lock_)
-
-def get_adaptive_timesteps(algo, topology, mode="None", base=45000):
-    factors = {
-        ("DPAH", "biased", "same"): 3.0, ("DPAH", "biased", "diff"): 1.4,
-        ("DPAH", "bridge", "same"): 2.0, ("DPAH", "bridge", "diff"): 1.4,
-        ("Twitter", "biased", "same"): 3.0, ("Twitter", "biased", "diff"): 3.0,
-        ("Twitter", "bridge", "same"): 3.0, ("Twitter", "bridge", "diff"): 3.0,
-        ("DPAH", "random"): 1, ("Twitter", "random"): 0.9,
-        ("DPAH", "node2vec"): 1.2, ("Twitter", "node2vec"): 1.4,
-        ("DPAH", "wtf"): 2.0, ("Twitter", "wtf"): 1.3,
-        ("DPAH", "None"): 1.1, ("Twitter", "None"): 1.3,
-        ("cl", "biased", "same"): 2.0, ("cl", "biased", "diff"): 3.0,
-        ("cl", "bridge", "same"): 2.0, ("cl", "bridge", "diff"): 3.0,
-        ("FB", "biased", "same"): 3.0, ("FB", "biased", "diff"): 3.0,
-        ("FB", "bridge", "same"): 3.0, ("FB", "bridge", "diff"): 3.0,
-        ("cl", "random"): 0.9, ("FB", "random"): 0.9,
-        ("cl", "node2vec"): 0.9, ("FB", "node2vec"): 0.9,
-        ("cl", "None"): 0.9, ("FB", "None"): 0.8
-    }
-    key = (topology, algo, mode) if mode != "None" else (topology, algo)
-    factor = factors.get(key, factors.get((topology, algo), 1.0))
-    return int(base*factor)
 
 if __name__ == '__main__':
     # Constants and Variables
@@ -91,8 +75,11 @@ if __name__ == '__main__':
                 top_file = None
                 nwsize = 800
 
-            # Get adaptive timesteps based on algorithm and topology
-            adaptive_timesteps = get_adaptive_timesteps(algo, topology, mode)
+            # Get adaptive timesteps based on algorithm and topology. Pass the
+            # fixed stubbornness so horizons scale correctly if this sweep is run
+            # at s > 0.6 (no-op at the default s = 0.6, which is exempt).
+            adaptive_timesteps = get_adaptive_timesteps(
+                algo, topology, mode, stubbornness=base_args.get("stubbornness"))
 
             # Prepare simulation arguments
             sim_args = {
