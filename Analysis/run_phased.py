@@ -18,6 +18,14 @@ from sweep_utils import get_sweep_id
 def init(lock_):
     models_checks.init_lock(lock_)
 
+# Per-condition timestep override for one-off horizon-corrected reruns.
+# bridge/diff/FB needs 270k (confirmed by the convergence diagnostic), not the
+# fixed 160k used elsewhere -- see
+# claude_stuff/convergence_diagnostic_criteria_2026-07-03.md section 8c/9.
+TIMESTEPS_OVERRIDE = {
+    ("bridge", "diff", "FB"): 270000,
+}
+
 def get_optimal_process_count():
     total_cpus = multiprocessing.cpu_count()
     reserved_cpus = max(2, int(0.25 * total_cpus))
@@ -76,10 +84,11 @@ def run_algorithm_phase(algo_scenarios, numberOfSimulations, base_args):
                 else:
                     top_file, nwsize = None, 800
                 
+                timesteps = TIMESTEPS_OVERRIDE.get((scenario, rewiring, topology_name), 160000)
                 sim_args = {
-                    "rewiringAlgorithm": scenario, "nwsize": nwsize, "rewiringMode": rewiring, 
-                    "type": topology_name, "top_file": top_file, "polarisingNode_f": 0.10, 
-                    "timesteps": 160000, "plot": False, "save_snapshots": True
+                    "rewiringAlgorithm": scenario, "nwsize": nwsize, "rewiringMode": rewiring,
+                    "type": topology_name, "top_file": top_file, "polarisingNode_f": 0.10,
+                    "timesteps": timesteps, "plot": False, "save_snapshots": True
                 }
                 
                 complete_args = {**base_args, **sim_args}
@@ -152,7 +161,11 @@ def main():
     combined_list_rand = [("random", "None", topology) for topology in directed_topology_list + undirected_topology_list]
     
     combined_list = combined_list1 + combined_list_rand + combined_list2 + combined_list3 + combined_list4
-    combined_list = combined_list4 
+    # One-off rerun: bridge/diff/FB needs the corrected 270k horizon (see
+    # TIMESTEPS_OVERRIDE above); every other condition is unaffected by the
+    # convergence diagnostic and stays at its existing 160k campaign result.
+    # Restore the full combined_list above to regenerate the whole campaign.
+    combined_list = [("bridge", "diff", "FB")]
     # Group scenarios by algorithm (now isolates subvariants)
     algo_groups = group_scenarios_by_algorithm(combined_list)
     base_args = models_checks.getargs()
