@@ -235,7 +235,7 @@ def main():
 
     # Load stubbornness/backfirer heatmap data (automatically select most recent)
     output_dir = "../../Output"
-    heatmap_file = get_most_recent_file(output_dir, 'heatmap', '.csv')
+    heatmap_file = os.environ.get("HEATMAP_CSV") or get_most_recent_file(output_dir, 'heatmap', '.csv')
 
     if heatmap_file is None:
         print(f"No heatmap files found in {output_dir}")

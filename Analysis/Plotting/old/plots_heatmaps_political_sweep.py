@@ -16,8 +16,10 @@ import matplotlib.colors as colors
 from datetime import date
 
 # ====================== CONFIGURATION ======================
-# Output directory for plots
-OUTPUT_DIR = "../../Figs/Heatmaps"
+# Output directory for plots. Anchored to this file, which lives one level
+# deeper than the other plotting scripts, so a relative path would miss.
+OUTPUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                          "..", "..", "..", "Figs", "Heatmaps")
 
 # Plot settings
 BASE_FONT_SIZE = 8
@@ -102,7 +104,12 @@ def get_friendly_name(mode, rewiring):
 
 def get_data_file():
     """Get the data file path from user input."""
-    file_list = [f for f in os.listdir("../../Output/polclimate") 
+    override = os.environ.get("PHI_SWEEP_CSV")
+    if override:
+        print(f"Using PHI_SWEEP_CSV override: {override}")
+        return override
+
+    file_list = [f for f in os.listdir("../../Output/polclimate")
                  if f.endswith(".csv") and "heatmap_sweep" in f]
     
     if not file_list:
@@ -280,9 +287,9 @@ def create_state_heatmap_grid(df, param_name, max_param_value=0.05):
                 ax.grid(True, linestyle='--', alpha=0.7, linewidth=0.3)
             
             # Add labels with improved positioning
-            if col_idx == 0:  # First column gets ⟨x⟩ label
-                ax.set_ylabel(r'Mean opinion, $\langle a^* \rangle$', fontsize=AXIS_LABEL_FONT_SIZE+1, labelpad=5, fontweight='bold')
-
+            if col_idx == 0:  # First column gets the topology label
+                # The axis label is drawn once for the whole figure (below), so the
+                # four row copies do not overlap each other.
                 # Add topology label further from plot (adjusted for new spacing)
                 display_name = topology_display_names.get(topology, topology.upper())
                 ax.text(-0.50, 0.5, display_name, transform=ax.transAxes,
@@ -297,8 +304,10 @@ def create_state_heatmap_grid(df, param_name, max_param_value=0.05):
             # if row_idx == n_rows - 1:  # Last row gets x-axis label
             #     ax.set_xlabel("Political climate, $\phi$", fontsize=AXIS_LABEL_FONT_SIZE+1, labelpad=5, fontweight='bold')
     
-    # Add centered x-axis label at bottom of entire figure
+    # Add centered x- and y-axis labels for the entire figure
     fig.text(0.5, 0.04, "Political climate, $\phi$", ha='center', fontsize=AXIS_LABEL_FONT_SIZE+1, fontweight='bold')
+    fig.text(0.045, 0.5, r"Mean opinion, $\langle a^* \rangle$", va='center', rotation=90,
+             fontsize=AXIS_LABEL_FONT_SIZE+1, fontweight='bold')
 
     # Add a colorbar
     if last_im:

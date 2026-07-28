@@ -69,7 +69,14 @@ def setup_plotting_style():
     sns.set_style("white")
     
 def get_data_file():
-    file_list = [f for f in os.listdir("../../Output") 
+    # Explicit override, so the corrected grid can be selected non-interactively
+    # (its filename does not follow the old sweep-id convention).
+    override = os.environ.get("HEATMAP_CSV")
+    if override:
+        print(f"Using HEATMAP_CSV override: {override}")
+        return override
+
+    file_list = [f for f in os.listdir("../../Output")
                  if f.endswith(".csv") and "heatmap" in f]
     
     if not file_list:
