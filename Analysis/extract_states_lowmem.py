@@ -25,16 +25,36 @@ whole object; the cap only limits what we keep -- memory is already low here).
 Run from Analysis/ with the conda python:
   cd Analysis && /home/jpoveralls/miniconda3/envs/collective_rewiring/bin/python \
       extract_states_lowmem.py
+
+--pkl selects the master snapshot pickle; the default is the afk (Sept 2025)
+campaign, which is NOT the campaign behind Figs 2/3 (sweep_20251014 'gme').
+Pass it explicitly when extracting for a figure that must match the main
+results, e.g.
+  ... extract_states_lowmem.py \
+      --pkl ../Output/all_snapshots_sweep_20251014_1704_phased_run_gme_<date>.pkl.gz
 """
-import os, sys, gc, gzip, pickle, csv, time, io
+import os, sys, gc, gzip, pickle, csv, time, io, argparse
 
-ANALYSIS_DIR = "/home/jpoveralls/Documents/Projects_code/Rewiring-Collective-Action/Analysis"
+# Derived, not hardcoded: this script also runs on the cluster, where an
+# absolute local path would not exist.
+ANALYSIS_DIR = os.path.dirname(os.path.abspath(__file__))
+OUTPUT_DIR = os.path.join(ANALYSIS_DIR, "..", "Output")
 sys.path.insert(0, ANALYSIS_DIR)
-os.chdir(ANALYSIS_DIR)
 
-PKL = "../Output/all_snapshots_sweep_20250905_1501_phased_run_afk_2025-09-05.pkl.gz"
-OUT_CSV = "../Output/per_agent_final_states.csv"
-META_TXT = "../Output/per_agent_final_states_META.txt"
+_ap = argparse.ArgumentParser(description="Extract per-agent final opinion states from a master snapshot pickle.")
+_ap.add_argument("--pkl", default=os.path.join(OUTPUT_DIR, "all_snapshots_sweep_20250905_1501_phased_run_afk_2025-09-05.pkl.gz"),
+                 help="master snapshot pickle to read (default: the afk 2025-09-05 campaign)")
+_ap.add_argument("--out", default=os.path.join(OUTPUT_DIR, "per_agent_final_states.csv"),
+                 help="per-agent CSV to write; the _META.txt sidecar follows its name")
+_args = _ap.parse_args()
+
+# Resolve against the launch cwd BEFORE chdir, so a relative --pkl means what
+# the caller typed rather than something relative to Analysis/.
+PKL = os.path.abspath(_args.pkl)
+OUT_CSV = os.path.abspath(_args.out)
+META_TXT = os.path.splitext(OUT_CSV)[0] + "_META.txt"
+
+os.chdir(ANALYSIS_DIR)
 
 t0 = time.time()
 import models_checks  # noqa: resolves the real Agent class
