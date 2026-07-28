@@ -609,18 +609,22 @@ def save_regime_based_analysis(regime_metrics_df, practical_metrics_df, weighted
 
 def main():
     """Main execution function for regime-based analysis"""
-    file_list = [f for f in os.listdir("../../Output") if f.endswith(".csv") and "heatmap" in f]
-    
-    if not file_list:
-        print("No suitable files found in the Output directory.")
-        return
-    
-    for i, file in enumerate(file_list):
-        print(f"{i}: {file}")
-    
-    file_index = 0  # Auto-select first file
-    print(f"Auto-selecting file {file_index}: {file_list[file_index]}")
-    data_path = os.path.join("../../Output", file_list[file_index])
+    data_path = os.environ.get("HEATMAP_CSV")
+    if data_path:
+        print(f"Using HEATMAP_CSV override: {data_path}")
+    else:
+        file_list = [f for f in os.listdir("../../Output") if f.endswith(".csv") and "heatmap" in f]
+
+        if not file_list:
+            print("No suitable files found in the Output directory.")
+            return
+
+        for i, file in enumerate(file_list):
+            print(f"{i}: {file}")
+
+        file_index = 0  # Auto-select first file
+        print(f"Auto-selecting file {file_index}: {file_list[file_index]}")
+        data_path = os.path.join("../../Output", file_list[file_index])
     
     # Load and prepare data
     df = pd.read_csv(data_path)

@@ -33,6 +33,18 @@ FRIENDLY_COLORS = {
     'WTF': '#BBBBBB', 'Node2Vec': '#44BB99'
 }
 
+def get_heatmap_files():
+    """Locate the stubbornness x diverger sweep CSV.
+
+    HEATMAP_CSV overrides the glob, since the corrected grid
+    (heatmap_sweep_phased_CORRECTED_*.csv) does not carry the sweep parameter
+    names in its filename.
+    """
+    override = os.environ.get("HEATMAP_CSV")
+    if override:
+        return [override]
+    return glob.glob("../../Output/heatmap_sweep_*stubbornness*.csv")
+
 def setup_style():
     """Set up matplotlib style to match manuscript standards"""
     plt.rcParams.update({
@@ -62,7 +74,7 @@ def load_continuous_data(max_backfirer_fraction=None):
     if max_backfirer_fraction is None:
         max_backfirer_fraction = MAX_BACKFIRER_FRACTION
     # Find heatmap files with stubbornness parameter
-    heatmap_files = glob.glob("../../Output/heatmap_sweep_*stubbornness*.csv")
+    heatmap_files = get_heatmap_files()
 
     if not heatmap_files:
         print("No heatmap files with stubbornness parameter found in Output directory")
@@ -158,7 +170,7 @@ def load_continuous_data(max_backfirer_fraction=None):
 def load_2d_parameter_data():
     """Load continuous parameter data preserving both stubbornness and backfirer fraction dimensions"""
     # Find heatmap files with stubbornness parameter
-    heatmap_files = glob.glob("../../Output/heatmap_sweep_*stubbornness*.csv")
+    heatmap_files = get_heatmap_files()
 
     if not heatmap_files:
         print("No heatmap files with stubbornness parameter found in Output directory")
@@ -969,7 +981,7 @@ def load_continuous_backfirer_data(min_stubbornness=None, max_stubbornness=None)
         max_stubbornness: Maximum stubbornness to include (default None = include all)
     """
     # Find heatmap files with stubbornness parameter
-    heatmap_files = glob.glob("../../Output/heatmap_sweep_*stubbornness*.csv")
+    heatmap_files = get_heatmap_files()
 
     if not heatmap_files:
         print("No heatmap files with stubbornness parameter found in Output directory")
