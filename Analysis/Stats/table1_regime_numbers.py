@@ -21,9 +21,16 @@ import pandas as pd
 
 ROOT = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))  # repo root (this file lives in Analysis/Stats/)
 OUT = os.path.join(ROOT, "Output")
-STUB_PNF = os.path.join(OUT, "heatmap_sweep_phased_sweep_20251014_1511_stubbornness_polarisingNode_f_pxc.csv")
-PHI = os.path.join(OUT, "heatmap_sweep_phased_sweep_20250908_1826_politicalClimate_lou.csv")
+# Corrected inputs (2026-07-27). The `..._pxc.csv` master is deliberately left buggy for
+# provenance and the `..._lou` phi sweep ran at pNf=0, so neither may be used here; see
+# claude_stuff/Infrastructure/convergence_diagnostic_criteria_2026-07-03.md §9c.
+# HEATMAP_CSV / PHI_SWEEP_CSV override, matching the plotting and heatmap-stats scripts.
+STUB_PNF = os.environ.get("HEATMAP_CSV") or os.path.join(OUT, "heatmap_sweep_phased_CORRECTED_2026-07-27.csv")
+PHI = os.environ.get("PHI_SWEEP_CSV") or os.path.join(OUT, "heatmap_sweep_phased_sweep_20260707_1943_politicalClimate_tay.csv")
 PER_RUN = os.path.join(OUT, "per_run_summary.csv")
+print(f"stub_pnf grid : {os.path.relpath(STUB_PNF, ROOT)}")
+print(f"phi sweep     : {os.path.relpath(PHI, ROOT)}")
+print(f"per-run summary: {os.path.relpath(PER_RUN, ROOT)}")
 
 sweep = {"stub_pnf": pd.read_csv(STUB_PNF), "phi": pd.read_csv(PHI)}
 for d in sweep.values():

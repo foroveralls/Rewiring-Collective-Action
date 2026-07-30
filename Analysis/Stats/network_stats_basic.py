@@ -19,8 +19,27 @@ import numpy as np
 from netin import DPAH
 from pathlib import Path
 from scipy import stats
+import igraph as ig
+import leidenalg as la
 import warnings
 warnings.filterwarnings('ignore')
+
+
+def leiden_partition(G):
+    """Leiden communities as a list of node sets, for nx.community.modularity.
+
+    Built from the edge list rather than ig.Graph.from_networkx() so igraph does not
+    copy node attributes, and indexed by igraph vertex id rather than by networkx
+    node label (the two coincide only for 0..N-1 labels in insertion order).
+    Direction is preserved, so directed graphs get the directed modularity.
+    """
+    nodes = list(G.nodes())
+    idx = {n: i for i, n in enumerate(nodes)}
+    edges = [(idx[u], idx[v]) for u, v in G.edges()]
+    ig_g = ig.Graph(n=len(nodes), edges=edges, directed=G.is_directed())
+    part = la.find_partition(ig_g, la.ModularityVertexPartition, seed=42)
+    return [{nodes[i] for i in comm} for comm in part]
+
 
 def analyze_network(G, name):
     """Calculate standard network metrics"""
@@ -57,8 +76,13 @@ def analyze_network(G, name):
     except:
         metrics['Assortativity'] = np.nan
     
+    # Leiden, seed=42, unweighted: the same call the model makes
+    # (models_checks.py:1430) and the only method the manuscript names (L246, L394).
+    # Was greedy_modularity_communities until 2026-07-30, which is why the Q values
+    # in this table sat below the ones in SI Fig. S2 (Louvain): on FB at t=0,
+    # 0.5205 greedy vs 0.5759 Louvain vs 0.5773 Leiden.
     try:
-        partition = nx.community.greedy_modularity_communities(G)
+        partition = leiden_partition(G)
         metrics['Modularity'] = nx.community.modularity(G, partition)
         metrics['Communities'] = len(partition)
     except:
@@ -112,7 +136,11 @@ def main():
     G_dpah = DPAH(n=800, f_m=0.5, d=0.02, h_MM=0.5, h_mm=0.5, plo_M=2.0, plo_m=2.0, seed = 42)
     
     G_dpah.generate()
-    G = nx.Graph(G_dpah)  # Convert to standard NetworkX graph
+    # DiGraph, not Graph: DPAH is directed and measuring it on an undirected
+    # projection made this row incomparable with the directed Twitter row above.
+    # (Plain nx class rather than the netin object because community detection and
+    # several nx algorithms reconstruct the graph class, which netin cannot do.)
+    G = nx.DiGraph(G_dpah)
     results.append(analyze_network(G, "DPAH_graph"))
     
     df = pd.DataFrame(results)

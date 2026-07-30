@@ -37,7 +37,26 @@ EXCLUDED_ALGORITHMS = ["none_none"]
 
 # Heatmap bin settings
 PARAM_BINS = 12  # Number of bins for parameter values
-STATE_BINS = 20  # Number of bins for state values
+STATE_BINS = int(os.environ.get("PHI_STATE_BINS", 30))  # Number of bins for state values
+
+# Colour normalisation.
+#   "fraction" - colour is the fraction of runs at each opinion level for a given
+#                phi, so every panel shares one absolute scale.
+#   "logcount" - original behaviour, log1p(counts) rescaled to each panel's own
+#                maximum. That makes panels look comparable when they are not:
+#                the x(similar) panels pile all 30 runs of a phi column into the
+#                single bin at -1, so their panel maximum is ~3x that of the
+#                x(opposite) panels and identical run fractions render dimmer.
+NORM_MODE = os.environ.get("PHI_NORM_MODE", "fraction")
+
+# Upper end of the fraction scale; bins above it clip. Set just above the pooled
+# p90 of non-zero bin fractions (0.233 at STATE_BINS = 30), so the transition
+# ridge uses most of the colour range while the saturated rails clip. Only 8% of
+# non-zero bins exceed it.
+NORM_VMAX = float(os.environ.get("PHI_NORM_VMAX", 0.25))
+
+# Dashed reference line at the alignment threshold <a*> = 0.
+ZERO_LINE = os.environ.get("PHI_ZERO_LINE", "1") == "1"
 
 # Scenario names and colors mapping - matching plots_trajec_sweep_heatmap.py
 FRIENDLY_COLORS = {
@@ -238,22 +257,42 @@ def create_state_heatmap_grid(df, param_name, max_param_value=0.05):
                     bins=[param_bins, state_bins]
                 )
                 
-                # Log transformation for enhancing visibility (keeping original functionality)
-                H_log = np.log1p(H)  # log(1+x) to handle zeros
-                
-                # Normalize to get full color range
-                if H_log.max() > 0:
-                    H_norm = H_log / H_log.max()
+                if NORM_MODE == "fraction":
+                    # Fraction of runs at each opinion level, conditional on phi.
+                    # Every phi column holds the same number of runs, so this is a
+                    # conditional density and is comparable across panels.
+                    col_totals = H.sum(axis=1, keepdims=True)
+                    H_norm = np.divide(H, col_totals, out=np.zeros_like(H),
+                                       where=col_totals > 0)
+                    vmax = NORM_VMAX
                 else:
-                    H_norm = H_log
-                
+                    # Log transformation for enhancing visibility (original behaviour)
+                    H_log = np.log1p(H)  # log(1+x) to handle zeros
+
+                    # Normalize to get full color range
+                    if H_log.max() > 0:
+                        H_norm = H_log / H_log.max()
+                    else:
+                        H_norm = H_log
+                    vmax = 1
+
                 # Plot the normalized 2D histogram
-                im = ax.pcolormesh(xedges, yedges, H_norm.T, cmap=cmap, vmin=0, vmax=1)
+                im = ax.pcolormesh(xedges, yedges, H_norm.T, cmap=cmap, vmin=0, vmax=vmax)
+                # Rasterize the mesh only. Adjacent quads in a vector PDF leave hairline
+                # seams at every bin edge, which read as a grid over the data (the PNG
+                # never showed them because it is already a raster). Text, axes and the
+                # reference line below stay vector.
+                im.set_rasterized(True)
                 last_im = im
-                
+
                 # Set dynamic axis limits
                 ax.set_xlim(0, max_param_value)
                 ax.set_ylim(-1, 1)
+
+                # Alignment threshold: above this line the population is aligned.
+                if ZERO_LINE:
+                    ax.axhline(0, color='white', linestyle='--', linewidth=0.5,
+                               alpha=0.6, zorder=3)
                 
           
         
@@ -283,9 +322,12 @@ def create_state_heatmap_grid(df, param_name, max_param_value=0.05):
                 ax.tick_params(axis='both', which='major', labelsize=TICK_FONT_SIZE,
                               width=0.8, length=2, pad=2)
                 
-                # Add grid for better readability
-                ax.grid(True, linestyle='--', alpha=0.7, linewidth=0.3)
-            
+                # No grid. These panels are a filled density field, so a grid drawn
+                # over the data competes with the marks rather than helping read them,
+                # and it dilutes the one reference line that carries meaning here (the
+                # alignment threshold above).
+                ax.grid(False)
+
             # Add labels with improved positioning
             if col_idx == 0:  # First column gets the topology label
                 # The axis label is drawn once for the whole figure (below), so the
@@ -312,8 +354,11 @@ def create_state_heatmap_grid(df, param_name, max_param_value=0.05):
     # Add a colorbar
     if last_im:
         cbar_ax = fig.add_axes([0.92, 0.15, 0.02, 0.7])  # Moved slightly right
-        cbar = fig.colorbar(last_im, cax=cbar_ax)
-        cbar.set_label('log(Count+1)', fontsize=LEGEND_FONT_SIZE)
+        cbar = fig.colorbar(last_im, cax=cbar_ax,
+                            extend='max' if NORM_MODE == "fraction" else 'neither')
+        cbar_label = ('Fraction of runs' if NORM_MODE == "fraction"
+                      else 'log(Count+1)')
+        cbar.set_label(cbar_label, fontsize=LEGEND_FONT_SIZE)
         cbar.ax.tick_params(labelsize=TICK_FONT_SIZE, length =1.5, width= 1)
         cbar.outline.set_linewidth(0.4)
     
@@ -321,12 +366,15 @@ def create_state_heatmap_grid(df, param_name, max_param_value=0.05):
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     today = date.today().strftime("%Y%m%d")
     sweep_id = os.path.basename(df.name).split('_')[-1].split('.')[0] if hasattr(df, 'name') else today
-    save_path = f'{OUTPUT_DIR}/heatmap_states_grid_{param_name}_{sweep_id}'
-    
+    suffix = os.environ.get("PHI_FIG_SUFFIX", "")
+    save_path = f'{OUTPUT_DIR}/heatmap_states_grid_{param_name}_{sweep_id}{suffix}'
+
+    # 600 dpi so the rasterized mesh stays crisp when a reviewer zooms the PDF.
     for ext in ['pdf', 'png']:
-        plt.savefig(f"{save_path}.{ext}", bbox_inches='tight', dpi=300)
-    
-    plt.show()
+        plt.savefig(f"{save_path}.{ext}", bbox_inches='tight', dpi=600)
+
+    if os.environ.get("MPLBACKEND", "").lower() != "agg":
+        plt.show()
     print(f"Saved heatmap states grid to {save_path}")
 
 def main():

@@ -21,7 +21,7 @@ def init(lock_):
 # Per-condition timestep override for one-off horizon-corrected reruns.
 # bridge/diff/FB needs 270k (confirmed by the convergence diagnostic), not the
 # fixed 160k used elsewhere -- see
-# claude_stuff/convergence_diagnostic_criteria_2026-07-03.md section 8c/9.
+# claude_stuff/Infrastructure/convergence_diagnostic_criteria_2026-07-03.md section 8c/9.
 TIMESTEPS_OVERRIDE = {
     ("bridge", "diff", "FB"): 270000,
 }

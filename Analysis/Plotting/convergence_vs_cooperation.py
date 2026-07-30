@@ -9,6 +9,16 @@ fundamental algorithmic optimality rather than mere correlations.
 
 CONVERGENCE METHODS:
 -------------------
+NOTE (2026-07-30): the SUBMITTED Fig. 3 is the **inflection** method -- both
+`rewiring-manuscript-pnasn-v2.tex` and the baseline load
+`pareto_speed_cooperativity_inflection_2026-03-27.pdf` at L110. t95 is the code
+default only, and it has two defects inflection does not: its `1 - t95/len(traj)`
+normalisation is not horizon-invariant (so the merged campaign's 270k condition
+gains ~0.05 of speed from the denominator alone), and it scores
+negatively-converging runs as near-instant. Choose method 2 to reproduce the
+paper. Error bars (R1.7) now work for BOTH metrics -- see PER_RUN_SOURCES in
+main(); background in `claude_stuff/Review/per_run_inflection_2026-07-30.md`.
+
 1. t95 method (default): Time to reach 95% of final cooperation value
    - Simple, robust, always computable
    - Returns normalized speed: 1 - (t95/t_max), range [0,1]
@@ -183,7 +193,8 @@ def find_pareto_front(metrics_df):
 
     return pareto_mask
 
-def plot_pareto_analysis(metrics_df, output_path, method='t95', per_run_df=None):
+def plot_pareto_analysis(metrics_df, output_path, method='t95', per_run_df=None,
+                         axes_mode='rank'):
     """Create faceted Pareto frontier analysis — one panel per topology.
 
     Each panel shows algorithms as colored points with per-topology Pareto
@@ -197,14 +208,28 @@ def plot_pareto_analysis(metrics_df, output_path, method='t95', per_run_df=None)
         Output file path
     method : str
         't95' or 'inflection' to indicate which method was used
+    axes_mode : str
+        'rank' (default, as submitted) plots both axes as global rank
+        percentiles; 'raw' plots the metrics in their own units. Pareto
+        membership is identical either way (ranking is a monotone transform),
+        so only the visual spacing and the axis meaning change. 'raw' fixes the
+        standing audit finding that the y-axis is labelled $\\langle a^* \\rangle$
+        while carrying percentiles, but it does not rescue the inflection error
+        bars: per-run IQRs exceed the ensemble spread, so in 'raw' they are drawn
+        uncapped and will overflow the marker cloud. Set via PARETO_AXES=raw.
     per_run_df : pd.DataFrame, optional
-        Per-run metrics (cols: scenario [friendly], topology, speed_t95,
-        cooperativity) from Output/per_run_summary.csv. If given, asymmetric
-        IQR error bars (R1.7 ensemble uncertainty) are drawn on each point.
-        Markers stay at the ensemble-mean rank; bars show the q25-q75 of the 90
-        per-run metrics mapped through the SAME rank-percentile (aggregate ECDF)
-        transform as the markers, so the marker is not necessarily the bar
-        midpoint (note this in the caption).
+        Per-run metrics with columns (scenario [friendly], topology, speed,
+        cooperativity). `speed` must be the SAME metric as `method`, already
+        renamed by the caller: `speed_t95` from Output/per_run_summary.csv for
+        method='t95', `speed_inflection` from Output/per_run_inflection.csv for
+        method='inflection'. If given, asymmetric IQR error bars (R1.7 ensemble
+        uncertainty) are drawn on each point. Markers stay at the ensemble-mean
+        rank; bars show the q25-q75 of the 90 per-run metrics mapped through the
+        SAME rank-percentile (aggregate ECDF) transform as the markers, so the
+        marker is not necessarily the bar midpoint (note this in the caption).
+        Rows with a NaN speed (inflection not found for that run) must already be
+        dropped by the caller; conditions left with < MIN_RUNS_FOR_IQR valid runs
+        get no bars, and are reported.
     """
     setup_style()
 
@@ -218,21 +243,51 @@ def plot_pareto_analysis(metrics_df, output_path, method='t95', per_run_df=None)
         print("No valid data for plotting")
         return
 
-    # Rank percentiles computed globally so panels share a consistent scale
-    valid_data['speed_rank'] = valid_data['speed'].rank(pct=True)
-    valid_data['coop_rank'] = valid_data['cooperativity'].rank(pct=True)
+    # Plotted coordinates. 'rank': global rank percentiles, so panels share a
+    # consistent scale (as submitted). 'raw': the metrics' own units.
+    raw_axes = (axes_mode == 'raw')
+    if raw_axes:
+        valid_data['speed_plot'] = valid_data['speed']
+        valid_data['coop_plot'] = valid_data['cooperativity']
+    else:
+        valid_data['speed_plot'] = valid_data['speed'].rank(pct=True)
+        valid_data['coop_plot'] = valid_data['cooperativity'].rank(pct=True)
 
-    # Per-run IQR in the SAME rank space (aggregate ECDF), keyed by (scenario, topology)
+    # Per-run IQR in the SAME space as the markers, keyed by (scenario, topology).
+    # Metric-agnostic: per_run_df['speed'] is whatever `method` selected.
+    MIN_RUNS_FOR_IQR = 10
     rank_iqr = {}
     if per_run_df is not None:
         agg_speed = np.sort(valid_data['speed'].to_numpy())
         agg_coop = np.sort(valid_data['cooperativity'].to_numpy())
         nv = len(valid_data)
+        skipped = []
         for (sc, topo), grp in per_run_df.groupby(['scenario', 'topology']):
-            sp = np.searchsorted(agg_speed, grp['speed_t95'].to_numpy(), side='right') / nv
-            cp = np.searchsorted(agg_coop, grp['cooperativity'].to_numpy(), side='right') / nv
+            if len(grp) < MIN_RUNS_FOR_IQR:
+                skipped.append((sc, topo, len(grp)))
+                continue
+            if raw_axes:
+                sp = grp['speed'].to_numpy()
+                cp = grp['cooperativity'].to_numpy()
+            else:
+                sp = np.searchsorted(agg_speed, grp['speed'].to_numpy(), side='right') / nv
+                cp = np.searchsorted(agg_coop, grp['cooperativity'].to_numpy(), side='right') / nv
             rank_iqr[(sc, topo)] = (np.percentile(sp, 25), np.percentile(sp, 75),
                                     np.percentile(cp, 25), np.percentile(cp, 75))
+        print(f"Error bars: IQR drawn for {len(rank_iqr)} of {len(valid_data)} conditions "
+              f"(metric = {method}, axes = {axes_mode})")
+        if skipped:
+            print(f"  no bars for {len(skipped)} condition(s) with < {MIN_RUNS_FOR_IQR} "
+                  f"valid runs: {skipped}  -- disclose this if it reaches the caption")
+
+    # Metric units, used for the x-label on raw axes only (in rank mode both axes
+    # are percentiles and the generic label is the accurate one).
+    # `calculate_inflection_convergence_speed` already multiplies the slope by 1000,
+    # so an axis reading 0.107 is a rate of 1.07e-4 per step.
+    RATE_LABEL = {
+        'inflection': r'Convergence rate ($\times 10^{-3}$)',
+        't95': r'Convergence rate, $1 - t_{95}/T$',
+    }
 
     # Topology ordering and labels
     topology_order = ['DPAH', 'cl', 'Twitter', 'FB']
@@ -250,6 +305,24 @@ def plot_pareto_analysis(metrics_df, output_path, method='t95', per_run_df=None)
     # Global Pareto front (across all topologies) for reference
     global_pareto_mask = find_pareto_front(valid_data)
 
+    # Shared raw limits, spanning everything actually drawn (markers and any bars),
+    # so the four panels stay comparable and no bar is silently clipped.
+    if raw_axes:
+        xs = list(valid_data['speed_plot'])
+        ys = list(valid_data['coop_plot'])
+        for s_lo, s_hi, c_lo, c_hi in rank_iqr.values():
+            xs += [s_lo, s_hi]
+            ys += [c_lo, c_hi]
+        def _pad(v, frac=0.06):
+            lo, hi = min(v), max(v)
+            m = (hi - lo) * frac
+            return lo - m, hi + m
+        raw_xlim, raw_ylim = _pad(xs), _pad(ys)
+        print(f"Raw axes: x {raw_xlim[0]:.4f}..{raw_xlim[1]:.4f}, "
+              f"y {raw_ylim[0]:.4f}..{raw_ylim[1]:.4f}")
+    else:
+        raw_xlim = raw_ylim = None
+
     for idx, topo in enumerate(topologies_present):
         ax = axes[idx // ncols, idx % ncols]
         topo_data = valid_data[valid_data['topology'] == topo]
@@ -265,25 +338,30 @@ def plot_pareto_analysis(metrics_df, output_path, method='t95', per_run_df=None)
             edge_w = 0.9 if is_pareto else 0.6
             alpha = 0.95 if is_pareto else 0.8
 
-            # Asymmetric IQR error bars (drawn under the markers); capped at 0.15 rank units
-            BAR_CAP = 0.10
+            # Asymmetric IQR error bars (drawn under the markers), capped at 0.10 rank
+            # units. (The comment here used to say 0.15, which never matched the code;
+            # the drafted caption says 0.10, i.e. the code and the caption agree and
+            # only the comment was wrong. Fixed 2026-07-30.) No cap on raw axes -- a
+            # cap in metric units would have no defensible value, so the bars are drawn
+            # at full length even where they overflow the marker cloud.
+            BAR_CAP = np.inf if raw_axes else 0.10
             key = (row['scenario'], topo)
             if key in rank_iqr:
                 s_lo, s_hi, c_lo, c_hi = rank_iqr[key]
-                xerr = [[min(BAR_CAP, max(0.0, row['speed_rank'] - s_lo))],
-                        [min(BAR_CAP, max(0.0, s_hi - row['speed_rank']))]]
-                yerr = [[min(BAR_CAP, max(0.0, row['coop_rank'] - c_lo))],
-                        [min(BAR_CAP, max(0.0, c_hi - row['coop_rank']))]]
-                ax.errorbar(row['speed_rank'], row['coop_rank'], xerr=xerr, yerr=yerr,
+                xerr = [[min(BAR_CAP, max(0.0, row['speed_plot'] - s_lo))],
+                        [min(BAR_CAP, max(0.0, s_hi - row['speed_plot']))]]
+                yerr = [[min(BAR_CAP, max(0.0, row['coop_plot'] - c_lo))],
+                        [min(BAR_CAP, max(0.0, c_hi - row['coop_plot']))]]
+                ax.errorbar(row['speed_plot'], row['coop_plot'], xerr=xerr, yerr=yerr,
                             fmt='none', ecolor=color, elinewidth=0.8, capsize=1.5,
                             capthick=0.8, alpha=0.55, zorder=2.5)
 
-            ax.scatter(row['speed_rank'], row['coop_rank'], c=color,
+            ax.scatter(row['speed_plot'], row['coop_plot'], c=color,
                        marker='o', s=size, alpha=alpha,
                        edgecolors='black', linewidth=edge_w, zorder=3)
 
             if is_pareto:
-                pareto_pts.append([row['speed_rank'], row['coop_rank']])
+                pareto_pts.append([row['speed_plot'], row['coop_plot']])
 
         # Draw per-topology Pareto front
         if len(pareto_pts) > 1:
@@ -293,18 +371,24 @@ def plot_pareto_analysis(metrics_df, output_path, method='t95', per_run_df=None)
             ax.plot(sorted_p[:, 0], sorted_p[:, 1],
                     'r--', alpha=0.7, linewidth=1.0, zorder=2)
 
-        # Reference diagonal
-        ax.plot([0, 1], [1, 0], 'k--', alpha=0.4, linewidth=0.5, zorder=1)
-
-        ax.invert_yaxis()
-        ax.set_xlim(0, 1.05)
-        ax.set_ylim(0, 1.05)
+        if raw_axes:
+            # No diagonal: with both axes in metric units it is not a meaningful
+            # reference. A zero line is, because <a*> changes sign.
+            ax.axhline(0.0, color='k', linestyle='--', alpha=0.4, linewidth=0.5, zorder=1)
+            ax.set_xlim(*raw_xlim)
+            ax.set_ylim(*raw_ylim)
+        else:
+            # Reference diagonal
+            ax.plot([0, 1], [1, 0], 'k--', alpha=0.4, linewidth=0.5, zorder=1)
+            ax.set_xlim(0, 1.05)
+            ax.set_ylim(0, 1.05)
         ax.grid(True, alpha=0.25, linewidth=0.3)
         ax.set_title(topology_labels.get(topo, topo), fontsize=FONT_SIZE, fontweight='bold')
 
         # Axis labels only on edges
         if idx // ncols == nrows - 1:
-            ax.set_xlabel('Convergence rate', fontsize=FONT_SIZE)
+            ax.set_xlabel(RATE_LABEL[method] if raw_axes else 'Convergence rate',
+                          fontsize=FONT_SIZE)
         if idx % ncols == 0:
             ax.set_ylabel(r'Opinion, $\langle a^* \rangle$', fontsize=FONT_SIZE)
 
@@ -415,29 +499,69 @@ def main():
         print("No valid metrics calculated")
         return
 
-    # Optional per-run metrics for ensemble IQR error bars (R1.7).
-    # Only meaningful for t95 (per_run_summary.csv stores speed_t95).
+    # Optional per-run metrics for ensemble IQR error bars (R1.7). One file per speed
+    # metric; both are keyed type/scenario/rewiring/model_run and both carry a
+    # `cooperativity` column, so only the speed column differs:
+    #   t95        -> per_run_summary.csv    (Analysis/Stats/summarize_individual_csv.py,
+    #                                         downsampled at t % 100 == 0)
+    #   inflection -> per_run_inflection.csv (Analysis/extract_inflection_lowmem.py,
+    #                                         FULL resolution -- mandatory, because
+    #                                         find_inflection's 5000 < i < 20000 window is
+    #                                         in raw index units and is unreachable on a
+    #                                         downsampled series. See
+    #                                         claude_stuff/Review/per_run_inflection_2026-07-30.md)
+    PER_RUN_SOURCES = {
+        't95': ('per_run_summary.csv', 'speed_t95'),
+        'inflection': ('per_run_inflection.csv', 'speed_inflection'),
+    }
     per_run_df = None
-    prs = os.path.join("../../Output", "per_run_summary.csv")
-    if method == 't95' and os.path.exists(prs):
+    prs_name, speed_col = PER_RUN_SOURCES[method]
+    prs = os.path.join("../../Output", prs_name)
+    if os.path.exists(prs):
         pr = pd.read_csv(prs)  # default NA parsing maps "None" -> NaN, mirroring calculate_metrics
         pr['rewiring'] = pr['rewiring'].fillna('none')
         pr['scenario'] = pr['scenario'].fillna('none')
         pr['grouped'] = pr['scenario'].str.cat(pr['rewiring'], sep='_')
         pr['scenario'] = pr['grouped'].map(lambda g: FRIENDLY_NAMES.get(g, g))
         pr['topology'] = pr['type']
-        per_run_df = pr[['scenario', 'topology', 'speed_t95', 'cooperativity']]
-        print(f"Loaded per-run metrics for error bars: {prs} ({len(per_run_df)} rows)")
+        if speed_col not in pr.columns:
+            print(f"{prs} has no '{speed_col}' column (has: {list(pr.columns)}); "
+                  f"plotting points without error bars")
+        else:
+            pr = pr.rename(columns={speed_col: 'speed'})
+            per_run_df = pr[['scenario', 'topology', 'speed', 'cooperativity']]
+            n_all = len(per_run_df)
+            # NaN speed = the metric could not be computed for that run (inflection not
+            # found). Dropped, never coerced to 0.0, which would masquerade as "slowest".
+            per_run_df = per_run_df.dropna(subset=['speed', 'cooperativity'])
+            n_drop = n_all - len(per_run_df)
+            print(f"Loaded per-run metrics for error bars: {prs} "
+                  f"({len(per_run_df)} of {n_all} rows usable, metric = {speed_col})")
+            if n_drop:
+                print(f"  dropped {n_drop} run(s) with a NaN {speed_col} "
+                      f"({100.0*n_drop/n_all:.1f}%) -- disclose this count in the caption")
     else:
-        print("No per-run summary (or method!=t95); plotting points without error bars")
+        print(f"No per-run file for method={method} ({prs} missing); plotting points "
+              f"without error bars.")
+        if method == 'inflection':
+            print("  build it with:  cd Analysis && python extract_inflection_lowmem.py "
+                  "--in ../Output/default_run_individual_..._gme_2025-10-15.csv "
+                  "--out ../Output/per_run_inflection.csv   (cluster job, ~28 GB input)")
 
     # Create plot and analysis
     output_dir = "../../Figs/Convergence"
     os.makedirs(output_dir, exist_ok=True)
-    output_path = f"{output_dir}/pareto_speed_cooperativity_{method}_{date.today()}.pdf"
+    # PARETO_AXES=raw plots the metrics in their own units instead of rank
+    # percentiles (see plot_pareto_analysis). Default 'rank' = the submitted figure.
+    axes_mode = os.environ.get('PARETO_AXES', 'rank').lower()
+    if axes_mode not in ('rank', 'raw'):
+        raise SystemExit(f"PARETO_AXES must be 'rank' or 'raw', got {axes_mode!r}")
+    suffix = '_raw' if axes_mode == 'raw' else ''
+    output_path = f"{output_dir}/pareto_speed_cooperativity_{method}{suffix}_{date.today()}.pdf"
 
     pareto_data, dominated_data = plot_pareto_analysis(metrics, output_path, method=method,
-                                                       per_run_df=per_run_df)
+                                                       per_run_df=per_run_df,
+                                                       axes_mode=axes_mode)
     analyze_pareto_results(pareto_data, dominated_data)
 
     print(f"\nPareto trade-off analysis saved: {output_path}")

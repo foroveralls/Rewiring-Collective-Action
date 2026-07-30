@@ -21,7 +21,7 @@ Run from the Analysis/ directory (paths are relative, matching run_phased.py):
 Partial reruns (--points/--conditions restrict what is simulated; --merge keeps
 every record from an existing pkl that is not re-simulated, so outputs always
 cover all 60 combinations). After the 2026-07-03 horizon changes the required
-revalidation is (see claude_stuff/convergence_diagnostic_criteria_2026-07-03.md):
+revalidation is (see claude_stuff/Infrastructure/convergence_diagnostic_criteria_2026-07-03.md):
 
     # 1. stress point at the stubbornness-scaled horizons (expensive: ~26.4M
     #    steps x 20 runs across 30 conditions; heaviest condition ~1.3M steps)
