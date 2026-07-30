@@ -4,7 +4,7 @@
 Replaces the rows for one (scenario, rewiring, topology) condition in an
 existing default_run_avg / default_run_individual pair with the rows from a
 fresh rerun, e.g. bridge/diff/FB at the corrected 270k horizon (see
-claude_stuff/convergence_diagnostic_criteria_2026-07-03.md section 9). Backs
+claude_stuff/Infrastructure/convergence_diagnostic_criteria_2026-07-03.md section 9). Backs
 up the originals before overwriting, since Output/ is gitignored.
 
 The merge streams line by line rather than loading the CSVs into a DataFrame:

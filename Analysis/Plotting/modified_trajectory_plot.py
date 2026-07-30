@@ -126,7 +126,9 @@ def plot_network_dynamics_truncated(data, t_max=80000, scale_type='linear',
     # Find the actual maximum timestep in the FULL data
     actual_t_max = avg_state_data_full['t'].max()
     print(f"Full data extends to t={actual_t_max}, but plot will be truncated at t={t_max}")
-    print(f"Steady-state will be calculated from last 10% of full data (t >= {actual_t_max * 0.9:.0f})")
+    horizons = avg_state_data_full.groupby(['type', 'scenario_grouped'])['t'].max()
+    print("Steady-state taken from the last 10% of each condition's own horizon; "
+          f"horizons present: {sorted(horizons.unique())}")
 
     # Now create FILTERED versions for visualization only
     avg_state_data = avg_state_data_full[avg_state_data_full['t'] <= t_max].copy()
@@ -194,19 +196,24 @@ def plot_network_dynamics_truncated(data, t_max=80000, scale_type='linear',
     # (not limited by display t_max - we want the true steady state)
     steady_state_values = {}
     if add_steady_state_markers:
-        # Use last 10% of ACTUAL data, not display window
-        t_threshold = actual_t_max * 0.9
-
+        # Last 10% of ACTUAL data, not the display window. The threshold is taken per
+        # condition, not globally: since the 2026-07-27 horizon merge the campaign runs
+        # bridge(opposite)/FB to 270k and everything else to 160k, so a single global
+        # 0.9*max would leave every 160k condition with no data past the threshold and
+        # silently drop its marker.
         for network_type in avg_state_data_full['type'].unique():
             steady_state_values[network_type] = {}
 
             for scenario in avg_state_data_full['scenario_grouped'].unique():
                 # Get data in steady-state region from the FULL dataset (not truncated)
-                steady_data = avg_state_data_full[
+                condition = avg_state_data_full[
                     (avg_state_data_full['scenario_grouped'] == scenario) &
-                    (avg_state_data_full['type'] == network_type) &
-                    (avg_state_data_full['t'] >= t_threshold)
+                    (avg_state_data_full['type'] == network_type)
                 ]
+                if condition.empty:
+                    continue
+
+                steady_data = condition[condition['t'] >= condition['t'].max() * 0.9]
 
                 if not steady_data.empty:
                     steady_state_values[network_type][scenario] = steady_data['value'].mean()

@@ -21,6 +21,18 @@ from matplotlib.ticker import ScalarFormatter, AutoMinorLocator
 from matplotlib.gridspec import GridSpec
 import networkx as nx
 from networkx.algorithms import community as nx_community
+import igraph as ig
+import leidenalg as la
+
+
+def leiden_partition(G):
+    """Leiden communities as node sets, matching models_checks.py:1430."""
+    nodes = list(G.nodes())
+    idx = {n: i for i, n in enumerate(nodes)}
+    edges = [(idx[u], idx[v]) for u, v in G.edges()]
+    ig_g = ig.Graph(n=len(nodes), edges=edges, directed=G.is_directed())
+    part = la.find_partition(ig_g, la.ModularityVertexPartition, seed=42)
+    return [{nodes[i] for i in comm} for comm in part]
 
 # Import existing style parameters from plots_lines.py
 line_params = {
@@ -147,7 +159,12 @@ def calculate_network_properties(graph):
     # Calculate modularity 
     try:
         if actual_graph.number_of_nodes() > 1 and actual_graph.number_of_edges() > 0:
-            communities = nx_community.louvain_communities(actual_graph)
+            # Leiden, seed=42, matching models_checks.py:1430 and the Methods
+            # section. This script used networkx Louvain until 2026-07-30, which is
+            # how the published SI Fig. S2 was made; its Q values are therefore
+            # ~0.002 below what this now produces (FB t=0: 0.5759 vs 0.5773).
+            # Superseded by Analysis/Plotting/network_metrics_bands.py.
+            communities = leiden_partition(actual_graph)
             properties['modularity'] = nx_community.modularity(actual_graph, communities)
             print(f"        Modularity: {properties['modularity']:.3f}")
         else:

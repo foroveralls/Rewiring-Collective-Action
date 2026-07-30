@@ -6,7 +6,7 @@ campaign CSVs, this one fixes ../Output/all_snapshots_<sweep_id>_<date>.pkl.gz,
 the separate artifact used for per-agent extraction (extract_states_lowmem.py).
 It replaces one "<scenario>_<rewiring>_<topology>" entry of the master dict with
 the corresponding entry from a fresh rerun, e.g. bridge/diff/FB at the corrected
-270k horizon (see claude_stuff/convergence_diagnostic_criteria_2026-07-03.md
+270k horizon (see claude_stuff/Infrastructure/convergence_diagnostic_criteria_2026-07-03.md
 section 9). The original is backed up first, since Output/ is gitignored.
 
 The master dict is
