@@ -100,10 +100,16 @@ TYPE_ORDER = ['DPAH', 'cl', 'Twitter', 'FB']
 # not [0,1] and whose per-run values can go negative).
 INFLECTION_COL = 'speed_inflection'
 METRICS = [
-    ('cooperativity',      'Final mean opinion' '\n' r'$\langle a^* \rangle$', (-1.05, 1.05), 0.8),
-    ('final_polarization', 'Final polarization' '\n' r'$\langle P^* \rangle$', (0.0, 1.05), 0.3),
+    # Per-run labels are $a^*$ / $P^*$, not $\langle\cdot\rangle$: manuscript L87 reserves
+    # angle brackets for the ensemble average over runs, and these rows plot one value per run.
+    ('cooperativity',      'Final mean opinion' '\n' r'$a^*$', (-1.05, 1.05), 0.8),
+    ('final_polarization', 'Final polarization' '\n' r'$P^*$', (0.0, 1.05), 0.3),
     ('speed_t95',          'Convergence rate' '\n' r'($t_{95}$)',              (0.0, 1.05), None),
-    (INFLECTION_COL,       'Convergence rate' '\n' r'(inflection, $\times10^{-3}$)', None, None),
+    # No scaling is applied to the inflection values anywhere in this script, so the
+    # axis carries the raw rate. The label claimed $\times10^{-3}$ until 2026-07-31,
+    # which understated every plotted rate by 1000x; do not reinstate it without
+    # actually scaling the data.
+    (INFLECTION_COL,       'Convergence rate' '\n' r'(inflection)',                 None, None),
 ]
 # 'main'           mean opinion + polarization (what was rendered 2026-07-29)
 # 'main+inflection' adds the convergence row on Fig 3's OWN metric -- the main-text
@@ -112,6 +118,9 @@ METRICS = [
 #                  all. Do not put this in the main text beside an inflection Fig 3.
 METRIC_SETS = {'main': ['cooperativity', 'final_polarization'],
                'main+inflection': ['cooperativity', 'final_polarization', INFLECTION_COL],
+               # single convergence-rate row for SI Fig. S6 (decision 2026-08-06: the
+               # main-text figure stays 2-row, the rate row goes to the SI on inflection)
+               'inflection': [INFLECTION_COL],
                'all': ['cooperativity', 'final_polarization', 'speed_t95']}
 
 # Author at the true printed width so nothing is rescaled on inclusion:
@@ -319,8 +328,12 @@ def make_figure(df, out_path, mark_artefact=True, metric_set='main'):
         Line2D([], [], marker='o', color='none', markerfacecolor='white',
                markeredgecolor='black', markersize=5, label='median'),
         Line2D([], [], color='black', lw=2.4, label='IQR'),
-        Line2D([], [], color='0.35', lw=0.9, ls=':', label='consensus criterion'),
     ]
+    # only rows with a criterion refline earn the legend entry (the inflection-only
+    # SI figure has none, and a dangling legend key would puzzle the reader)
+    if any(m[3] is not None for m in metrics):
+        handles.append(Line2D([], [], color='0.35', lw=0.9, ls=':',
+                              label='consensus criterion'))
     if any_artefact and mark_artefact:
         handles.append(Line2D([], [], marker='o', color='none', markerfacecolor='none',
                               markeredgecolor='#CC3311', markersize=5,

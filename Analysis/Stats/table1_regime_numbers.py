@@ -40,7 +40,9 @@ for d in sweep.values():
 
 def ci(x):
     x = np.asarray(x, float)
-    return f"{np.median(x):+.2f} [{np.percentile(x,25):+.2f}, {np.percentile(x,75):+.2f}]"
+    # Minus signs only: P* is non-negative by construction, and an explicit "+"
+    # on a level (as opposed to a difference) is not the convention in this field.
+    return f"{np.median(x):.2f} [{np.percentile(x,25):.2f}, {np.percentile(x,75):.2f}]"
 
 
 def subset(which, filt, modes_rews):
