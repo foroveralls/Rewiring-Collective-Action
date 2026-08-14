@@ -19,6 +19,21 @@ per combo, not 90. Read that script's header before quoting any number: the metr
 conventions changed (directed graphs are now measured directed) and the values
 differ from the published figure.
 
+RESIDUALS (--residuals). On the shared (0,1) axis a typical IQR is ~0.005 wide and
+renders sub-pixel, which reads as "no run-to-run variation" when in fact only the
+static condition has none (across-run SD at the final step is 0.002-0.03 for every
+rewiring algorithm). --residuals adds a strip under each metric row holding
+each run minus its condition's median trajectory, so the medians keep the comparable
+(0,1) axis and the spread is still legible. Two styles:
+
+  --residual-style overlay  (default) half-height strip, all topologies in it. In the
+                            combined layout they share one colour, so what you read is
+                            their envelope, not which topology is which.
+  --residual-style lanes    full-height strip split into one baseline per topology,
+                            indexed by the global TYPE_ORDER so a lane means the same
+                            thing in every panel and WTF's undirected topologies read
+                            as gaps. Ignored when a figure holds a single topology.
+
 TWO LAYOUTS, one script:
   --topology all   (default) all four topologies in each panel, IQR bands only.
                    Drop-in replacement for the published combined figure; four
@@ -43,8 +58,10 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
-from matplotlib.ticker import ScalarFormatter, AutoMinorLocator
-from matplotlib.gridspec import GridSpec
+from matplotlib.ticker import (ScalarFormatter, AutoMinorLocator, MaxNLocator,
+                               NullLocator)
+from matplotlib.gridspec import GridSpec, GridSpecFromSubplotSpec
+from matplotlib.transforms import blended_transform_factory
 
 # ---- style (mirrors plot_network_properties.py / plots_lines.py) ---------------
 cm = 1 / 2.54
@@ -79,6 +96,9 @@ METRIC_SPECS = {
     'assortativity':  ('Assortativity', (-1, 1)),
 }
 DEFAULT_METRICS = ['clustering', 'modularity', 'gini_in_degree']
+RESIDUAL_H = 0.5  # residual strip height, as a fraction of the metric panel above it
+RESIDUAL_H_LANES = 1.0  # lanes need four baselines in the same strip, so more of it
+LANE_FRAC = 0.42  # deviation of the panel's half-range, in lane-spacing units
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_CSV = os.path.normpath(os.path.join(HERE, "..", "..", "Output",
@@ -157,8 +177,59 @@ def _row_limits(df, metric, algos, pad=0.06):
     return lo - pad * span, hi + pad * span
 
 
+def _deviations(sub, metric):
+    """Per-run deviation from the condition's own median trajectory.
+
+    No monotone y-transform can enlarge a 0.005-wide band on an axis that must
+    span 0.02-0.61: stretching the band stretches the between-condition
+    differences by the same factor, which is what --autoscale already does.
+    Subtracting the median is a change of variable instead, so every condition's
+    spread centres on zero and shares one small axis while the medians keep the
+    shared (0,1) axis in the row above.
+    """
+    out = sub.copy()
+    out[metric] = sub[metric] - sub.groupby('timestep')[metric].transform('median')
+    return out
+
+
+def _residual_limits(df, metric, algos, types, hairlines, pad=0.08):
+    """Symmetric limits for a residual strip, from the deviations actually drawn.
+
+    Scaled per panel, not per row: WTF on Twitter has a final modularity IQR of
+    0.163 against a 0.004 median elsewhere, so one shared scale would flatten 26
+    of 28 strips back into the invisible band this row exists to fix. Each strip
+    therefore carries its own tick labels, and --residual-lim forces a common
+    scale when cross-panel comparison of the spread matters more.
+
+    Hairlines draw every run, so the axis has to hold the full deviation range;
+    without them only the quartile band is drawn.
+    """
+    dev = []
+    for algo in algos:
+        for topo in types:
+            sub = df[(df['grouped'] == algo) & (df['type'] == topo)]
+            if sub.empty or sub[metric].isna().all():
+                continue
+            d = _deviations(sub, metric)
+            if d[metric].isna().all():
+                continue
+            if hairlines:
+                dev.append(d[metric].abs().max())
+            else:
+                # Per timestep, matching the band that gets plotted; pooling over
+                # timesteps would dilute it with the near-zero early ones.
+                b = _band(d, metric)
+                dev.append(max(b['q25'].abs().max(), b['q75'].abs().max()))
+    dev = [v for v in dev if np.isfinite(v)]
+    if not dev:
+        return (-1e-3, 1e-3)
+    m = max(dev) * (1 + pad) or 1e-3
+    return (-m, m)
+
+
 def make_figure(df, metrics, topology, out_path, hairlines=True, include_static=False,
-                autoscale=False):
+                autoscale=False, residuals=False, residual_lim=None,
+                residual_style='overlay'):
     algos = [a for a in ALGO_ORDER if (df['grouped'] == a).any()]
     if not include_static:
         algos = [a for a in algos if a != 'none_none']
@@ -166,18 +237,36 @@ def make_figure(df, metrics, topology, out_path, hairlines=True, include_static=
     combined = topology == 'all'
     # Hairlines only make sense when a panel holds a single combination.
     hairlines = hairlines and not combined
+    # One topology per panel is already unambiguous, so lanes would just be an
+    # overlay strip with the axis relabelled.
+    lanes = residuals and residual_style == 'lanes' and len(types) > 1
 
-    fig = plt.figure(figsize=(4 * len(algos) * cm, 4 * len(metrics) * cm))
+    res_h = RESIDUAL_H_LANES if lanes else RESIDUAL_H
+    panel_h = 4 * (1 + res_h) if residuals else 4
+    fig = plt.figure(figsize=(4 * len(algos) * cm, panel_h * len(metrics) * cm))
     gs = GridSpec(len(metrics), len(algos), figure=fig, top=0.94, bottom=0.12,
-                  hspace=0.25, wspace=0.15, left=0.10, right=0.98)
+                  hspace=(0.30 if lanes else 0.45) if residuals else 0.25, wspace=0.15,
+                  left=0.10, right=0.98)
 
     for r, metric in enumerate(metrics):
         label, ylim = METRIC_SPECS[metric]
         if autoscale:
             ylim = _row_limits(df, metric, algos)
         for c, algo in enumerate(algos):
-            ax = fig.add_subplot(gs[r, c])
+            rlim = ((-residual_lim, residual_lim) if residual_lim else
+                    _residual_limits(df, metric, [algo], types, hairlines))
+            if residuals:
+                # Nested so the strip sits tight under its own metric panel while
+                # the pairs stay separated.
+                inner = GridSpecFromSubplotSpec(2, 1, subplot_spec=gs[r, c],
+                                                height_ratios=[1, res_h],
+                                                hspace=0.12)
+                ax = fig.add_subplot(inner[0])
+                rax = fig.add_subplot(inner[1], sharex=ax)
+            else:
+                ax, rax = fig.add_subplot(gs[r, c]), None
             color = PLOT_COLORS.get(algo, '#FE6900')
+            drawn_lanes = []
 
             for topo in types:
                 sub = df[(df['grouped'] == algo) & (df['type'] == topo)]
@@ -185,7 +274,7 @@ def make_figure(df, metrics, topology, out_path, hairlines=True, include_static=
                     continue
                 b = _band(sub, metric)
 
-                if hairlines:
+                if hairlines and rax is None:
                     for _run, run_df in sub.groupby('model_run'):
                         run_df = run_df.sort_values('timestep')
                         ax.plot(run_df['timestep'], run_df[metric], color=color,
@@ -200,20 +289,74 @@ def make_figure(df, metrics, topology, out_path, hairlines=True, include_static=
                         markersize=line_params["markersize"], zorder=3,
                         label=NETWORK_DISPLAY_NAMES.get(topo, topo))
 
+                if rax is not None:
+                    d = _deviations(sub, metric)
+                    # Lanes are indexed by the global topology order, not by what
+                    # this panel happens to hold, so the lane a band sits in means
+                    # the same thing in every panel and WTF's missing undirected
+                    # topologies read as gaps rather than shifting the others up.
+                    lane = types.index(topo) if lanes else 0
+                    scale = LANE_FRAC / rlim[1] if lanes else 1.0
+                    if hairlines:
+                        for _run, run_df in d.groupby('model_run'):
+                            run_df = run_df.sort_values('timestep')
+                            rax.plot(run_df['timestep'], lane + run_df[metric] * scale,
+                                     color=color, linewidth=0.35, alpha=0.10,
+                                     zorder=1.5, solid_capstyle='butt')
+                    rb = _band(d, metric)
+                    rax.fill_between(rb['timestep'], lane + rb['q25'] * scale,
+                                     lane + rb['q75'] * scale, color=color,
+                                     alpha=0.22 if combined else 0.28, linewidth=0,
+                                     zorder=2)
+                    drawn_lanes.append(lane)
+
             is_bottom, is_left = r == len(metrics) - 1, c == 0
-            configure_axis_style(ax, show_ylabel=is_left, show_xlabel=is_bottom)
+            configure_axis_style(ax, show_ylabel=is_left,
+                                 show_xlabel=is_bottom and rax is None)
             ax.set_ylim(*ylim)
             if is_left:
                 ax.set_ylabel(label, fontsize=FONT_SIZE, fontweight='bold')
             if r == 0:
                 ax.set_title(FRIENDLY_NAMES.get(algo, algo), fontsize=FONT_SIZE,
                              fontweight='bold')
+            if rax is not None:
+                # Per-panel scales must be readable panel by panel, so the strip
+                # states its own half-range instead of borrowing column 0's ticks.
+                shared = residual_lim is not None
+                configure_axis_style(rax, show_ylabel=is_left and (shared or lanes),
+                                     show_xlabel=is_bottom)
+                if lanes:
+                    # Inverted, so lane 0 is the top one and matches TYPE_ORDER;
+                    # the extra headroom keeps the scale label off the top band.
+                    rax.set_ylim(len(types) - 0.5, -0.85)
+                    rax.yaxis.set_minor_locator(NullLocator())
+                    rax.set_yticks(range(len(types)))
+                    rax.set_yticklabels(
+                        [NETWORK_DISPLAY_NAMES.get(t, t) for t in types] if is_left
+                        else [], fontsize=FONT_SIZE - 2)
+                    at_left = blended_transform_factory(rax.transAxes, rax.transData)
+                    for lane in sorted(set(drawn_lanes)):
+                        rax.axhline(lane, color='0.35', linewidth=0.5, zorder=2.5)
+                        rax.plot([0.035], [lane], transform=at_left, color=color,
+                                 marker=NETWORK_MARKERS.get(types[lane], 'o'),
+                                 markersize=2.2, zorder=4, clip_on=False)
+                else:
+                    rax.axhline(0, color='0.35', linewidth=0.5, zorder=2.5)
+                    rax.set_ylim(*rlim)
+                    rax.yaxis.set_major_locator(MaxNLocator(3, symmetric=True))
+                if is_left:
+                    # Outboard of the lane names, which occupy the tick labels.
+                    rax.set_ylabel(r'$\Delta$', fontsize=FONT_SIZE)
+                if not shared:
+                    rax.text(0.98, 0.97, rf'$\pm${rlim[1]:.2g}', transform=rax.transAxes,
+                             ha='right', va='top', fontsize=FONT_SIZE - 2, color='0.35')
             if is_bottom:
-                ax.set_xlabel('Time, t')
+                bottom_ax = rax if rax is not None else ax
+                bottom_ax.set_xlabel('Time, t')
                 f = ScalarFormatter(useMathText=True)
                 f.set_scientific(True)
                 f.set_powerlimits((-2, 1))
-                ax.xaxis.set_major_formatter(f)
+                bottom_ax.xaxis.set_major_formatter(f)
 
     if combined:
         handles = [Line2D([0], [0], color='black', marker=NETWORK_MARKERS.get(t, 'o'),
@@ -265,6 +408,17 @@ def main():
     ap.add_argument('--autoscale', action='store_true',
                     help='fit each metric row to its data range instead of (0,1); '
                          'needed to see the band wherever run-to-run spread is small')
+    ap.add_argument('--residuals', action='store_true',
+                    help='add a half-height strip under each metric row showing each '
+                         'run minus the median trajectory; keeps the shared (0,1) axis '
+                         'for the medians and still shows the spread')
+    ap.add_argument('--residual-style', default='overlay', choices=['overlay', 'lanes'],
+                    help="'overlay' (default) stacks the topologies in one strip, so "
+                         "the combined layout shows their envelope; 'lanes' gives each "
+                         "topology its own baseline inside a taller strip")
+    ap.add_argument('--residual-lim', type=float, default=None,
+                    help='fix the residual strips at +/- this value instead of '
+                         'scaling each metric row to its own deviations')
     ap.add_argument('--out', default=None)
     a = ap.parse_args()
 
@@ -276,11 +430,16 @@ def main():
             raise SystemExit(f"no rows for topology {a.topology}")
 
     suffix = 'combined' if a.topology == 'all' else a.topology
+    if a.residuals:
+        # A single-topology figure falls back to overlay, so don't label it lanes.
+        suffix += '_residuals' + ('_lanes' if a.residual_style == 'lanes'
+                                  and a.topology == 'all' else '')
     out = a.out or os.path.join(FIG_DIR,
                                 f"network_metrics_bands_{suffix}_{date.today()}.pdf")
     make_figure(df, a.metrics, a.topology, out,
                 hairlines=not a.no_hairlines, include_static=a.include_static,
-                autoscale=a.autoscale)
+                autoscale=a.autoscale, residuals=a.residuals,
+                residual_lim=a.residual_lim, residual_style=a.residual_style)
     report(df, a.metrics)
 
 

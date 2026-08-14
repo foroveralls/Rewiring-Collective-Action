@@ -19,6 +19,18 @@ negatively-converging runs as near-instant. Choose method 2 to reproduce the
 paper. Error bars (R1.7) now work for BOTH metrics -- see PER_RUN_SOURCES in
 main(); background in `claude_stuff/Review/per_run_inflection_2026-07-30.md`.
 
+ENVIRONMENT OVERRIDES (all optional; without them main() prompts as before):
+  PARETO_FILE    index into the listed Output/default_run_avg_*.csv files, or any
+                 unique substring of one of their names
+  PARETO_METHOD  't95' or 'inflection'
+  PARETO_AXES    'rank' (default, as submitted) or 'raw'
+  PARETO_BARS    '1' to draw the per-run IQR bars; off by default, see
+                 plot_pareto_analysis for why
+
+  Reproduce the current Fig. 3 (from Analysis/Plotting):
+    MPLBACKEND=Agg PARETO_FILE=gme_2025-10-15.csv PARETO_METHOD=inflection \
+      python convergence_vs_cooperation.py
+
 1. t95 method (default): Time to reach 95% of final cooperation value
    - Simple, robust, always computable
    - Returns normalized speed: 1 - (t95/t_max), range [0,1]
@@ -194,7 +206,7 @@ def find_pareto_front(metrics_df):
     return pareto_mask
 
 def plot_pareto_analysis(metrics_df, output_path, method='t95', per_run_df=None,
-                         axes_mode='rank'):
+                         axes_mode='rank', draw_bars=False):
     """Create faceted Pareto frontier analysis — one panel per topology.
 
     Each panel shows algorithms as colored points with per-topology Pareto
@@ -230,6 +242,16 @@ def plot_pareto_analysis(metrics_df, output_path, method='t95', per_run_df=None,
         Rows with a NaN speed (inflection not found for that run) must already be
         dropped by the caller; conditions left with < MIN_RUNS_FOR_IQR valid runs
         get no bars, and are reported.
+
+        NOTE (2026-07-31 decision): the published Fig. 3 carries NO error bars.
+        Per-run convergence uncertainty is answered by the run-level violin
+        instead, because in rank space a single condition's per-run IQR is 2-3x
+        the entire spread of the 30 ensemble values, so every speed bar saturates
+        the 0.10 cap and 30 identical bars carry no information. The IQRs are
+        still computed and reported to stdout as a diagnostic; pass draw_bars=True
+        (PARETO_BARS=1) to draw them.
+    draw_bars : bool
+        Draw the per-run IQR bars. Default False, matching the decision above.
     """
     setup_style()
 
@@ -274,20 +296,29 @@ def plot_pareto_analysis(metrics_df, output_path, method='t95', per_run_df=None,
                 cp = np.searchsorted(agg_coop, grp['cooperativity'].to_numpy(), side='right') / nv
             rank_iqr[(sc, topo)] = (np.percentile(sp, 25), np.percentile(sp, 75),
                                     np.percentile(cp, 25), np.percentile(cp, 75))
-        print(f"Error bars: IQR drawn for {len(rank_iqr)} of {len(valid_data)} conditions "
+        print(f"Error bars: IQR {'drawn' if draw_bars else 'computed but NOT drawn'} for "
+              f"{len(rank_iqr)} of {len(valid_data)} conditions "
               f"(metric = {method}, axes = {axes_mode})")
         if skipped:
             print(f"  no bars for {len(skipped)} condition(s) with < {MIN_RUNS_FOR_IQR} "
                   f"valid runs: {skipped}  -- disclose this if it reaches the caption")
 
-    # Metric units, used for the x-label on raw axes only (in rank mode both axes
-    # are percentiles and the generic label is the accurate one).
+    # Metric units, used for the x-label on raw axes only.
     # `calculate_inflection_convergence_speed` already multiplies the slope by 1000,
     # so an axis reading 0.107 is a rate of 1.07e-4 per step.
     RATE_LABEL = {
         'inflection': r'Convergence rate ($\times 10^{-3}$)',
         't95': r'Convergence rate, $1 - t_{95}/T$',
     }
+    # In rank mode BOTH axes are `.rank(pct=True)` percentiles across the 30
+    # algorithm-topology conditions. The submitted figure labelled them with the
+    # metric names alone ('Convergence rate', r'Opinion, $\langle a^* \rangle$'),
+    # which reads as raw values in units the paper defines elsewhere -- audit
+    # finding M-N1. Decision 2026-07-31: keep the rank presentation (Pareto
+    # membership is computed on the raw columns, so the ordering is unchanged) and
+    # say so on the axis. The caption carries the matching disclosure clause.
+    RANK_XLABEL = 'Convergence rate (rank percentile)'
+    RANK_YLABEL = r'Mean opinion, $\langle a^* \rangle$ (rank percentile)'
 
     # Topology ordering and labels
     topology_order = ['DPAH', 'cl', 'Twitter', 'FB']
@@ -310,9 +341,10 @@ def plot_pareto_analysis(metrics_df, output_path, method='t95', per_run_df=None,
     if raw_axes:
         xs = list(valid_data['speed_plot'])
         ys = list(valid_data['coop_plot'])
-        for s_lo, s_hi, c_lo, c_hi in rank_iqr.values():
-            xs += [s_lo, s_hi]
-            ys += [c_lo, c_hi]
+        if draw_bars:
+            for s_lo, s_hi, c_lo, c_hi in rank_iqr.values():
+                xs += [s_lo, s_hi]
+                ys += [c_lo, c_hi]
         def _pad(v, frac=0.06):
             lo, hi = min(v), max(v)
             m = (hi - lo) * frac
@@ -346,7 +378,7 @@ def plot_pareto_analysis(metrics_df, output_path, method='t95', per_run_df=None,
             # at full length even where they overflow the marker cloud.
             BAR_CAP = np.inf if raw_axes else 0.10
             key = (row['scenario'], topo)
-            if key in rank_iqr:
+            if draw_bars and key in rank_iqr:
                 s_lo, s_hi, c_lo, c_hi = rank_iqr[key]
                 xerr = [[min(BAR_CAP, max(0.0, row['speed_plot'] - s_lo))],
                         [min(BAR_CAP, max(0.0, s_hi - row['speed_plot']))]]
@@ -387,10 +419,11 @@ def plot_pareto_analysis(metrics_df, output_path, method='t95', per_run_df=None,
 
         # Axis labels only on edges
         if idx // ncols == nrows - 1:
-            ax.set_xlabel(RATE_LABEL[method] if raw_axes else 'Convergence rate',
+            ax.set_xlabel(RATE_LABEL[method] if raw_axes else RANK_XLABEL,
                           fontsize=FONT_SIZE)
         if idx % ncols == 0:
-            ax.set_ylabel(r'Opinion, $\langle a^* \rangle$', fontsize=FONT_SIZE)
+            ax.set_ylabel(r'Mean opinion, $\langle a^* \rangle$' if raw_axes
+                          else RANK_YLABEL, fontsize=FONT_SIZE)
 
     # Hide unused axes
     for idx in range(n_panels, nrows * ncols):
@@ -478,18 +511,35 @@ def main():
         print("No default_run_avg files found")
         return
 
+    files.sort()  # stable ordering, so PARETO_FILE as an index means the same thing twice
     for i, f in enumerate(files):
         print(f"{i}: {f}")
 
-    idx = int(input("Select file: "))
+    # PARETO_FILE / PARETO_METHOD make the script runnable unattended (the figure has
+    # to be re-rendered reproducibly, and the prompts made that a manual step).
+    # PARETO_FILE takes an index or any unique substring of the filename.
+    sel = os.environ.get('PARETO_FILE')
+    if sel is None:
+        idx = int(input("Select file: "))
+    elif sel.isdigit():
+        idx = int(sel)
+    else:
+        hits = [i for i, f in enumerate(files) if sel in f]
+        if len(hits) != 1:
+            raise SystemExit(f"PARETO_FILE={sel!r} matched {len(hits)} files; need exactly one")
+        idx = hits[0]
+        print(f"PARETO_FILE={sel!r} -> {files[idx]}")
 
     # Let user choose convergence method
-    print("\nChoose convergence rate calculation method:")
-    print("1: t95 method (time to reach 95% of final value - simple and robust)")
-    print("2: inflection method (slope during exponential phase - matches trajectory_stats.py)")
-    method_choice = input("Select method (1 or 2, default=1): ").strip()
-
-    method = 'inflection' if method_choice == '2' else 't95'
+    method = os.environ.get('PARETO_METHOD')
+    if method is None:
+        print("\nChoose convergence rate calculation method:")
+        print("1: t95 method (time to reach 95% of final value - simple and robust)")
+        print("2: inflection method (slope during exponential phase - matches trajectory_stats.py)")
+        method_choice = input("Select method (1 or 2, default=1): ").strip()
+        method = 'inflection' if method_choice == '2' else 't95'
+    elif method not in ('t95', 'inflection'):
+        raise SystemExit(f"PARETO_METHOD must be 't95' or 'inflection', got {method!r}")
     print(f"\nUsing {method} method for convergence rate calculation")
 
     data = pd.read_csv(os.path.join("../../Output", files[idx]))
@@ -556,12 +606,18 @@ def main():
     axes_mode = os.environ.get('PARETO_AXES', 'rank').lower()
     if axes_mode not in ('rank', 'raw'):
         raise SystemExit(f"PARETO_AXES must be 'rank' or 'raw', got {axes_mode!r}")
+    # PARETO_BARS=1 reinstates the per-run IQR bars. Off by default: the 2026-07-31
+    # decision is that Fig. 3 carries no error bars (see plot_pareto_analysis).
+    draw_bars = os.environ.get('PARETO_BARS', '0').lower() in ('1', 'true', 'yes')
     suffix = '_raw' if axes_mode == 'raw' else ''
+    if draw_bars:
+        suffix += '_bars'
     output_path = f"{output_dir}/pareto_speed_cooperativity_{method}{suffix}_{date.today()}.pdf"
 
     pareto_data, dominated_data = plot_pareto_analysis(metrics, output_path, method=method,
                                                        per_run_df=per_run_df,
-                                                       axes_mode=axes_mode)
+                                                       axes_mode=axes_mode,
+                                                       draw_bars=draw_bars)
     analyze_pareto_results(pareto_data, dominated_data)
 
     print(f"\nPareto trade-off analysis saved: {output_path}")

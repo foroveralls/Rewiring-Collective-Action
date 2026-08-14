@@ -16,10 +16,14 @@ Two variants of the same statement, chosen with --variant:
               <a*> across runs. The bottom of every column is opposed: no rewiring
               rule aligns the population without the field. The black rule marks
               where that algorithm's median run turns aligned; the grey dashed rules
-              bound the field range over which at least 15% of runs settle on the
-              minority branch, i.e. where the ensemble is genuinely split (the R1.7
+              bound the field range over which at least 15% of runs settle aligned
+              (a* > 0.5) and at least 15% settle opposed (a* < -0.5), i.e. where the
+              ensemble is genuinely divided rather than sitting near zero (the R1.7
               concern, shown rather than asserted). A bound that runs off the swept
-              range is left open.
+              range is left open. The magnitude qualifier is load-bearing: a sign-only
+              test flags any ensemble straddling zero, which on this data means the
+              heterophilic rules get the widest markers despite being the least
+              divided. See summarize().
 
     dumbbell  <a*> on y (same axis as the violins above), algorithm on x. Each stem
               runs from the median at phi = 0 to the median at the default field,
@@ -92,7 +96,8 @@ TOPOLOGY_SETS = {'all': None, 'directed': ['DPAH', 'Twitter'],
                  # single topologies, for matching the panel above if it is not pooled
                  'DPAH': ['DPAH'], 'cl': ['cl'], 'Twitter': ['Twitter'], 'FB': ['FB']}
 
-SPLIT_FRAC = 0.15              # minority branch share that counts as "runs split"
+SPLIT_FRAC = 0.15              # share of runs on each side that counts as "runs split"
+BRANCH_MIN = 0.5               # |a*| above which a run counts as settled, not near zero
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_CSV = os.path.normpath(os.path.join(
@@ -137,10 +142,19 @@ def summarize(df):
         'median': g.median(), 'mean': g.mean(),
         'q25': g.quantile(0.25), 'q75': g.quantile(0.75),
         'frac_aligned': g.apply(lambda s: float((s > 0).mean())),
+        'frac_aligned_settled': g.apply(lambda s: float((s > BRANCH_MIN).mean())),
+        'frac_opposed_settled': g.apply(lambda s: float((s < -BRANCH_MIN).mean())),
         'n': g.size(),
     }).reset_index().rename(columns={'politicalClimate': 'phi'})
     out['minority'] = np.minimum(out['frac_aligned'], 1 - out['frac_aligned'])
-    out['split'] = out['minority'] >= SPLIT_FRAC
+    # `minority` is sign-based and is kept only for provenance: it cannot tell a genuinely
+    # divided ensemble from one whose runs all sit near zero and straddle it. The
+    # heterophilic rules cap <a*> near 0.20, so 82-100% of their runs fall within
+    # |a*| < BRANCH_MIN across the whole window a sign test flags, i.e. a sign test marks
+    # them as the most divided columns in the figure when they are the least. The drawn
+    # criterion therefore requires both outcomes to be occupied away from zero.
+    out['split'] = np.minimum(out['frac_aligned_settled'],
+                              out['frac_opposed_settled']) >= SPLIT_FRAC
     return out
 
 
@@ -209,9 +223,9 @@ def draw_ladder(ax, summ, cbar=True, xlabels=True):
         # which read as rules across the column. edgecolors='none' does not prevent
         # them; rasterizing the mesh does. The overlaid rules and all text stay vector.
         mesh.set_rasterized(True)
-        # bounds of the window over which the ensemble is split between branches,
-        # taken as one span per algorithm; a bound that runs off the swept range is
-        # left open, i.e. undrawn
+        # bounds of the window over which the ensemble is divided between the aligned
+        # and opposed outcomes, taken as one span per algorithm; a bound that runs off
+        # the swept range is left open, i.e. undrawn
         runs = _runs(split.loc[alg].values)
         if runs:
             lo, hi = runs[0][0], runs[-1][1]
@@ -248,7 +262,9 @@ def draw_ladder(ax, summ, cbar=True, xlabels=True):
         cb = ax.figure.colorbar(mesh, ax=ax, fraction=0.030, pad=0.045,
                                 ticks=[-1, 0, 1], aspect=11)
         cb.ax.set_yticklabels(['$-1$', '0', '1'])
-        cb.set_label(r'median $\langle a^* \rangle$', labelpad=2,
+        # per-run notation: $a^*$ is one run's steady state, the colour is the median
+        # across runs; $\langle\cdot\rangle$ would claim the ensemble mean (MS L87)
+        cb.set_label(r'median $a^*$', labelpad=2,
                      fontsize=FONT_SIZE - 1)
         cb.outline.set_visible(False)
         cb.ax.tick_params(width=0.5, size=1.4, pad=1.5,
@@ -287,7 +303,7 @@ def draw_dumbbell(ax, summ, xlabels=True):
     ax.set_ylim(-1.08, 1.42)
     ax.set_xlim(-0.6, len(algos) - 0.4)
     ax.set_yticks([-1, 0, 1])
-    ax.set_ylabel(r'$\langle a^* \rangle$', labelpad=1.5)
+    ax.set_ylabel(r'$a^*$', labelpad=1.5)
     ax.set_xticks(np.arange(len(algos)))
     ax.set_xticklabels(algos if xlabels else [], rotation=45, ha='right')
     ax.tick_params(axis='x', pad=1)
@@ -348,9 +364,20 @@ def report(summ):
               f"{med.loc[alg].iloc[-1]:>15.2f}")
     n_split = int(summ['split'].sum())
     at_default = summ[(summ['phi'] == summ['phi'].max()) & summ['split']]['alg'].tolist()
-    print(f"\n  cells with >={SPLIT_FRAC:.0%} of runs on the minority branch: "
-          f"{n_split} of {len(summ)}")
-    print(f"  still split at the default field: {at_default or 'none'}")
+    print(f"\n  cells with >={SPLIT_FRAC:.0%} of runs settled on each side "
+          f"(|a*| > {BRANCH_MIN}): {n_split} of {len(summ)}")
+    print(f"  still divided at the default field: {at_default or 'none'}")
+    # the drawn rules bracket the outermost divided cells, so a column whose divided
+    # cells are not contiguous carries a rule spanning an undivided one: any caption
+    # claim of the form "between the rules, ..." has to be checked against this
+    split = _grid(summ, 'split')
+    for alg in split.index:
+        idx = np.flatnonzero(split.loc[alg].values)
+        if len(idx) and idx[-1] - idx[0] + 1 != len(idx):
+            gaps = [split.columns[j] for j in range(idx[0], idx[-1] + 1)
+                    if not split.loc[alg].values[j]]
+            print(f"  NOTE {alg}: divided cells are not contiguous, undivided at phi="
+                  f"{', '.join(f'{g:.4f}' for g in gaps)}")
 
 
 def main():
