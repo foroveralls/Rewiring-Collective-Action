@@ -47,7 +47,13 @@ def validate_embeddings_file(filepath, graph_nodes, expected_dimensions=64):
 def run_node2vec(node2vec_executable, input_file, output_file, dimensions=64, walk_length=40, 
                num_walks=5, context_size=10, num_threads=1):
     if not os.path.exists(node2vec_executable):
-        raise FileNotFoundError(f"node2vec executable not found at {node2vec_executable}")
+        raise FileNotFoundError(
+            f"node2vec executable not found at {node2vec_executable}. "
+            "Build it from the SNAP reference implementation "
+            "(https://github.com/snap-stanford/snap/tree/master/examples/node2vec) "
+            "and place the resulting binary in this directory as "
+            "'node2vec' (Linux/macOS) or 'node2vec.exe' (Windows)."
+        )
 
     # Set OpenMP environment variables
     env = os.environ.copy()

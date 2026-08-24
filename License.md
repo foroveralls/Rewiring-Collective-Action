@@ -1,6 +1,6 @@
 BSD 3-Clause License
 
-Copyright (c) [2023], [Lillie Frei], [Jordan Everall], [Andrew Ringsmuth]
+Copyright (c) 2023-2026, Jordan P. Everall, Lilli Frei, Andrew K. Ringsmuth
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
