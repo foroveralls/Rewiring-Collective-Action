@@ -8,8 +8,8 @@ ensemble into means hides bimodality / bistability; the per-agent violins expose
 DATA: reads the per-agent CSV produced by extract_states_lowmem.py with columns
     scenario,rewiring,type,model_run,final_t,state
 The full per-agent extraction is cluster-only (the snapshot pickle OOMs a 15GB box);
-this script is data-agnostic and runs identically on the cluster output and on the
-synthetic dev sample (claude_stuff/Review/per_agent_final_states_SAMPLE.csv).
+this script is data-agnostic and runs identically on the cluster output and on a
+synthetic dev sample.
 
 Usage:
     python violin_main_results.py                       # uses Output/per_agent_final_states.csv

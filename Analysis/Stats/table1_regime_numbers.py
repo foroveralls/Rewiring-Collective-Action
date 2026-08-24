@@ -22,8 +22,7 @@ import pandas as pd
 ROOT = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))  # repo root (this file lives in Analysis/Stats/)
 OUT = os.path.join(ROOT, "Output")
 # Corrected inputs (2026-07-27). The `..._pxc.csv` master is deliberately left buggy for
-# provenance and the `..._lou` phi sweep ran at pNf=0, so neither may be used here; see
-# claude_stuff/Infrastructure/convergence_diagnostic_criteria_2026-07-03.md §9c.
+# provenance and the `..._lou` phi sweep ran at pNf=0, so neither may be used here.
 # HEATMAP_CSV / PHI_SWEEP_CSV override, matching the plotting and heatmap-stats scripts.
 STUB_PNF = os.environ.get("HEATMAP_CSV") or os.path.join(OUT, "heatmap_sweep_phased_CORRECTED_2026-07-27.csv")
 PHI = os.environ.get("PHI_SWEEP_CSV") or os.path.join(OUT, "heatmap_sweep_phased_sweep_20260707_1943_politicalClimate_tay.csv")

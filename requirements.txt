@@ -1,6 +1,7 @@
 numpy
 pandas
 scipy
+sympy
 matplotlib
 seaborn
 networkx
@@ -13,4 +14,6 @@ rustworkx
 setuptools
 wheel
 powerlaw==1.5
-pqdm
+# Pre_processing/empirical_network_analysis.py only
+python-louvain
+ipython

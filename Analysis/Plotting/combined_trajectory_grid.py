@@ -60,7 +60,7 @@ def combine_figures_horizontally(fig_path1, fig_path2, output_path, width_ratios
         # Save PNG at high DPI for preview/web use
         fig.savefig(png_output, dpi=600, bbox_inches='tight')
 
-        print(f"✓ Combined figure saved:")
+        print(f"Combined figure saved:")
         print(f"  PDF: {pdf_output}")
         print(f"  PNG: {png_output}")
 

@@ -3,8 +3,7 @@
 Equivalence test: pre-optimization model vs the current (optimized) model.
 
 `Analysis/models_checks.py` was refactored for speed on 2026-07-02 (commit
-8c8e230; see claude_stuff/Infrastructure/simulation_performance_optimization_2026-07-02.md).
-This script re-runs that verification from scratch, so the claim "results are
+8c8e230). This script re-runs that verification from scratch, so the claim "results are
 statistically equivalent" can be checked at any time rather than trusted.
 
 The pre-optimization file is pulled straight out of git (default 8c8e230^,

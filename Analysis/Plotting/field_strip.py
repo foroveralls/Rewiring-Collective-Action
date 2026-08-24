@@ -38,8 +38,7 @@ the reviewer a fresh instance of their other comment.
 
 DATA: the corrected political-climate sweep, one row per run, columns
     state,state_std,politicalClimate,rewiring,mode,topology
-Default is the `tay` sweep, verified 2026-07-27 to run at rho = 0.10 (see
-claude_stuff/Review/si_heatmap_regeneration_2026-07-27.md section 2). The older `lou` and
+Default is the `tay` sweep, verified 2026-07-27 to run at rho = 0.10. The older `lou` and
 `dyr` sweeps ran at rho = 0 and must NOT be used. PHI_SWEEP_CSV overrides the path.
 
 Runs are pooled over the four topologies (30 runs each, so 120 per cell; WTF is

@@ -75,7 +75,7 @@ skew = -0.20
 initSD = 0.15
 mypalette = ["blue","red","green", "orange", "magenta","cyan","violet", "grey", "yellow"] # set the colot of plots
 randomness = 0.10
-gridtype = 'cl' # this is actually set in run.py for some reason... overrides this
+gridtype = 'cl' # set by the runner (run_phased.py), which overrides this
 gridsize = 33   # used for grid networks
 nwsize = 100 #1089  # nwsize = 1089 used for CSF (Clustered scale free network) networks
 friendship = 0.5
@@ -88,7 +88,7 @@ polarisingNode_f = 0
 establishlinkprob = 0.5 # breaklinkprob and establishlinkprob are used in random rewiring. Are always chosen to be the same to keep average degree constant!
 rewiringAlgorithm = 'None' #None, random, biased, bridge
 #the rewiringAlgorithm variable was meant to enable to do multiple runs at once. However the loop where the specification 
-#given in the ArgList in run.py file overrules what is given in line 65 does not work. Unclear why.
+#given in the ArgList in run_phased.py overrules what is given in line 65 does not work. Unclear why.
 #long story short. All changes to breaklinkprob, establishlinkprob and rewiringAlgorithm have to be specified here in the models file
 lock = None
 
@@ -127,7 +127,7 @@ def _cached_network(kind, params, builder):
     return pickle.loads(blob)
 
 #print(os.getcwd())
-# the arguments provided in run.py overrides these values
+# the arguments provided by run_phased.py override these values
 args = {"defectorUtility" : defectorUtility, 
         "wtf_freq": 10,
         "politicalClimate" : politicalClimate, 

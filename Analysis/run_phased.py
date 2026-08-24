@@ -20,8 +20,7 @@ def init(lock_):
 
 # Per-condition timestep override for one-off horizon-corrected reruns.
 # bridge/diff/FB needs 270k (confirmed by the convergence diagnostic), not the
-# fixed 160k used elsewhere -- see
-# claude_stuff/Infrastructure/convergence_diagnostic_criteria_2026-07-03.md section 8c/9.
+# fixed 160k used elsewhere.
 TIMESTEPS_OVERRIDE = {
     ("bridge", "diff", "FB"): 270000,
 }
@@ -183,7 +182,7 @@ def main():
         phase_elapsed = (time.time() - phase_start) / 60
         print(f"Phase {algo} completed in {phase_elapsed:.1f} min")
     
-    # Process and save combined outputs (same as original run.py)
+    # Process and save combined outputs
     def process_outputs(out_list, nwsize):
         avg_dfs, individual_dfs = zip(*out_list)
         

@@ -18,8 +18,7 @@ Two axes are reported:
 Why this script exists: the numbers in the SI predate the 2026-07-27 horizon correction,
 and `heatmap_stats_multi.py` emits sensitivity per topology x algorithm without the
 group-level pooling the SI quotes. This reproduces both, old vs corrected, as a durable
-artefact. Context: `claude_stuff/Review/si_heatmap_regeneration_2026-07-27.md` §3c/§8,
-`claude_stuff/Review/R1.8_sobol_checkpoint.md`.
+artefact.
 
 Pooling caveat: the SI's group figures average the per-topology $S_\\theta$ across
 topologies and algorithms ("mean-of-sigma"). Pooling all topologies before taking the

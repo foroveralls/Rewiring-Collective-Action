@@ -105,7 +105,7 @@ SCENARIOS = [("None", "None"),        # static
              ("biased", "diff")]      # local (opposite)
 
 # Canonical horizon for every condition here (bridge/diff/FB run at 270k; none
-# of those appear in this ablation). See CLAUDE.md, sweep horizons.
+# of those appear in this ablation).
 TIMESTEPS = 160000
 
 # Defaults of the instrumented measurement: r=0.10, w=0.6, phi=0.05, rho=0.10.

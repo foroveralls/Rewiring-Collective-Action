@@ -16,7 +16,7 @@ import tempfile
 import glob
 
 # Import plotting functions from existing scripts
-from plots_jordan_heatmaps_alternate_big import (
+from plots_heatmaps_stubbornness_backfirer import (
     setup_plotting_style,
     prepare_dataframe,
     create_heatmap_grid
@@ -210,7 +210,7 @@ def combine_figures_vertically(fig_path1, fig_path2, output_path):
                    metadata={'Creator': 'Collective Rewiring Analysis'})
         fig.savefig(png_output, dpi=600, bbox_inches='tight')
 
-        print(f"✓ Combined figure saved:")
+        print(f"Combined figure saved:")
         print(f"  PDF: {pdf_output}")
         print(f"  PNG: {png_output}")
 
@@ -350,7 +350,7 @@ def main():
             print("="*60)
         else:
             print("\n" + "="*60)
-            print("✓ Success! Combined figure created.")
+            print("Success: combined figure created.")
             print(f"  Combined: {combined_path}")
             print(f"  Heatmap: {heatmap_pdf_path}")
             print(f"  Regime: {regime_pdf_path}")

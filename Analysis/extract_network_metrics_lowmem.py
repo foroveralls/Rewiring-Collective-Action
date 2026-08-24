@@ -49,7 +49,7 @@ METRIC CONVENTIONS (deliberate, and different from the published Nov-2025 figure
     from the cached rewiring partition.
 
 Run from Analysis/ with the conda python:
-  cd Analysis && /home/jpoveralls/miniconda3/envs/collective_rewiring/bin/python \
+  cd Analysis && python \
       extract_network_metrics_lowmem.py \
       --pkl ../Output/all_snapshots_sweep_20251014_1704_phased_run_gme_<date>.pkl.gz
 

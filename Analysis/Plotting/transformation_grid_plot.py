@@ -734,8 +734,8 @@ def plot_transformation_grid(n_runs=30, threshold=0.1, timesteps=[0, 14999], max
     plt.savefig(f"{filename}.pdf", dpi=600, bbox_inches='tight')  # Increased DPI and added bbox_inches
     plt.savefig(f"{filename}.png", dpi=600, bbox_inches='tight')  # Increased DPI and added bbox_inches
 
-    print(f"\n✓ Saved: {filename}.pdf")
-    print(f"✓ Saved: {filename}.png")
+    print(f"\nSaved: {filename}.pdf")
+    print(f"Saved: {filename}.png")
 
     # Save network states for reproducibility
     network_data = {
@@ -754,7 +754,7 @@ def plot_transformation_grid(n_runs=30, threshold=0.1, timesteps=[0, 14999], max
     with open(network_filename, 'wb') as f:
         pickle.dump(network_data, f)
 
-    print(f"✓ Saved network states: {network_filename}")
+    print(f"Saved network states: {network_filename}")
 
     plt.show()
 
@@ -973,8 +973,8 @@ def plot_transformation_circle(n_runs=30, threshold=0.1, timesteps=[0, 14999], m
     plt.savefig(f"{filename}.pdf", dpi=600, bbox_inches='tight')  # Increased DPI and added bbox_inches
     plt.savefig(f"{filename}.png", dpi=600, bbox_inches='tight')  # Increased DPI and added bbox_inches
 
-    print(f"\n✓ Saved: {filename}.pdf")
-    print(f"\n✓ Saved: {filename}.png")
+    print(f"\nSaved: {filename}.pdf")
+    print(f"\nSaved: {filename}.png")
 
     # Save network states for reproducibility
     network_data = {
@@ -993,7 +993,7 @@ def plot_transformation_circle(n_runs=30, threshold=0.1, timesteps=[0, 14999], m
     with open(network_filename, 'wb') as f:
         pickle.dump(network_data, f)
 
-    print(f"✓ Saved network states: {network_filename}")
+    print(f"Saved network states: {network_filename}")
 
     plt.show()
 

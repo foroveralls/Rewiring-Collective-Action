@@ -13,7 +13,7 @@ agent.state immediately and discards _node/_adj/etc. So each graph's edges are
 built only transiently (one graph at a time) and freed before the next, keeping
 peak memory low. The real Agent class is kept so .state is readable.
 
-STATUS: DRAFT - NOT YET RUN/VERIFIED. Risk: if a netin generator defines a
+Risk: if a netin generator defines a
 custom __reduce__/__setstate__ that regenerates the graph instead of restoring
 __dict__, this stub approach needs adjustment. Try it; if it errors on a class,
 add that class to GRAPH_NAMES handling or inspect its reduce.
@@ -23,7 +23,7 @@ If this still struggles, set SUBSET_RUNS to e.g. 10 to cap runs per combo
 whole object; the cap only limits what we keep -- memory is already low here).
 
 Run from Analysis/ with the conda python:
-  cd Analysis && /home/jpoveralls/miniconda3/envs/collective_rewiring/bin/python \
+  cd Analysis && python \
       extract_states_lowmem.py
 
 --pkl selects the master snapshot pickle; the default is the afk (Sept 2025)
