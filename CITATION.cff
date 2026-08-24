@@ -1,0 +1,45 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it using the metadata below."
+title: "Rewiring-Collective-Action: agent-based model of guided network rewiring and consensus formation"
+abstract: >-
+  Agent-based model in which agents holding continuous opinions are embedded in a social
+  network, used to analyse how rewiring strategies based on recommender algorithms
+  (Who to Follow, node2vec, and topological heuristics) affect the speed and magnitude of
+  consensus formation and depolarization.
+type: software
+authors:
+  - family-names: Everall
+    given-names: Jordan P.
+    affiliation: "Wegener Center for Climate and Global Change, University of Graz, Graz, Austria"
+    email: jordan.everall@uni-graz.at
+  - family-names: Frei
+    given-names: Lilli
+    affiliation: "Wegener Center for Climate and Global Change, University of Graz, Graz, Austria"
+  - family-names: Ringsmuth
+    given-names: Andrew K.
+    affiliation: "Wegener Center for Climate and Global Change, University of Graz, Graz, Austria; Complexity Science Hub, Vienna, Austria"
+version: 1.0.0
+date-released: 2026-08-24
+license: BSD-3-Clause
+repository-code: "https://github.com/foroveralls/Rewiring-Collective-Action"
+keywords:
+  - agent-based model
+  - opinion dynamics
+  - social networks
+  - network rewiring
+  - polarization
+  - consensus formation
+  - recommender algorithms
+preferred-citation:
+  type: article
+  title: "Guided rewiring of social networks reduces polarization and accelerates consensus"
+  authors:
+    - family-names: Everall
+      given-names: Jordan P.
+    - family-names: Frei
+      given-names: Lilli
+    - family-names: Ringsmuth
+      given-names: Andrew K.
+  journal: "PNAS Nexus"
+  year: 2026
+  notes: "Manuscript under revision at PNAS Nexus; update with volume, pages and DOI on acceptance."

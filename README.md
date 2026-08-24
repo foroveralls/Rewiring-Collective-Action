@@ -72,6 +72,14 @@ dependencies in it:
 
 For Debian clusters where conda is unavailable, a `uv`-based setup guide is provided in `UV_SETUP_GUIDE.md`.
 
+### node2vec
+
+The `node2vec` rewiring algorithm calls the C++ reference implementation from SNAP, which is not
+redistributed here. Build it from
+[snap-stanford/snap](https://github.com/snap-stanford/snap/tree/master/examples/node2vec) and place
+the resulting binary in `Auxillary/` as `node2vec` (Linux/macOS) or `node2vec.exe` (Windows). The
+other rewiring algorithms run without it.
+
 
 ## Reproducing the results
 
@@ -97,6 +105,11 @@ from their respective folders:
 Simulations are parallelised over CPU cores and the full campaign takes on the order of days on a
 workstation; individual figure and statistics scripts read the saved CSVs in `Output` and run in
 minutes.
+
+The result CSVs in `Output` and the generated figures in `Figs` are not included in this repository
+or the archived release: the main campaign alone runs to tens of gigabytes. The scripts regenerate
+them from scratch. The empirical Facebook and Twitter topologies used as model input *are* included,
+in `Pre_processing/networks_processed`.
 
 
 ## License
