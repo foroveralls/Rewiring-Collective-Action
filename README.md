@@ -44,9 +44,9 @@ plotting and statistics scripts live in `Analysis/Plotting` and `Analysis/Stats`
 You can download a copy of all the files in this repository by cloning the
 [git](https://git-scm.com/) repository:
 
-    git clone https://github.com/lifrei/Rewiring-Collective-Action.git
+    git clone https://github.com/foroveralls/Rewiring-Collective-Action.git
 
-or [download a zip archive](https://github.com/lifrei/Rewiring-Collective-Action/archive/refs/heads/main.zip).
+or [download a zip archive](https://github.com/foroveralls/Rewiring-Collective-Action/archive/refs/heads/main.zip).
 
 
 ## Dependencies

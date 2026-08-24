@@ -12,12 +12,14 @@ authors:
     given-names: Jordan P.
     affiliation: "Wegener Center for Climate and Global Change, University of Graz, Graz, Austria"
     email: jordan.everall@uni-graz.at
+    orcid: "https://orcid.org/0000-0002-2441-166X"
   - family-names: Frei
     given-names: Lilli
     affiliation: "Wegener Center for Climate and Global Change, University of Graz, Graz, Austria"
   - family-names: Ringsmuth
     given-names: Andrew K.
     affiliation: "Wegener Center for Climate and Global Change, University of Graz, Graz, Austria; Complexity Science Hub, Vienna, Austria"
+    orcid: "https://orcid.org/0000-0002-2984-8860"
 version: 1.0.0
 date-released: 2026-08-24
 license: BSD-3-Clause
