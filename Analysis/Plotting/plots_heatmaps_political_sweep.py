@@ -16,10 +16,9 @@ import matplotlib.colors as colors
 from datetime import date
 
 # ====================== CONFIGURATION ======================
-# Output directory for plots. Anchored to this file, which lives one level
-# deeper than the other plotting scripts, so a relative path would miss.
+# Output directory for plots, anchored to this file rather than to the cwd.
 OUTPUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                          "..", "..", "..", "Figs", "Heatmaps")
+                          "..", "..", "Figs", "Heatmaps")
 
 # Plot settings
 BASE_FONT_SIZE = 8

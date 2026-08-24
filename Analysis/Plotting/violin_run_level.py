@@ -30,7 +30,6 @@ of the convergence axis (median ~0.99, red-ringed below), on inflection it ranks
 joins the per-run inflection rates from Analysis/extract_inflection_lowmem.py and
 plots those instead. That file must be built at FULL resolution (per_run_summary.csv
 is downsampled at t%100, where find_inflection's 5000<i<20000 window is unreachable).
-Context: claude_stuff/Review/handover_2026-07-30_figures_metrics.md sections 10-11.
 
 REGWIN, and why --regwin exists: the published rate regresses over regwin=10, i.e.
 21 steps out of 160,000. That is fine on the ensemble mean (already averaged over 90

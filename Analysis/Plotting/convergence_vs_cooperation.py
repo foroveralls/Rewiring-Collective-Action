@@ -17,7 +17,7 @@ normalisation is not horizon-invariant (so the merged campaign's 270k condition
 gains ~0.05 of speed from the denominator alone), and it scores
 negatively-converging runs as near-instant. Choose method 2 to reproduce the
 paper. Error bars (R1.7) now work for BOTH metrics -- see PER_RUN_SOURCES in
-main(); background in `claude_stuff/Review/per_run_inflection_2026-07-30.md`.
+main().
 
 ENVIRONMENT OVERRIDES (all optional; without them main() prompts as before):
   PARETO_FILE    index into the listed Output/default_run_avg_*.csv files, or any
@@ -464,14 +464,14 @@ def analyze_pareto_results(pareto_data, dominated_data):
     print(f"Pareto optimal: {len(pareto_data)} ({len(pareto_data)/total_algorithms*100:.1f}%)")
     print(f"Dominated: {len(dominated_data)} ({len(dominated_data)/total_algorithms*100:.1f}%)")
     
-    print(f"\n🏆 PARETO OPTIMAL ALGORITHMS:")
+    print(f"\nPARETO OPTIMAL ALGORITHMS:")
     print("-" * 40)
     for _, row in pareto_data.iterrows():
         print(f"  {row['scenario']} ({row['topology']}): "
               f"Speed={row['speed']:.3f}, Coop={row['cooperativity']:.3f}")
     
     if len(dominated_data) > 0:
-        print(f"\n📉 DOMINATED ALGORITHMS (examples):")
+        print(f"\nDOMINATED ALGORITHMS (examples):")
         print("-" * 40)
         worst_dominated = dominated_data.nsmallest(3, ['speed', 'cooperativity'])
         for _, row in worst_dominated.iterrows():
@@ -483,7 +483,7 @@ def analyze_pareto_results(pareto_data, dominated_data):
         speed_range = pareto_data['speed'].max() - pareto_data['speed'].min()
         coop_range = pareto_data['cooperativity'].max() - pareto_data['cooperativity'].min()
         
-        print(f"\n📊 PARETO FRONTIER TRADE-OFF ANALYSIS:")
+        print(f"\nPARETO FRONTIER TRADE-OFF ANALYSIS:")
         print("-" * 45)
         print(f"Speed range on frontier: {speed_range:.3f}")
         print(f"Cooperation range on frontier: {coop_range:.3f}")
@@ -495,14 +495,14 @@ def analyze_pareto_results(pareto_data, dominated_data):
         
         print(f"Speed-optimal algorithm: {fastest['scenario']} ({fastest['topology']})")
         print(f"Cooperation-optimal algorithm: {best_coop['scenario']} ({best_coop['topology']})")
-        print(f"   → Speed sacrifice for cooperation: {best_coop['speed'] - fastest['speed']:.3f}")
-        print(f"   → Cooperation sacrifice for speed: {fastest['cooperativity'] - best_coop['cooperativity']:.3f}")
+        print(f"   Speed sacrifice for cooperation: {best_coop['speed'] - fastest['speed']:.3f}")
+        print(f"   Cooperation sacrifice for speed: {fastest['cooperativity'] - best_coop['cooperativity']:.3f}")
         
         if fastest.name != best_coop.name:
-            print("⚖️  Algorithms lie along optimal Pareto frontier - demonstrating")
+            print("Algorithms lie along optimal Pareto frontier - demonstrating")
             print("    fundamental speed-accuracy trade-offs in network dynamics!")
         else:
-            print("🎯 Rare case: One algorithm achieves near-optimal performance")
+            print("Rare case: one algorithm achieves near-optimal performance")
             print("    on both objectives - potential breakthrough configuration!")
 
 def main():
@@ -558,8 +558,7 @@ def main():
     #                                         FULL resolution -- mandatory, because
     #                                         find_inflection's 5000 < i < 20000 window is
     #                                         in raw index units and is unreachable on a
-    #                                         downsampled series. See
-    #                                         claude_stuff/Review/per_run_inflection_2026-07-30.md)
+    #                                         downsampled series.)
     PER_RUN_SOURCES = {
         't95': ('per_run_summary.csv', 'speed_t95'),
         'inflection': ('per_run_inflection.csv', 'speed_inflection'),
@@ -622,7 +621,7 @@ def main():
 
     print(f"\nPareto trade-off analysis saved: {output_path}")
     print(f"Method used: {method}")
-    print("\nℹ️  INTERPRETATION: Algorithms clustering along the diagonal reference")
+    print("\nINTERPRETATION: Algorithms clustering along the diagonal reference")
     print("   line demonstrate optimal speed-accuracy trade-offs. Deviations from")
     print("   this frontier indicate suboptimal parameter configurations.")
     return metrics, pareto_data

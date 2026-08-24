@@ -8,6 +8,7 @@ dependencies:
   - numpy=1.24.2
   - pandas
   - scipy
+  - sympy
   - matplotlib
   - seaborn
   - networkx
@@ -18,7 +19,11 @@ dependencies:
   # Packages that need to be installed via pip
   - pip
   - pip:
-    - netin
+    - netin==1.0.7
     - node2vec
     - leidenalg
     - python-igraph
+    - powerlaw==1.5
+    # Pre_processing/empirical_network_analysis.py only
+    - python-louvain
+    - ipython

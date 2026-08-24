@@ -74,9 +74,10 @@ If you prefer to mirror the `environment.yaml` exactly (Python 3.11 + the same p
 ```bash
 uv pip install \
     "numpy==1.24.2" \
-    pandas scipy matplotlib seaborn networkx rustworkx joblib \
+    pandas scipy sympy matplotlib seaborn networkx rustworkx joblib \
     setuptools wheel \
-    netin node2vec leidenalg python-igraph
+    "netin==1.0.7" node2vec leidenalg python-igraph  \
+    "powerlaw==1.5"
 ```
 
 ## 5. Verify the installation
@@ -88,6 +89,7 @@ python - <<'PY'
 import numpy, pandas, scipy, matplotlib, seaborn
 import networkx, rustworkx, joblib
 import igraph, leidenalg, node2vec, netin
+import powerlaw, sympy
 print("All imports OK")
 print("Python:", __import__("sys").version)
 print("numpy:", numpy.__version__)
@@ -95,23 +97,7 @@ print("netin:", netin.__version__)
 PY
 ```
 
-## 6. Optional: Rust toolchain for `Auxillary/fast_wtf`
-
-The repository contains a Rust extension for performance-critical rewiring code. If you intend to use it, install Rust and build the extension:
-
-```bash
-# Install Rust via rustup
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-source "$HOME/.cargo/env"
-
-# Build the extension
-cd Auxillary/fast_wtf
-cargo build --release
-```
-
-Make sure `cargo` can find the Python headers for your activated `.venv`.
-
-## 7. Cluster workflow summary
+## 6. Cluster workflow summary
 
 ```bash
 # 1. Login and move to project
@@ -122,7 +108,7 @@ source .venv/bin/activate
 
 # 3. Run model or sweeps
 cd Analysis
-python run.py
+python run_phased.py
 python general_param_sweep.py
 ```
 

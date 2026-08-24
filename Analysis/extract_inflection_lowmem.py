@@ -11,8 +11,7 @@ nothing else. The submitted manuscript's Fig. 3 is the **inflection** metric
 (`-v2.tex` L110 loads `pareto_speed_cooperativity_inflection_2026-03-27.pdf`), so
 adding the error bars silently swapped the figure's speed metric. Reverting to
 inflection means the error bars need per-run *inflection* rates, which have never
-been computed. This script computes them. Full context, cluster command and
-smoke-test numbers: `claude_stuff/Review/per_run_inflection_2026-07-30.md`.
+been computed. This script computes them.
 
 FULL RESOLUTION IS NON-NEGOTIABLE -- do not "optimise" this into the existing
 downsampling pass. `Analysis/Stats/summarize_individual_csv.py` streams the same
@@ -102,7 +101,7 @@ row counts, runtime, and the inflection-failure tally.
 
 Cluster run on the merged gme campaign (~28 GB, 30 conditions x 90 runs).
 The default --regwins is what the R1.7 decision needs; it costs no extra I/O:
-  cd Analysis && /home/jpoveralls/miniconda3/envs/collective_rewiring/bin/python \
+  cd Analysis && python \
       extract_inflection_lowmem.py \
       --in ../Output/default_run_individual_N_800_n_90_pNf_0_pc_0.05_sweep_20251014_1704_phased_run_gme_2025-10-15.csv \
       --out ../Output/per_run_inflection.csv
