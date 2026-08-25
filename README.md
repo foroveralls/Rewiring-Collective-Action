@@ -1,4 +1,4 @@
-# *Guided rewiring of social networks reduces polarization and accelerates consensus*
+# *Rewiring social networks for social good: navigating trade-offs*
 
 by
 Jordan P. Everall,
