@@ -1,5 +1,7 @@
 # *Rewiring social networks for social good: navigating trade-offs*
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.22097266.svg)](https://doi.org/10.5281/zenodo.22097266)
+
 by
 Jordan P. Everall,
 Lilli Frei,
