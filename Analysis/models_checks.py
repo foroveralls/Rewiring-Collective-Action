@@ -778,7 +778,7 @@ class Model:
     
         
         # Modified train_node2vec method for models_checks.py
-    def train_node2vec(self, input_file='graph.edgelist', output_file='embeddings.emb', dimensions=64):
+    def train_node2vec(self, input_file='graph.edgelist', output_file='embeddings.emb', dimensions=64, full=False):
         """Train node2vec embeddings with controlled CPU usage"""
         if not hasattr(self, 'affected_nodes_set'):
             self.affected_nodes_set = set()
@@ -790,7 +790,7 @@ class Model:
     
         try:
             # Determine if full retrain is needed
-            needs_full_retrain = (not self.embeddings or 
+            needs_full_retrain = (full or not self.embeddings or 
                                 len(self.affected_nodes_set) > len(self.graph.nodes) * 0.5)
             
             # Write edge list
@@ -912,6 +912,20 @@ class Model:
         return rewireIndex, neighbours
         
     def call_node2vec(self, nodeIndex):
+        refresh = self.local_args.get("n2v_refresh", 0)
+        if refresh:
+            # Periodic full re-embedding of the live graph every `refresh` steps (SI robustness
+            # check, claude_stuff/Review/n2v_refresh_pilot_2026-10-12.md). Always a full retrain:
+            # the partial path merges vectors from independent SGNS runs, whose coordinate frames
+            # are unrelated, so cosine similarities across the merge are meaningless. The default
+            # (0) leaves the canonical behaviour below untouched: one embedding, trained at t = 0.
+            if self.t - self.n2v_last_train >= refresh:
+                if self.train_node2vec(full=True):
+                    self.retrain += 1
+                self.n2v_last_train = self.t
+            self.node2vec_rewire(nodeIndex)
+            return
+
         if not self.trained and nodeIndex in self.affected_nodes_set:    
             #self.test.append(self.t)
             self.train_node2vec()
@@ -1193,6 +1207,7 @@ class Model:
         if self.local_args["rewiringAlgorithm"] in "node2vec":
             self.train_node2vec()
             self.trained = True
+            self.n2v_last_train = 0
             #print("initial training complete")
             
        
