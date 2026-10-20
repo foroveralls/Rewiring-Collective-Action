@@ -48,8 +48,19 @@ t=0 and register speed ~1. That is 50/90 wtf runs on DPA and 14/90 on Twitter. T
 artefact is MARKED on the figure (red rings) rather than corrected. Moving to
 inflection removes the artefact and the rings entirely.
 
+SUPERSEDED FOR S6 (round-2 R1b.3, 2026-10-19): Fig. 3 now plots t_{a>0}, the first step
+at which the ensemble mean opinion is positive, and the inflection rate is no longer
+reported. SI Fig. S6 is therefore `--metrics t_zero --tzero-csv Output/per_run_t_zero.csv`
+(from `Analysis/Stats/bootstrap_convergence_A1.py --perrun`): each run's own first step
+with a > 0, on a log axis (2.6k to 155k steps), with the ensemble value and its 95%
+bootstrap interval from Output/convergence_bootstrap_A1.csv beside each violin. The two
+are different quantities: the run spread is not uncertainty in the Fig. 3 value, and the
+ensemble mean waits for slow runs, so on DPA per-run medians sit 1-5k steps earlier.
+Runs that never turn positive (15 of 2700) are omitted and must be counted in the caption.
+
 Usage:
     python violin_run_level.py                     # uses Output/per_run_summary.csv
+    python violin_run_level.py --metrics t_zero --tzero-csv ../../Output/per_run_t_zero.csv
     python violin_run_level.py --csv <path> [--out <path.pdf>] [--no-artefact-marks]
     python violin_run_level.py --metrics main+inflection \
         --inflection-csv ../../Output/per_run_inflection.csv [--regwin 1000]
@@ -98,6 +109,7 @@ TYPE_ORDER = ['DPAH', 'cl', 'Twitter', 'FB']
 # y-limits None = resolve from the data (used by the inflection row, whose units are
 # not [0,1] and whose per-run values can go negative).
 INFLECTION_COL = 'speed_inflection'
+T_ZERO_COL = 't_zero'
 METRICS = [
     # Per-run labels are $a^*$ / $P^*$, not $\langle\cdot\rangle$: manuscript L87 reserves
     # angle brackets for the ensemble average over runs, and these rows plot one value per run.
@@ -109,7 +121,11 @@ METRICS = [
     # which understated every plotted rate by 1000x; do not reinstate it without
     # actually scaling the data.
     (INFLECTION_COL,       'Convergence rate' '\n' r'(inflection)',                 None, None),
+    # time, not rate: Fig. 3's x-axis since round 2. Per-run, so no angle brackets.
+    (T_ZERO_COL,           'Steps until' '\n' r'$a > 0$',                          None, None),
 ]
+# rows drawn on log10 values (KDE included); tick labels are put back in steps
+LOG_ROWS = {T_ZERO_COL}
 # 'main'           mean opinion + polarization (what was rendered 2026-07-29)
 # 'main+inflection' adds the convergence row on Fig 3's OWN metric -- the main-text
 #                  candidate agreed 2026-07-31; needs --inflection-csv
@@ -120,6 +136,8 @@ METRIC_SETS = {'main': ['cooperativity', 'final_polarization'],
                # single convergence-rate row for SI Fig. S6 (decision 2026-08-06: the
                # main-text figure stays 2-row, the rate row goes to the SI on inflection)
                'inflection': [INFLECTION_COL],
+               # SI Fig. S6 from round 2 (R1b.3): replaces the inflection row
+               't_zero': [T_ZERO_COL],
                'all': ['cooperativity', 'final_polarization', 'speed_t95']}
 
 # Author at the true printed width so nothing is rescaled on inclusion:
@@ -131,6 +149,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_CSV = os.path.normpath(os.path.join(HERE, "..", "..", "Output",
                                             "per_run_summary.csv"))
 FIG_DIR = os.path.normpath(os.path.join(HERE, "..", "..", "Figs", "Distributions"))
+DEFAULT_ENSEMBLE_CSV = os.path.normpath(os.path.join(HERE, "..", "..", "Output",
+                                                     "convergence_bootstrap_A1.csv"))
 
 
 def _norm(x):
@@ -196,6 +216,34 @@ def join_inflection(df, path, regwin=10):
     return df, report
 
 
+def _key(f):
+    return (f['type'].map(_norm) + '|' + f['scenario'].map(_norm) + '|'
+            + f['rewiring'].map(_norm) + '|' + f['model_run'].astype('Int64').astype(str))
+
+
+def join_t_zero(df, path):
+    """Attach per-run t_zero (NaN = never positive) from bootstrap_convergence_A1.py --perrun."""
+    tz = pd.read_csv(path, keep_default_na=False, na_values=[''],
+                     dtype={'scenario': str, 'rewiring': str, 'type': str})
+    tz['_k'] = _key(tz)
+    df = df.assign(_k=_key(df)).merge(tz[['_k', T_ZERO_COL]], on='_k', how='left')
+    matched = int(df['_k'].isin(tz['_k']).sum())
+    report = (f"t_zero join: {path}\n"
+              f"  matched {matched} of {len(df)} run rows; "
+              f"{int(df[T_ZERO_COL].isna().sum())} never positive -- disclose these")
+    if matched != len(df):
+        raise SystemExit(report + "\n\nUnmatched runs -- check both files come from the same campaign.")
+    return df.drop(columns='_k'), report
+
+
+def load_ensemble(path):
+    """Ensemble t_zero and 95% bootstrap interval per (type, grouped), as in Fig. 3."""
+    e = pd.read_csv(path, keep_default_na=False, na_values=[''],
+                    dtype={'scenario': str, 'rewiring': str, 'type': str})
+    e['grouped'] = e['scenario'].map(_norm) + '_' + e['rewiring'].map(_norm)
+    return e.set_index(['type', 'grouped'])[['t_zero', 't_zero_lo', 't_zero_hi', 't_zero_never']]
+
+
 def _resolve_ylim(ylim, series):
     """Data-driven limits for rows declared with ylim=None (the inflection row)."""
     if ylim is not None:
@@ -221,7 +269,7 @@ def _style_axis(ax, ylim):
     ax.tick_params(axis='both', which='major', width=line_params["tick_major_width"])
 
 
-def make_figure(df, out_path, mark_artefact=True, metric_set='main'):
+def make_figure(df, out_path, mark_artefact=True, metric_set='main', ensemble=None):
     metrics = [m for m in METRICS if m[0] in METRIC_SETS[metric_set]]
     types_present = [t for t in TYPE_ORDER if t in df['type'].unique()]
     nrows, ncols = len(metrics), len(types_present)
@@ -237,12 +285,20 @@ def make_figure(df, out_path, mark_artefact=True, metric_set='main'):
         # resolved once per row, not per panel: sharey='row' means all four panels
         # must agree, and a per-panel range would make topologies look comparable
         # when they are not
-        ylim = _resolve_ylim(ylim, df[col] if col in df.columns else pd.Series(dtype=float))
+        log = col in LOG_ROWS
+        tf = np.log10 if log else (lambda x: x)
+        if log:
+            v = tf(df[col].dropna().to_numpy())
+            if ensemble is not None:
+                v = np.concatenate([v, tf(ensemble['t_zero_hi'].dropna().to_numpy())])
+            ylim = (v.min() - 0.05, v.max() + 0.08)
+        else:
+            ylim = _resolve_ylim(ylim, df[col] if col in df.columns else pd.Series(dtype=float))
         for c, type_ in enumerate(types_present):
             ax = axes[r, c]
             sub = df[df['type'] == type_]
             algos = [g for g in ALGO_ORDER if (sub['grouped'] == g).any()]
-            data = [sub.loc[sub['grouped'] == g, col].dropna().to_numpy() for g in algos]
+            data = [tf(sub.loc[sub['grouped'] == g, col].dropna().to_numpy()) for g in algos]
             pos = np.arange(len(algos))
 
             if refline is not None:
@@ -278,7 +334,7 @@ def make_figure(df, out_path, mark_artefact=True, metric_set='main'):
             # one point per run (n=90): this is the quantity R1.7 asked to see
             for p, g in zip(pos, algos):
                 s = sub[sub['grouped'] == g]
-                vals = s[col].to_numpy()
+                vals = tf(s[col].to_numpy())
                 jit = rng.uniform(-0.13, 0.13, size=len(vals))
                 if mark_artefact and col == 'speed_t95':
                     bad = s['speed_artefact'].to_numpy()
@@ -302,6 +358,23 @@ def make_figure(df, out_path, mark_artefact=True, metric_set='main'):
                 ax.scatter(p, med, s=14, color='white', edgecolor='black',
                            linewidth=0.7, zorder=5)
 
+            # Fig. 3's ensemble value beside each violin, offset so it never hides the
+            # run median: the gap between the two is part of what the figure shows
+            if ensemble is not None and log:
+                for p, g in zip(pos, algos):
+                    if (type_, g) not in ensemble.index:
+                        continue
+                    e = ensemble.loc[(type_, g)]
+                    x = p + 0.36
+                    # open ended where >2.5% of resamples never turn positive (DPA WTF)
+                    open_end = e['t_zero_never'] > 0.025
+                    hi = ylim[1] - 0.02 if open_end else tf(e['t_zero_hi'])
+                    ax.vlines(x, tf(e['t_zero_lo']), hi, color='black', lw=0.9, zorder=4)
+                    if open_end:
+                        ax.scatter(x, hi, marker='^', s=12, color='black', linewidth=0, zorder=4)
+                    ax.scatter(x, tf(e['t_zero']), marker='D', s=11, color='black',
+                               linewidth=0, zorder=5)
+
             ax.set_xticks(pos)
             ax.set_xlim(-0.6, len(algos) - 0.4)
             if r == nrows - 1:
@@ -319,6 +392,10 @@ def make_figure(df, out_path, mark_artefact=True, metric_set='main'):
             if c == 0:
                 ax.set_ylabel(ylab, fontsize=FONT_SIZE - 1)
             _style_axis(ax, ylim)
+            if log:
+                ticks = [t for t in (3e3, 1e4, 3e4, 1e5) if ylim[0] <= np.log10(t) <= ylim[1]]
+                ax.set_yticks(np.log10(ticks))
+                ax.set_yticklabels([f'{t / 1e3:g}k' for t in ticks])
 
     handles = [
         Line2D([], [], marker='o', color='none', markerfacecolor='black',
@@ -333,6 +410,9 @@ def make_figure(df, out_path, mark_artefact=True, metric_set='main'):
     if any(m[3] is not None for m in metrics):
         handles.append(Line2D([], [], color='0.35', lw=0.9, ls=':',
                               label='consensus criterion'))
+    if ensemble is not None and any(m[0] in LOG_ROWS for m in metrics):
+        handles.append(Line2D([], [], marker='D', color='black', lw=0.9, markersize=3.5,
+                              label=r'ensemble $t_{a>0}$, 95% CI (Fig. 3)'))
     if any_artefact and mark_artefact:
         handles.append(Line2D([], [], marker='o', color='none', markerfacecolor='none',
                               markeredgecolor='#CC3311', markersize=5,
@@ -406,6 +486,26 @@ def print_inflection_report(df, regwin):
                   f"between-condition ratio needs the full campaign)")
 
 
+def print_t_zero_report(df, ensemble):
+    """Caption numbers: never-positive runs, run spread vs ensemble CI, median vs ensemble."""
+    from scipy.stats import spearmanr
+    g = df.groupby(['type', 'grouped'])[T_ZERO_COL]
+    never = g.apply(lambda v: int(v.isna().sum()))
+    print(f"\nPer-run t_zero: {int(df[T_ZERO_COL].isna().sum())} of {len(df)} runs never positive:")
+    for (t, g_), n in never[never > 0].items():
+        print(f"    {NETWORK_DISPLAY_NAMES.get(t, t):8s} {FRIENDLY_NAMES[g_]:9s} {n}")
+    q = g.quantile([0.25, 0.5, 0.75]).unstack().join(ensemble)
+    iqr, ciw = q[0.75] - q[0.25], q['t_zero_hi'] - q['t_zero_lo']
+    print(f"  per-run range {df[T_ZERO_COL].min():.0f}-{df[T_ZERO_COL].max():.0f} steps")
+    print(f"  median IQR / median ensemble 95% CI width: {iqr.median() / ciw.median():.2f}")
+    print(f"  Spearman(per-run median, ensemble t_zero), 30 conditions: "
+          f"{spearmanr(q[0.5], q['t_zero']).correlation:.2f}")
+    d = q['t_zero'] - q[0.5]
+    print("  ensemble minus per-run median (steps), by topology: "
+          + ", ".join(f"{NETWORK_DISPLAY_NAMES.get(t, t)} {d.loc[t].min():.0f} to {d.loc[t].max():.0f}"
+                      for t in TYPE_ORDER))
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--csv", default=DEFAULT_CSV)
@@ -425,6 +525,11 @@ def main():
                          "estimate (a single run is not pre-averaged like the ensemble "
                          "mean) but MUST be stated in the caption. Read the REGWIN SPREAD "
                          "DIAGNOSTIC in per_run_inflection_META.txt before choosing")
+    ap.add_argument("--tzero-csv", default=None,
+                    help="Output/per_run_t_zero.csv from Analysis/Stats/bootstrap_convergence_A1.py "
+                         "--perrun; needed by --metrics t_zero (SI Fig. S6)")
+    ap.add_argument("--ensemble-csv", default=DEFAULT_ENSEMBLE_CSV,
+                    help="ensemble t_zero with 95%% CIs drawn beside the t_zero violins")
     args = ap.parse_args()
 
     needs_inf = INFLECTION_COL in METRIC_SETS[args.metrics]
@@ -435,7 +540,16 @@ def main():
         print("note: --inflection-csv given but the selected --metrics has no "
               "inflection row; joining anyway so the report prints")
 
+    needs_tz = T_ZERO_COL in METRIC_SETS[args.metrics]
+    if needs_tz and not args.tzero_csv:
+        ap.error(f"--metrics {args.metrics} needs --tzero-csv")
+
     df = load_data(args.csv)
+    ensemble = None
+    if needs_tz:
+        df, report = join_t_zero(df, args.tzero_csv)
+        print(report)
+        ensemble = load_ensemble(args.ensemble_csv)
     if args.inflection_csv:
         df, report = join_inflection(df, args.inflection_csv, regwin=args.regwin)
         print(report)
@@ -446,9 +560,11 @@ def main():
     print(f"rows={len(df):,}  types={sorted(df['type'].unique())}  "
           f"runs/combo={df.groupby(['type', 'grouped'])['model_run'].nunique().median():.0f}")
     make_figure(df, out, mark_artefact=not args.no_artefact_marks,
-                metric_set=args.metrics)
+                metric_set=args.metrics, ensemble=ensemble)
     print_ranking_report(df)
     print_inflection_report(df, args.regwin)
+    if needs_tz:
+        print_t_zero_report(df, ensemble)
 
 
 if __name__ == "__main__":

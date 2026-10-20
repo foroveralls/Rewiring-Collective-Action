@@ -19,17 +19,25 @@ negatively-converging runs as near-instant. Choose method 2 to reproduce the
 paper. Error bars (R1.7) now work for BOTH metrics -- see PER_RUN_SOURCES in
 main().
 
+NOTE (2026-10-19, round 2, R1b.3): the revised Fig. 3 is the **t_zero** method, the
+first step at which the ensemble mean <a> is positive, plotted in raw units with 95%
+bootstrap intervals from Analysis/Stats/bootstrap_convergence_A1.py. The inflection
+rate was dropped because each of its 95% intervals covers at least 0.027-0.068,
+most of the range of its 30 point estimates (0.018-0.107), so it cannot order the
+algorithms. See plot_t_zero_pareto.
+
 ENVIRONMENT OVERRIDES (all optional; without them main() prompts as before):
   PARETO_FILE    index into the listed Output/default_run_avg_*.csv files, or any
                  unique substring of one of their names
-  PARETO_METHOD  't95' or 'inflection'
-  PARETO_AXES    'rank' (default, as submitted) or 'raw'
+  PARETO_METHOD  't95', 'inflection' or 't_zero'
+  PARETO_AXES    'rank' (default, as submitted) or 'raw'; t95/inflection only
   PARETO_BARS    '1' to draw the per-run IQR bars; off by default, see
-                 plot_pareto_analysis for why
+                 plot_pareto_analysis for why; t95/inflection only
 
-  Reproduce the current Fig. 3 (from Analysis/Plotting):
-    MPLBACKEND=Agg PARETO_FILE=gme_2025-10-15.csv PARETO_METHOD=inflection \
+  Reproduce the round-2 Fig. 3 (from Analysis/Plotting):
+    MPLBACKEND=Agg PARETO_FILE=gme_2025-10-15.csv PARETO_METHOD=t_zero \
       python convergence_vs_cooperation.py
+  and the submitted (v2) Fig. 3 with PARETO_METHOD=inflection.
 
 1. t95 method (default): Time to reach 95% of final cooperation value
    - Simple, robust, always computable
@@ -40,6 +48,10 @@ ENVIRONMENT OVERRIDES (all optional; without them main() prompts as before):
    - Finds inflection point via second derivative
    - Returns slope around inflection point (raw rate)
    - Theoretically grounded for dynamical systems analysis
+
+3. t_zero method: first step at which the ensemble mean <a> is positive
+   - A kept state at defaults: x(opposite) overshoots, then settles at a* > 0
+   - speed = 1/t_zero for the Pareto front; plotted as t_zero itself
 """
 
 import os
@@ -68,6 +80,12 @@ FRIENDLY_NAMES = {
     'biased_diff': 'L-opp', 'bridge_same': 'B-sim', 'bridge_diff': 'B-opp',
     'wtf_none': 'wtf', 'node2vec_none': 'node2vec'
 }
+
+# Bootstrap intervals for the t_zero figure (Analysis/Stats/bootstrap_convergence_A1.py).
+T_ZERO_CSV = "../../Output/convergence_bootstrap_A1.csv"
+# Shape as a second cue in the t_zero figure only: in FRIENDLY_COLORS, which nine figures
+# share, node2vec is dE 10.6 from L-opp for normal vision and dE 5.1 from wtf under protanopia.
+T_ZERO_MARKERS = {'node2vec': 'D', 'wtf': 's'}
 
 def setup_style():
     plt.rcParams.update({
@@ -158,7 +176,8 @@ def calculate_metrics(data, method='t95'):
     data : pd.DataFrame
         Trajectory data
     method : str
-        't95' for time-to-95% method (default) or 'inflection' for inflection point method
+        't95' for time-to-95% method (default), 'inflection' for inflection point method,
+        or 't_zero' for the first step with <a> > 0 (adds a 'time' column, NaN if never)
     """
     data['rewiring'] = data['rewiring'].fillna('none')
     data['scenario'] = data['scenario'].fillna('none')
@@ -170,8 +189,14 @@ def calculate_metrics(data, method='t95'):
         trajectory = group['avg_state'].values
 
         # Convergence speed (higher = faster) - choose method
+        t_zero = np.nan
         if method == 'inflection':
             speed = calculate_inflection_convergence_speed(trajectory)
+        elif method == 't_zero':
+            # never positive = slowest, as in bootstrap_convergence_A1.py
+            pos = np.flatnonzero(trajectory > 0)
+            t_zero = float(pos[0]) if len(pos) else np.nan
+            speed = 1.0 / max(t_zero, 1.0) if len(pos) else 0.0
         else:  # default to t95
             speed = calculate_t95_convergence_speed(trajectory)
 
@@ -184,6 +209,8 @@ def calculate_metrics(data, method='t95'):
             'scenario': friendly_name, 'topology': topology,
             'speed': speed, 'cooperativity': final_coop
         })
+        if method == 't_zero':
+            results[-1]['time'] = t_zero
 
     return pd.DataFrame(results)
 
@@ -448,6 +475,99 @@ def plot_pareto_analysis(metrics_df, output_path, method='t95', per_run_df=None,
     dominated_data = valid_data[~global_pareto_mask]
     return pareto_data, dominated_data
 
+def load_t_zero_ci(path=T_ZERO_CSV):
+    """95% bootstrap intervals per condition, indexed by (friendly scenario, topology)."""
+    ci = pd.read_csv(path, keep_default_na=False, na_values=[''])
+    grouped = ci['scenario'].str.lower() + '_' + ci['rewiring'].str.lower()
+    ci['scenario'] = grouped.map(lambda g: FRIENDLY_NAMES.get(g, g))
+    ci['topology'] = ci['type']
+    return ci.set_index(['scenario', 'topology'])
+
+def plot_t_zero_pareto(metrics_df, ci, output_path):
+    """Round-2 Fig. 3 (R1b.3): t_zero against <a*>, both in their own units, with 95%
+    bootstrap intervals on both (resampling runs, B = 1000; bootstrap_convergence_A1.py).
+
+    Time runs left to right, so the front is upper left. Each panel's x range is fitted
+    to its bars rather than shared, because the topologies differ by 3x in spread; the
+    caption has to say that x differs between panels and does not start at zero. A bar
+    whose upper bound is unbounded (more than 2.5% of resamples never cross zero, which
+    puts the 97.5th percentile at infinity; DPA WTF) runs to the frame edge and ends in
+    an open arrowhead. The front is computed on the point estimates, static included.
+    """
+    setup_style()
+    topology_order = ['DPAH', 'cl', 'Twitter', 'FB']
+    topology_labels = {'DPAH': 'DPA', 'cl': 'CSF', 'Twitter': 'Twitter', 'FB': 'FB'}
+
+    # The points come from the avg file, the bars from the bootstrap; both are the same
+    # ensemble mean, so they must agree (the cache is float32, hence the tolerance).
+    for _, row in metrics_df.iterrows():
+        c = ci.loc[(row['scenario'], row['topology'])]
+        if row['time'] != c['t_zero'] or abs(row['cooperativity'] - c['a_final']) > 1e-4:
+            print(f"  MISMATCH {row['scenario']} {row['topology']}: t_zero {row['time']} vs "
+                  f"{c['t_zero']}, a* {row['cooperativity']:.5f} vs {c['a_final']:.5f}")
+
+    fig, axes = plt.subplots(2, 2, figsize=(17.8*cm, 15*cm))
+    pareto_rows = []
+    for ax, topo in zip(axes.flat, topology_order):
+        t = metrics_df[metrics_df['topology'] == topo].copy()
+        front = find_pareto_front(t)
+        c = ci.loc[list(zip(t['scenario'], t['topology']))]
+        x, y = t['time'].to_numpy() / 1e3, t['cooperativity'].to_numpy()
+        xlo, xhi = c['t_zero_lo'].to_numpy() / 1e3, c['t_zero_hi'].to_numpy() / 1e3
+        ylo, yhi = c['a_final_lo'].to_numpy(), c['a_final_hi'].to_numpy()
+        open_hi = c['t_zero_never'].to_numpy() > 0.025
+        right = max(xhi[~open_hi].max(), x.max())
+        pad = 0.04 * (right - xlo.min())
+        xlim = (xlo.min() - pad, right + pad)
+        xhi = np.where(open_hi, xlim[1], xhi)
+
+        for i, (sc, on) in enumerate(zip(t['scenario'], front)):
+            color = FRIENDLY_COLORS.get(sc, 'black')
+            ax.errorbar(x[i], y[i], xerr=[[x[i] - xlo[i]], [xhi[i] - x[i]]],
+                        yerr=[[y[i] - ylo[i]], [yhi[i] - y[i]]], fmt='none', ecolor=color,
+                        elinewidth=0.8, capsize=1.5, capthick=0.8, alpha=0.8, zorder=2)
+            if open_hi[i]:
+                ax.plot(xlim[1], y[i], marker='>', ms=4, mfc='white', mec=color, mew=0.8,
+                        zorder=2, clip_on=False)
+            mk = T_ZERO_MARKERS.get(sc, 'o')
+            ax.scatter(x[i], y[i], c=color, marker=mk,
+                       s=(34 if on else 18) * (0.75 if mk == 'D' else 1),
+                       edgecolors='black', linewidth=0.8 if on else 0.4, zorder=3)
+        f = np.argsort(x[front.to_numpy()])
+        ax.plot(x[front.to_numpy()][f], y[front.to_numpy()][f], ls='--', color='0.35',
+                lw=0.8, zorder=1)
+
+        ax.set_xlim(*xlim)
+        ax.grid(True, alpha=0.25, linewidth=0.3)
+        ax.set_title(topology_labels[topo], fontsize=FONT_SIZE, fontweight='bold')
+        pareto_rows += [(topo, sc) for sc, on in zip(t['scenario'], front) if on]
+    for ax in axes[1]:
+        ax.set_xlabel(r'$t_{a>0}$ ($10^3$ steps; $\leftarrow$ faster)', fontsize=FONT_SIZE)
+    for ax in axes[:, 0]:
+        ax.set_ylabel(r'$\langle a^* \rangle$', fontsize=FONT_SIZE)
+
+    handles = [Line2D([0], [0], marker=T_ZERO_MARKERS.get(algo, 'o'), color=color,
+                      linestyle='None', markersize=4.5, markeredgecolor='black',
+                      markeredgewidth=0.4, label=algo)
+               for algo, color in FRIENDLY_COLORS.items()
+               if algo in metrics_df['scenario'].values]
+    fig.legend(handles=handles, bbox_to_anchor=(0.5, 0.0), loc='upper center',
+               ncol=len(handles), frameon=False, fontsize=FONT_SIZE-1, columnspacing=0.8)
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=300, bbox_inches='tight')
+    plt.show()
+
+    print("\nt_zero (10^3 steps) and <a*>, 95% bootstrap intervals; * = on the front")
+    for topo in topology_order:
+        print(f"  {topology_labels[topo]}")
+        for _, row in metrics_df[metrics_df['topology'] == topo].sort_values('time').iterrows():
+            c = ci.loc[(row['scenario'], topo)]
+            star = '*' if (topo, row['scenario']) in pareto_rows else ' '
+            hi = 'open' if c['t_zero_never'] > 0.025 else f"{c['t_zero_hi']/1e3:.2f}"
+            print(f"   {star} {row['scenario']:9s} {row['time']/1e3:6.2f} "
+                  f"[{c['t_zero_lo']/1e3:.2f}, {hi}]   {row['cooperativity']:+.3f} "
+                  f"[{c['a_final_lo']:+.3f}, {c['a_final_hi']:+.3f}]")
+
 def analyze_pareto_results(pareto_data, dominated_data):
     """Analysis of algorithmic optimality along the Pareto frontier
     
@@ -536,10 +656,11 @@ def main():
         print("\nChoose convergence rate calculation method:")
         print("1: t95 method (time to reach 95% of final value - simple and robust)")
         print("2: inflection method (slope during exponential phase - matches trajectory_stats.py)")
-        method_choice = input("Select method (1 or 2, default=1): ").strip()
-        method = 'inflection' if method_choice == '2' else 't95'
-    elif method not in ('t95', 'inflection'):
-        raise SystemExit(f"PARETO_METHOD must be 't95' or 'inflection', got {method!r}")
+        print("3: t_zero method (time to <a> > 0, bootstrap intervals - round-2 Fig. 3)")
+        method_choice = input("Select method (1, 2 or 3, default=1): ").strip()
+        method = {'2': 'inflection', '3': 't_zero'}.get(method_choice, 't95')
+    elif method not in ('t95', 'inflection', 't_zero'):
+        raise SystemExit(f"PARETO_METHOD must be 't95', 'inflection' or 't_zero', got {method!r}")
     print(f"\nUsing {method} method for convergence rate calculation")
 
     data = pd.read_csv(os.path.join("../../Output", files[idx]))
@@ -548,6 +669,14 @@ def main():
     if metrics.empty:
         print("No valid metrics calculated")
         return
+
+    if method == 't_zero':
+        output_dir = "../../Figs/Convergence"
+        os.makedirs(output_dir, exist_ok=True)
+        output_path = f"{output_dir}/pareto_t_zero_{date.today()}.pdf"
+        plot_t_zero_pareto(metrics, load_t_zero_ci(), output_path)
+        print(f"\nPareto t_zero figure saved: {output_path}")
+        return metrics, None
 
     # Optional per-run metrics for ensemble IQR error bars (R1.7). One file per speed
     # metric; both are keyed type/scenario/rewiring/model_run and both carry a
