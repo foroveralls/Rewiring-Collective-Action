@@ -92,8 +92,8 @@ rewiringAlgorithm = 'None' #None, random, biased, bridge
 #long story short. All changes to breaklinkprob, establishlinkprob and rewiringAlgorithm have to be specified here in the models file
 lock = None
 
-WEIGHT_BATCH = 4096 # friendship weights are drawn from scipy in blocks of this size; only affects speed, not the distribution
-USE_NETWORK_CACHE = True # DPAH/PATCH generation is fully seeded (seed=42), so the graph is identical every run and can be cached
+WEIGHT_BATCH = int(os.environ.get("WEIGHT_BATCH", 4096)) # friendship weights are drawn from scipy in blocks of this size; only affects speed, not the distribution. WEIGHT_BATCH=1 with NETWORK_CACHE=0 restores the pre-optimization RNG order
+USE_NETWORK_CACHE = os.environ.get("NETWORK_CACHE", "1") != "0" # DPAH/PATCH generation is fully seeded (seed=42), so the graph is identical every run and can be cached; NETWORK_CACHE=0 regenerates it every run, as in the Oct 2025 campaign
 NETWORK_CACHE_DIR = os.path.join(current_dir, "network_cache")
 _network_cache = {}
 
@@ -309,6 +309,7 @@ class Model:
         self.process_id = os.getpid()
         self.degree_distributions = {}
         self.wtf_cache_threshold = args.get("wtf_freq", 10)
+        self.wtf_attempts = args.get("wtf_attempts") # None: walk the cached list until a link forms; k: at most k candidates per step
         self.rx_graph = None # persistent rustworkx mirror of self.graph (wtf only); kept in sync by _graph_add_edge/_graph_remove_edge
         self._track_states = False # running state aggregates are only maintained once runSim has synced them
         self._weight_pool = None
@@ -1046,6 +1047,11 @@ class Model:
 
         if len(recommendations) == 0:
             return False
+
+        if self.wtf_attempts is not None:
+            # candidates drawn uniformly from cached entries that are not yet neighbours
+            valid = [r for r in recommendations if not self.graph.has_edge(nodeIndex, r)]
+            recommendations = random.sample(valid, min(self.wtf_attempts, len(valid)))
 
         for rec in recommendations:
             # Use rewire() which checks if edge already exists
