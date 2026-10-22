@@ -498,7 +498,7 @@ class Model:
             return False  # Already connected, don't count as rewired
 
         rewired = False
-        if random.random() < establishlinkprob:
+        if random.random() < self.local_args["establishlinkprob"]:
             weight = self.getFriendshipWeight()
 
             self._graph_add_edge(node_i, neighbour_i, weight)

@@ -143,6 +143,8 @@ def parse_args():
     p.add_argument("--sims", type=int, default=90)
     p.add_argument("--wtf-attempts", type=int, default=None,
                    help="candidates WTF may try per step (default: walk its cached list until a link forms)")
+    p.add_argument("--pjoin", type=float, default=None,
+                   help="link-creation probability per rewiring attempt (default: establishlinkprob in models_checks)")
     return p.parse_args()
 
 def main():
@@ -189,6 +191,8 @@ def main():
     base_args = models_checks.getargs()
     if cli.wtf_attempts is not None:
         base_args["wtf_attempts"] = cli.wtf_attempts
+    if cli.pjoin is not None:
+        base_args["establishlinkprob"] = cli.pjoin
     # record the settings of this run next to its outputs
     save_sweep_config(sweep_id, [], {}, combined_list, numberOfSimulations,
                       {**base_args, "wtf_attempts": cli.wtf_attempts, "network_cache": models_checks.USE_NETWORK_CACHE, "weight_batch": models_checks.WEIGHT_BATCH,
