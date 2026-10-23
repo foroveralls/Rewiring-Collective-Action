@@ -142,7 +142,8 @@ def parse_args():
                                          "'all' runs the full campaign; default is the one-off list in main()")
     p.add_argument("--sims", type=int, default=90)
     p.add_argument("--wtf-attempts", type=int, default=None,
-                   help="candidates WTF may try per step (default: walk its cached list until a link forms)")
+                   help="cached candidates WTF tries per step, in rank order (default: wtf_attempts in models_checks, 1; "
+                        "0 walks the whole cached list until a link forms)")
     p.add_argument("--pjoin", type=float, default=None,
                    help="link-creation probability per rewiring attempt (default: establishlinkprob in models_checks)")
     return p.parse_args()
@@ -195,7 +196,7 @@ def main():
         base_args["establishlinkprob"] = cli.pjoin
     # record the settings of this run next to its outputs
     save_sweep_config(sweep_id, [], {}, combined_list, numberOfSimulations,
-                      {**base_args, "wtf_attempts": cli.wtf_attempts, "network_cache": models_checks.USE_NETWORK_CACHE, "weight_batch": models_checks.WEIGHT_BATCH,
+                      {**base_args, "network_cache": models_checks.USE_NETWORK_CACHE, "weight_batch": models_checks.WEIGHT_BATCH,
                        "timesteps": f"160000, overrides {TIMESTEPS_OVERRIDE}"})
     
     print(f"Algorithms to run: {list(algo_groups.keys())}")

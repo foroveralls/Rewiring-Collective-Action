@@ -86,6 +86,7 @@ breaklinkprob = 1
 rewiringMode = "None"
 polarisingNode_f = 0
 establishlinkprob = 0.5 # breaklinkprob and establishlinkprob are used in random rewiring. Are always chosen to be the same to keep average degree constant!
+wtf_attempts = 1 # cached WTF candidates tried per step, in rank order, as for every other algorithm; 0 walks the whole cached list until a link forms
 rewiringAlgorithm = 'None' #None, random, biased, bridge
 #the rewiringAlgorithm variable was meant to enable to do multiple runs at once. However the loop where the specification 
 #given in the ArgList in run_phased.py overrules what is given in line 65 does not work. Unclear why.
@@ -138,6 +139,7 @@ args = {"defectorUtility" : defectorUtility,
         "rewiringMode": rewiringMode,
         "breaklinkprob" : breaklinkprob,
         "establishlinkprob" : establishlinkprob,
+        "wtf_attempts": wtf_attempts,
         "polarisingNode_f": polarisingNode_f,
         "seed": 42,
         "f_all": 0.5}
@@ -309,7 +311,7 @@ class Model:
         self.process_id = os.getpid()
         self.degree_distributions = {}
         self.wtf_cache_threshold = args.get("wtf_freq", 10)
-        self.wtf_attempts = args.get("wtf_attempts") # None: walk the cached list until a link forms; k: at most k candidates per step
+        self.wtf_attempts = args.get("wtf_attempts", wtf_attempts) or None # k: the first k unlinked cached candidates per step; 0/None: walk the whole cached list until a link forms
         self.rx_graph = None # persistent rustworkx mirror of self.graph (wtf only); kept in sync by _graph_add_edge/_graph_remove_edge
         self._track_states = False # running state aggregates are only maintained once runSim has synced them
         self._weight_pool = None
@@ -1049,9 +1051,9 @@ class Model:
             return False
 
         if self.wtf_attempts is not None:
-            # candidates drawn uniformly from cached entries that are not yet neighbours
+            # the cache is ranked by score, so this keeps the top-ranked entries that are not yet neighbours
             valid = [r for r in recommendations if not self.graph.has_edge(nodeIndex, r)]
-            recommendations = random.sample(valid, min(self.wtf_attempts, len(valid)))
+            recommendations = valid[:self.wtf_attempts]
 
         for rec in recommendations:
             # Use rewire() which checks if edge already exists
