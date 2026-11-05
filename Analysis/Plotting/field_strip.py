@@ -1,14 +1,11 @@
 #!/usr/bin/env python3
 """
-Minimal single-column panel for reviewer R1.2: "the dependence on this parameter
-[the external field phi] should be more central in the main text, especially for
-the claim that rewiring promotes consensus".
+Dependence of the steady-state mean opinion on the external field phi, per rewiring
+algorithm (main-text Fig. 4, `--variant ladder`).
 
-This is deliberately the smallest device that answers the comment. It is drawn to
-sit as panel (b) underneath the single-column run-level violin, sharing that
-panel's algorithm x-axis, so it costs a few centimetres of column rather than a
-figure slot. The violins above are measured at the default field phi = 0.05, which
-is this panel's TOP row: reading downwards is turning the field off.
+The panel is sized to sit under the single-column run-level violin, sharing its
+algorithm x-axis. The violins are measured at the default field phi = 0.05, which is
+this panel's top row: reading downwards is turning the field off.
 
 Two variants of the same statement, chosen with --variant:
 
@@ -18,8 +15,8 @@ Two variants of the same statement, chosen with --variant:
               where that algorithm's median run turns aligned; the grey dashed rules
               bound the field range over which at least 15% of runs settle aligned
               (a* > 0.5) and at least 15% settle opposed (a* < -0.5), i.e. where the
-              ensemble is genuinely divided rather than sitting near zero (the R1.7
-              concern, shown rather than asserted). A bound that runs off the swept
+              ensemble is genuinely divided rather than sitting near zero. A bound
+              that runs off the swept
               range is left open. The magnitude qualifier is load-bearing: a sign-only
               test flags any ensemble straddling zero, which on this data means the
               heterophilic rules get the widest markers despite being the least
@@ -32,14 +29,13 @@ Two variants of the same statement, chosen with --variant:
               nearly at its default value. The bar at the top marker is the IQR
               across runs at the default field.
 
-Both carry per-run spread, because R1.7's multimodality complaint was sourced from
-the SI phi heatmap - answering R1.2 with a means-only main-text panel would hand
-the reviewer a fresh instance of their other comment.
+Both carry per-run spread, since the SI phi heatmap shows multimodal ensembles that a
+means-only panel would hide.
 
-DATA: the corrected political-climate sweep, one row per run, columns
+DATA: the political-climate sweep, one row per run, columns
     state,state_std,politicalClimate,rewiring,mode,topology
-Default is the `tay` sweep, verified 2026-07-27 to run at rho = 0.10. The older `lou` and
-`dyr` sweeps ran at rho = 0 and must NOT be used. PHI_SWEEP_CSV overrides the path.
+Default is the `tay` sweep, run at diverger fraction rho = 0.10. PHI_SWEEP_CSV
+overrides the path.
 
 Runs are pooled over the four topologies (30 runs each, so 120 per cell; WTF is
 defined only on the directed topologies, so 60). --topologies directed|undirected
@@ -262,7 +258,7 @@ def draw_ladder(ax, summ, cbar=True, xlabels=True):
                                 ticks=[-1, 0, 1], aspect=11)
         cb.ax.set_yticklabels(['$-1$', '0', '1'])
         # per-run notation: $a^*$ is one run's steady state, the colour is the median
-        # across runs; $\langle\cdot\rangle$ would claim the ensemble mean (MS L87)
+        # across runs; $\langle\cdot\rangle$ would claim the ensemble mean
         cb.set_label(r'median $a^*$', labelpad=2,
                      fontsize=FONT_SIZE - 1)
         cb.outline.set_visible(False)

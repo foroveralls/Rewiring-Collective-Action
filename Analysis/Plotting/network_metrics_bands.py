@@ -1,23 +1,18 @@
 #!/usr/bin/env python3
 """
-Time evolution of network metrics WITH run-to-run uncertainty (SI Fig. S2), for
-reviewer R1.7: "Error bars, confidence intervals, or distributions across runs
-would be especially helpful for final mean opinion, final polarization,
-convergence rate, and network metrics."
+Time evolution of network metrics with run-to-run variation (SI Fig. S2).
 
-The published Nov-2025 figure showed mean +/- STANDARD ERROR at alpha 0.15. That is
-the precision of the mean, which shrinks with n and is exactly the statistic that
-hides the bistability R1.7 is asking about. This draws the MEDIAN with an
-interquartile band across runs, matching the band definition used for Fig. 2's
-trajectory ribbons, and optionally overlays the individual runs as hairlines.
+Draws the MEDIAN with an interquartile band across runs, matching the band definition
+used for Fig. 2's trajectory ribbons, and optionally overlays the individual runs as
+hairlines. A standard-error band would show the precision of the mean, which shrinks
+with n and hides bistability.
 
 DATA: Output/network_metrics_per_run.csv from
 Analysis/extract_network_metrics_lowmem.py, one row per
 (scenario, rewiring, type, model_run, timestep) with clustering, modularity,
 assortativity, gini_in_degree. Snapshots are kept for even runs only, so n = 45
-per combo, not 90. Read that script's header before quoting any number: the metric
-conventions changed (directed graphs are now measured directed) and the values
-differ from the published figure.
+per combo, not 90. Metric conventions (directed graphs measured directed, Leiden
+modularity) are documented in that script's header.
 
 RESIDUALS (--residuals). On the shared (0,1) axis a typical IQR is ~0.005 wide and
 renders sub-pixel, which reads as "no run-to-run variation" when in fact only the
@@ -36,8 +31,7 @@ each run minus its condition's median trajectory, so the medians keep the compar
 
 TWO LAYOUTS, one script:
   --topology all   (default) all four topologies in each panel, IQR bands only.
-                   Drop-in replacement for the published combined figure; four
-                   same-coloured bands per panel, so hairlines are not drawn.
+                   Four same-coloured bands per panel, so hairlines are not drawn.
   --topology DPAH  one topology, so each panel is a single algorithm-topology
                    combination: IQR band + the 45 individual runs as hairlines.
                    This is the version that actually shows the distribution.

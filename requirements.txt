@@ -8,7 +8,6 @@ networkx
 joblib
 python-igraph
 leidenalg
-node2vec
 netin==1.0.7
 rustworkx
 setuptools

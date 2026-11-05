@@ -86,14 +86,15 @@ breaklinkprob = 1
 rewiringMode = "None"
 polarisingNode_f = 0
 establishlinkprob = 0.5 # breaklinkprob and establishlinkprob are used in random rewiring. Are always chosen to be the same to keep average degree constant!
+wtf_attempts = 1 # cached WTF candidates tried per step, in rank order, as for every other algorithm; 0 walks the whole cached list until a link forms
 rewiringAlgorithm = 'None' #None, random, biased, bridge
 #the rewiringAlgorithm variable was meant to enable to do multiple runs at once. However the loop where the specification 
 #given in the ArgList in run_phased.py overrules what is given in line 65 does not work. Unclear why.
 #long story short. All changes to breaklinkprob, establishlinkprob and rewiringAlgorithm have to be specified here in the models file
 lock = None
 
-WEIGHT_BATCH = 4096 # friendship weights are drawn from scipy in blocks of this size; only affects speed, not the distribution
-USE_NETWORK_CACHE = True # DPAH/PATCH generation is fully seeded (seed=42), so the graph is identical every run and can be cached
+WEIGHT_BATCH = int(os.environ.get("WEIGHT_BATCH", 4096)) # friendship weights are drawn from scipy in blocks of this size; only affects speed, not the distribution. WEIGHT_BATCH=1 with NETWORK_CACHE=0 restores the pre-optimization RNG order
+USE_NETWORK_CACHE = os.environ.get("NETWORK_CACHE", "1") != "0" # DPAH/PATCH generation is fully seeded (seed=42), so the graph is identical every run and can be cached; NETWORK_CACHE=0 regenerates it every run, as in the Oct 2025 campaign
 NETWORK_CACHE_DIR = os.path.join(current_dir, "network_cache")
 _network_cache = {}
 
@@ -138,6 +139,7 @@ args = {"defectorUtility" : defectorUtility,
         "rewiringMode": rewiringMode,
         "breaklinkprob" : breaklinkprob,
         "establishlinkprob" : establishlinkprob,
+        "wtf_attempts": wtf_attempts,
         "polarisingNode_f": polarisingNode_f,
         "seed": 42,
         "f_all": 0.5}
@@ -309,6 +311,7 @@ class Model:
         self.process_id = os.getpid()
         self.degree_distributions = {}
         self.wtf_cache_threshold = args.get("wtf_freq", 10)
+        self.wtf_attempts = args.get("wtf_attempts", wtf_attempts) or None # k: the first k unlinked cached candidates per step; 0/None: walk the whole cached list until a link forms
         self.rx_graph = None # persistent rustworkx mirror of self.graph (wtf only); kept in sync by _graph_add_edge/_graph_remove_edge
         self._track_states = False # running state aggregates are only maintained once runSim has synced them
         self._weight_pool = None
@@ -497,7 +500,7 @@ class Model:
             return False  # Already connected, don't count as rewired
 
         rewired = False
-        if random.random() < establishlinkprob:
+        if random.random() < self.local_args["establishlinkprob"]:
             weight = self.getFriendshipWeight()
 
             self._graph_add_edge(node_i, neighbour_i, weight)
@@ -778,7 +781,7 @@ class Model:
     
         
         # Modified train_node2vec method for models_checks.py
-    def train_node2vec(self, input_file='graph.edgelist', output_file='embeddings.emb', dimensions=64):
+    def train_node2vec(self, input_file='graph.edgelist', output_file='embeddings.emb', dimensions=64, full=False):
         """Train node2vec embeddings with controlled CPU usage"""
         if not hasattr(self, 'affected_nodes_set'):
             self.affected_nodes_set = set()
@@ -790,7 +793,7 @@ class Model:
     
         try:
             # Determine if full retrain is needed
-            needs_full_retrain = (not self.embeddings or 
+            needs_full_retrain = (full or not self.embeddings or 
                                 len(self.affected_nodes_set) > len(self.graph.nodes) * 0.5)
             
             # Write edge list
@@ -912,6 +915,20 @@ class Model:
         return rewireIndex, neighbours
         
     def call_node2vec(self, nodeIndex):
+        refresh = self.local_args.get("n2v_refresh", 0)
+        if refresh:
+            # Periodic full re-embedding of the live graph every `refresh` steps (robustness
+            # check). Always a full retrain:
+            # the partial path merges vectors from independent SGNS runs, whose coordinate frames
+            # are unrelated, so cosine similarities across the merge are meaningless. The default
+            # (0) leaves the canonical behaviour below untouched: one embedding, trained at t = 0.
+            if self.t - self.n2v_last_train >= refresh:
+                if self.train_node2vec(full=True):
+                    self.retrain += 1
+                self.n2v_last_train = self.t
+            self.node2vec_rewire(nodeIndex)
+            return
+
         if not self.trained and nodeIndex in self.affected_nodes_set:    
             #self.test.append(self.t)
             self.train_node2vec()
@@ -1032,6 +1049,11 @@ class Model:
 
         if len(recommendations) == 0:
             return False
+
+        if self.wtf_attempts is not None:
+            # the cache is ranked by score, so this keeps the top-ranked entries that are not yet neighbours
+            valid = [r for r in recommendations if not self.graph.has_edge(nodeIndex, r)]
+            recommendations = valid[:self.wtf_attempts]
 
         for rec in recommendations:
             # Use rewire() which checks if edge already exists
@@ -1193,6 +1215,7 @@ class Model:
         if self.local_args["rewiringAlgorithm"] in "node2vec":
             self.train_node2vec()
             self.trained = True
+            self.n2v_last_train = 0
             #print("initial training complete")
             
        

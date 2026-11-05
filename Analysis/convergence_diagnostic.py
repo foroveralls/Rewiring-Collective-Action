@@ -18,26 +18,16 @@ Run from the Analysis/ directory (paths are relative, matching run_phased.py):
     python convergence_diagnostic.py            # simulate + plot (ALL points/conditions)
     python convergence_diagnostic.py --mode plot --data ../Output/<file>.pkl.gz
 
-Partial reruns (--points/--conditions restrict what is simulated; --merge keeps
-every record from an existing pkl that is not re-simulated, so outputs always
-cover all 60 combinations). After the 2026-07-03 horizon changes the required
-revalidation is:
+Partial reruns: --points/--conditions restrict what is simulated; --merge keeps
+every record from an existing pkl that is not re-simulated, so outputs always cover
+all 60 combinations:
 
-    # 1. stress point at the stubbornness-scaled horizons (expensive: ~26.4M
-    #    steps x 20 runs across 30 conditions; heaviest condition ~1.3M steps)
-    python convergence_diagnostic.py --points stress \
-        --merge ../Output/convergence_diagnostic_2026-07-02.pkl.gz
-
-    # 2. the six main-point conditions whose factors were raised, merged with
-    #    step 1's dated output
     python convergence_diagnostic.py --points main \
-        --conditions biased/diff/DPAH,bridge/diff/DPAH,bridge/diff/FB,random/None/cl,None/None/FB,wtf/None/Twitter \
-        --merge ../Output/convergence_diagnostic_<step1-date>.pkl.gz
+        --conditions biased/diff/DPAH,bridge/diff/FB \
+        --merge ../Output/convergence_diagnostic_<date>.pkl.gz
 
-The 24 unchanged main-point conditions are already validated by the 2026-07-02
-data and are carried over by --merge. Horizon factors do NOT read from these
-outputs; if failures remain, update get_adaptive_timesteps in
-general_param_sweep.py manually and validate again.
+Horizon factors do NOT read from these outputs; if failures remain, update
+get_adaptive_timesteps in general_param_sweep.py manually and validate again.
 """
 
 import os

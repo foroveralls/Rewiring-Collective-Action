@@ -1,15 +1,13 @@
 #!/usr/bin/env python3
 """
 Violin plot of the FINAL per-agent opinion distribution, faceted by network type
-with rewiring algorithms on the x-axis. Addresses reviewer R1.7: collapsing the
-ensemble into means hides bimodality / bistability; the per-agent violins expose it
-(most visibly for `wtf`).
+with rewiring algorithms on the x-axis (SI). Collapsing the ensemble into means hides
+bimodality / bistability; the per-agent violins expose it (most visibly for `wtf`).
 
 DATA: reads the per-agent CSV produced by extract_states_lowmem.py with columns
     scenario,rewiring,type,model_run,final_t,state
-The full per-agent extraction is cluster-only (the snapshot pickle OOMs a 15GB box);
-this script is data-agnostic and runs identically on the cluster output and on a
-synthetic dev sample.
+The full per-agent extraction needs a large-memory machine (the snapshot pickle does
+not fit in 15 GB); this script itself is light.
 
 Usage:
     python violin_main_results.py                       # uses Output/per_agent_final_states.csv
@@ -112,7 +110,7 @@ def make_violin(df, out_path, preview=False):
             v[:, 1] = np.clip(v[:, 1], -1.0, 1.0)
 
         # per-run mean overlay (jittered) — shows across-run spread / bistability,
-        # the complement to the per-agent KDE (within-run structure). R1.7 named both.
+        # the complement to the per-agent KDE (within-run structure).
         rng = np.random.default_rng(0)
         for p, g in zip(pos, algos):
             run_means = (sub[sub['grouped'] == g]

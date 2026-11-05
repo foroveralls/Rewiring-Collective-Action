@@ -110,7 +110,7 @@ def plot_network_dynamics_truncated(data, t_max=80000, scale_type='linear',
         bands_df: Optional DataFrame from Output/trajectory_bands.csv with across-run
             IQR of the per-run mean opinion (cols: type,scenario,rewiring,t,
             opinion_q25/q50/q75). If given, q25-q75 ribbons are drawn behind the
-            opinion lines (R1.7 ensemble uncertainty). Polarization is left unbanded
+            opinion lines. Polarization is left unbanded
             to keep the panel readable.
     """
     # Create color mapping
@@ -174,7 +174,7 @@ def plot_network_dynamics_truncated(data, t_max=80000, scale_type='linear',
                     linewidth=line_params["data_line_width"]
                 )
 
-    # Across-run IQR ribbons around the opinion lines (R1.7 ensemble uncertainty).
+    # Across-run IQR ribbons around the opinion lines.
     # Drawn behind the data lines (zorder 1.2 > grid, < lines); opinion only.
     if bands_df is not None:
         color_by_norm = {k.lower(): v for k, v in scenario_color_map.items()}
@@ -197,7 +197,7 @@ def plot_network_dynamics_truncated(data, t_max=80000, scale_type='linear',
     steady_state_values = {}
     if add_steady_state_markers:
         # Last 10% of ACTUAL data, not the display window. The threshold is taken per
-        # condition, not globally: since the 2026-07-27 horizon merge the campaign runs
+        # condition, not globally: the campaign runs
         # bridge(opposite)/FB to 270k and everything else to 160k, so a single global
         # 0.9*max would leave every 160k condition with no data past the threshold and
         # silently drop its marker.

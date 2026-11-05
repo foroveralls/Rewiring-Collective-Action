@@ -368,7 +368,7 @@ def create_state_heatmap_grid(df, param_name, max_param_value=0.05):
     suffix = os.environ.get("PHI_FIG_SUFFIX", "")
     save_path = f'{OUTPUT_DIR}/heatmap_states_grid_{param_name}_{sweep_id}{suffix}'
 
-    # 600 dpi so the rasterized mesh stays crisp when a reviewer zooms the PDF.
+    # 600 dpi so the rasterized mesh stays crisp when the PDF is zoomed.
     for ext in ['pdf', 'png']:
         plt.savefig(f"{save_path}.{ext}", bbox_inches='tight', dpi=600)
 

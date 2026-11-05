@@ -13,7 +13,8 @@ import models_checks
 import numpy as np 
 from datetime import date
 import glob, gzip, pickle
-from sweep_utils import get_sweep_id
+import argparse
+from sweep_utils import get_sweep_id, save_sweep_config
 
 def init(lock_):
     models_checks.init_lock(lock_)
@@ -135,9 +136,22 @@ def run_algorithm_phase(algo_scenarios, numberOfSimulations, base_args):
     
     return phase_results
 
+def parse_args():
+    p = argparse.ArgumentParser(description=__doc__)
+    p.add_argument("--conditions", help="comma-separated scenario:rewiring:topology triples, e.g. wtf:None:DPAH,wtf:None:Twitter; "
+                                         "'all' runs the full campaign; default is the one-off list in main()")
+    p.add_argument("--sims", type=int, default=90)
+    p.add_argument("--wtf-attempts", type=int, default=None,
+                   help="cached candidates WTF tries per step, in rank order (default: wtf_attempts in models_checks, 1; "
+                        "0 walks the whole cached list until a link forms)")
+    p.add_argument("--pjoin", type=float, default=None,
+                   help="link-creation probability per rewiring attempt (default: establishlinkprob in models_checks)")
+    return p.parse_args()
+
 def main():
+    cli = parse_args()
     start = time.time()
-    numberOfSimulations = 90
+    numberOfSimulations = cli.sims
     sweep_id = get_sweep_id(["phased_run"])
     
     print("=== PHASED EXECUTION RUN (ISOLATED SUBVARIANTS) ===")
@@ -164,10 +178,26 @@ def main():
     # TIMESTEPS_OVERRIDE above); every other condition is unaffected by the
     # convergence diagnostic and stays at its existing 160k campaign result.
     # Restore the full combined_list above to regenerate the whole campaign.
+    full_list = combined_list
     combined_list = [("bridge", "diff", "FB")]
+    if cli.conditions == "all":
+        combined_list = full_list
+    elif cli.conditions:
+        combined_list = [tuple(c.split(":")) for c in cli.conditions.split(",")]
+        unknown = set(combined_list) - set(full_list)
+        if unknown:
+            raise SystemExit(f"Unknown conditions: {unknown}")
     # Group scenarios by algorithm (now isolates subvariants)
     algo_groups = group_scenarios_by_algorithm(combined_list)
     base_args = models_checks.getargs()
+    if cli.wtf_attempts is not None:
+        base_args["wtf_attempts"] = cli.wtf_attempts
+    if cli.pjoin is not None:
+        base_args["establishlinkprob"] = cli.pjoin
+    # record the settings of this run next to its outputs
+    save_sweep_config(sweep_id, [], {}, combined_list, numberOfSimulations,
+                      {**base_args, "network_cache": models_checks.USE_NETWORK_CACHE, "weight_batch": models_checks.WEIGHT_BATCH,
+                       "timesteps": f"160000, overrides {TIMESTEPS_OVERRIDE}"})
     
     print(f"Algorithms to run: {list(algo_groups.keys())}")
     print(f"Total scenarios: {sum(len(scenarios) for scenarios in algo_groups.values())}")

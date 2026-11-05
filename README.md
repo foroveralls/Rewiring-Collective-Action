@@ -1,16 +1,18 @@
 # *Rewiring social networks for social good: navigating trade-offs*
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.22097266.svg)](https://doi.org/10.5281/zenodo.22097266)
+
 by
 Jordan P. Everall,
 Lilli Frei,
 Andrew K. Ringsmuth
 
 
-This paper has been submitted for publication in PNAS Nexus (revised following a major revisions decision, 2026).
+This paper has been submitted for publication in PNAS Nexus (revised following a major revisions decision, 2026; a third version addressing a minor revisions decision is in preparation).
 
 In this project, we use an agent based model where agents are embedded in a social network to analyse the effect of different rewiring strategies on the speed and magnitude of consensus formation, and depolarization in social groups. We are interested in these dynamics because socio-political polarization is a major barrier to collective action problems such as climate change, which must urgently be addressed. We investigate the effect of rewiring algorithms based on widely used recommender algorithms such as Who to Follow and node2vec. We find that building lasting links between polarized individuals and communities can accelerate consensus formation when the sociopolitical environment is favourable, even taking into account backfiring interactions between agents. This strengthens the evidence that promoting connection between polarized communities could accelerate collective action on urgent global challenges. 
 &nbsp; 
-| ![](combined_trajectory_grid_2026-07-30.png) |
+| ![](combined_trajectory_grid_2026-10-27.png) |
 |:--:| 
 | *Comparing network evolutions for all rewiring algorithms* |
 
@@ -116,7 +118,7 @@ in `Pre_processing/networks_processed`.
 
 All source code is made available under a BSD 3-clause license. You can freely
 use and modify the code, without warranty, so long as you provide attribution
-to the authors. See `License.md` for the full license text.
+to the authors. See `LICENSE.md` for the full license text.
 
 The manuscript text is not open source. The authors reserve the rights to the
 article content, which is currently submitted for publication in PNAS Nexus.

@@ -25,6 +25,7 @@ version: 1.0.0
 date-released: 2026-08-24
 license: BSD-3-Clause
 repository-code: "https://github.com/foroveralls/Rewiring-Collective-Action"
+doi: "10.5281/zenodo.22097266"  # Zenodo concept DOI: always resolves to the latest version
 keywords:
   - agent-based model
   - opinion dynamics

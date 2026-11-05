@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """
-Recompute the parameter-sensitivity index $S_\\theta$ from the CORRECTED heatmap grid (R1.8).
+Parameter-sensitivity index $S_\\theta$ from the stubbornness x diverger-fraction heatmap
+grid (SI, robustness to agent heterogeneity).
 
-Definition, verbatim from the manuscript (Methods, `-v2.tex` L310):
+Definition (Methods):
 
     $S_{\\theta} = \\sigma(\\{A(\\theta_i)\\}_{i=1}^n)$
 
@@ -12,23 +13,18 @@ diverger-fraction grid that makes $S_\\theta$ the standard deviation of the ten
 *marginal* means along one axis (averaging over the other axis and over runs).
 
 Two axes are reported:
-  S_w    -- sensitivity to stubbornness $w$        (SI L43; currently MISLABELLED $S_\\rho$)
-  S_rho  -- sensitivity to diverger fraction $\\rho$ (SI L37)
+  S_w    -- sensitivity to stubbornness $w$
+  S_rho  -- sensitivity to diverger fraction $\\rho$
 
-Why this script exists: the numbers in the SI predate the 2026-07-27 horizon correction,
-and `heatmap_stats_multi.py` emits sensitivity per topology x algorithm without the
-group-level pooling the SI quotes. This reproduces both, old vs corrected, as a durable
-artefact.
-
-Pooling caveat: the SI's group figures average the per-topology $S_\\theta$ across
-topologies and algorithms ("mean-of-sigma"). Pooling all topologies before taking the
-marginal means ("sigma-of-pooled") is also defensible and is reported alongside, since
-R1.8 asks precisely how this index is defined.
+`heatmap_stats_multi.py` emits sensitivity per topology x algorithm; this adds the
+group-level pooling. Two poolings are reported: the per-topology $S_\\theta$ averaged
+across topologies and algorithms ("mean-of-sigma", the SI figures), and all topologies
+pooled before taking the marginal means ("sigma-of-pooled").
 
 Usage
 -----
-    python Analysis/Stats/s_theta_recompute.py
-    HEATMAP_CSV=<grid.csv> python Analysis/Stats/s_theta_recompute.py   # single-grid mode
+    python Analysis/Stats/s_theta_sensitivity.py
+    HEATMAP_CSV=<grid.csv> python Analysis/Stats/s_theta_sensitivity.py
 """
 import os
 import numpy as np
@@ -38,10 +34,7 @@ ROOT = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)),
 OUT = os.path.join(ROOT, "Output")
 STATS = os.path.join(OUT, "Stats", "stubborness_backfirer")
 
-CORRECTED = os.path.join(OUT, "heatmap_sweep_phased_CORRECTED_2026-07-27.csv")
-# The `..._pxc.csv` master is deliberately left buggy for provenance; kept here only as
-# the "old" column so the SI's published numbers can be reproduced and diffed.
-BUGGY_MASTER = os.path.join(OUT, "heatmap_sweep_phased_sweep_20251014_1511_stubbornness_polarisingNode_f_pxc.csv")
+GRID = os.path.join(OUT, "heatmap_sweep_phased_CORRECTED_2026-07-27.csv")
 
 AXES = {"S_w": "stubbornness", "S_rho": "polarisingNode_f"}
 NAME = {("biased", "same"): "local (similar)", ("biased", "diff"): "local (opposite)",
@@ -107,23 +100,19 @@ def report(f, label, d):
 
 
 def main():
-    override = os.environ.get("HEATMAP_CSV")
-    grids = [("CORRECTED grid (override)", override)] if override else \
-            [("OLD -- buggy master (SI's published numbers)", BUGGY_MASTER),
-             ("CORRECTED grid 2026-07-27", CORRECTED)]
+    grids = [("heatmap grid", os.environ.get("HEATMAP_CSV") or GRID)]
 
     os.makedirs(STATS, exist_ok=True)
-    txt = os.path.join(STATS, "s_theta_recompute_20260730.txt")
-    csv = os.path.join(STATS, "s_theta_recompute_20260730.csv")
+    txt = os.path.join(STATS, "s_theta.txt")
+    csv = os.path.join(STATS, "s_theta.csv")
     frames = []
     with open(txt, "w") as f:
-        f.write("S_theta recompute (R1.8) -- sigma of the marginal mean equilibrium opinion\n")
-        f.write("Definition: rewiring-manuscript-pnasn-v2.tex L310. S_w = stubbornness axis,\n")
-        f.write("S_rho = diverger-fraction axis (SI L43 labels the former S_rho: that is the O7 mislabel).\n")
+        f.write("S_theta -- sigma of the marginal mean equilibrium opinion\n")
+        f.write("S_w = stubbornness axis, S_rho = diverger-fraction axis.\n")
         for label, path in grids:
             print(f"reading {os.path.relpath(path, ROOT)}")
             cell, _ = report(f, f"{label}\n  {os.path.relpath(path, ROOT)}", load(path))
-            cell.insert(0, "grid", label.split(" --")[0].split(" (")[0])
+            cell.insert(0, "grid", label)
             frames.append(cell)
     pd.concat(frames).to_csv(csv, index=False, float_format="%.4f")
     print(open(txt).read())

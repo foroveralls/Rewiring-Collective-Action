@@ -2,12 +2,9 @@
 """
 LOW-MEMORY extractor for PER-RUN network metrics from the snapshot pickle.
 
-WHY: reviewer R1.7 asks for uncertainty on "final mean opinion, final polarization,
-convergence rate, and network metrics". The first three come from
-Output/per_run_summary.csv; network metrics are the gap, because SI Fig. S2 was
-built from run-averaged values with no per-run record kept. This writes that record
-so the figure can carry IQR bands and per-run hairlines
-(Analysis/Plotting/network_metrics_bands.py).
+Writes one row per (run, snapshot) so SI Fig. S2 can carry IQR bands and per-run
+hairlines (Analysis/Plotting/network_metrics_bands.py); per-run opinion metrics come
+from Output/per_run_summary.csv instead.
 
 HOW: same trick as extract_states_lowmem.py -- a custom Unpickler swaps the graph
 classes for a stub. The difference is that metrics NEED the edges, so the stub does
@@ -16,34 +13,26 @@ not discard them: it rebuilds a plain networkx graph over the same adjacency dic
 graph's adjacency is therefore live for one graph at a time rather than all 6750.
 
 Peak memory is still dominated by the unpickler memo, exactly as for the per-agent
-extraction, so this is a CLUSTER job on the gme master. Develop against the small
-pte rerun pickle locally first (see --pkl below).
+extraction, so the full campaign pickle needs a large-memory machine. A small pickle
+from a single-condition run is enough for testing (see --pkl below).
 
-METRIC CONVENTIONS (deliberate, and different from the published Nov-2025 figure):
+METRIC CONVENTIONS:
 
   * Graphs are measured AS STORED. DPAH and Twitter are directed, CSF (PATCH) and
-    FB are undirected. The old script coerced netin objects to an undirected
-    nx.Graph, so DPAH's clustering/assortativity were computed on an undirected
-    projection while Twitter's were computed directed. Numbers WILL move: on a
-    test DPAH, clustering 0.27 directed vs 0.41 undirected, assortativity -0.48 vs
-    -0.37. SI text quoting those values needs re-checking.
+    FB are undirected; directed graphs get the directed clustering and
+    assortativity, not those of an undirected projection (on a test DPAH,
+    clustering 0.27 directed vs 0.41 undirected).
   * Conversion is to nx.DiGraph / nx.Graph rather than left as the netin subclass,
     because louvain_communities reconstructs the graph class and netin generators
     require constructor arguments (TypeError otherwise). Direction is preserved.
   * gini_in_degree uses in-degree for directed graphs and degree for undirected
-    ones, where the two coincide by definition. The published figure reported
-    total-degree Gini for DPAH (undirected projection) but in-degree for Twitter.
+    ones, where the two coincide by definition.
   * Communities are detected with LEIDEN, unweighted, seed=42 -- the same method and
-    settings the model itself uses (models_checks.py:1430) and the only one the
-    manuscript names (L246, L394, citing Traag et al. 2019). Three different methods
-    were in use across the repo: Leiden in the model, networkx Louvain in the figure
-    script, and greedy modularity (CNM) in Analysis/Stats/network_stats_basic.py,
-    which is what produced Output/network_properties.csv and manuscript Table L333.
-    On FB at t=0 they give Q = 0.5773 (Leiden), 0.5759 (Louvain), 0.5205 (greedy),
-    so the figure and the table were never on the same scale. --community reproduces
-    either of the others.
+    settings the model itself uses (Traag et al. 2019). On FB at t=0 the alternatives
+    give Q = 0.5773 (Leiden), 0.5759 (Louvain), 0.5205 (greedy modularity, CNM);
+    --community selects either of the others.
     NOTE: the model computes its partition ONCE at initialisation and caches it
-    (manuscript L246) because bridge targets are defined against initial communities.
+    because bridge targets are defined against initial communities.
     This script recomputes the partition at every snapshot on purpose: the figure
     reports how community structure itself evolves, which is a different quantity
     from the cached rewiring partition.
@@ -55,7 +44,7 @@ Run from Analysis/ with the conda python:
 
 Local smoke test (47 MB, one combo, loads in ~3 s):
   ... extract_network_metrics_lowmem.py \
-      --pkl ../Output/all_snapshots_sweep_20260724_1637_phased_run_pte_2026-07-24.pkl.gz \
+      --pkl ../Output/all_snapshots_<single-condition run>.pkl.gz \
       --out ../Output/network_metrics_per_run_SMOKE.csv
 
 Cost: ~0.38 s per graph measured on a real 786-node/14k-edge FB snapshot, so the
@@ -82,8 +71,7 @@ _ap.add_argument("--out", default=os.path.join(OUTPUT_DIR, "network_metrics_per_
                  help="per-run metric CSV to write; the _META.txt sidecar follows its name")
 _ap.add_argument("--community", default="leiden", choices=["leiden", "louvain", "greedy"],
                  help="community detection for modularity. 'leiden' (default) matches the "
-                      "model and the manuscript; 'louvain' reproduces the published SI "
-                      "figure; 'greedy' reproduces network_stats_basic.py / Table L333")
+                      "model; 'louvain' and 'greedy' are the networkx alternatives")
 _ap.add_argument("--weight", default="none", choices=["none", "weight"],
                  help="edge attribute for modularity ('none' = unweighted, default, and "
                       "what the model's own Leiden call does)")

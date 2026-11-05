@@ -1,14 +1,13 @@
 #!/usr/bin/env python3
 """
 Stream the 27.7 GB per-run "individual" CSV into two small summary files that
-feed the R1.7 uncertainty figures. The big file is I/O-heavy but this pass is
-RAM-light (chunked read, keeps only rows with t % STEP == 0), so it runs on this
-box or the cluster.
+feed the run-level figures and tables. The big file is I/O-heavy but this pass is
+RAM-light (chunked read, keeps only rows with t % STEP == 0).
 
 INPUT cols: t,avg_state,std_states,model_run,scenario,rewiring,type
   avg_state  = per-run MEAN opinion over the 800 agents
   std_states = WITHIN-run agent dispersion (polarisation), NOT across-run spread
-The across-run spread R1.7 asks for = percentiles ACROSS the 90 model_run values.
+Across-run spread = percentiles ACROSS the 90 model_run values.
 
 OUTPUTS (to Output/):
   per_run_summary.csv   one row per (type,scenario,rewiring,model_run):

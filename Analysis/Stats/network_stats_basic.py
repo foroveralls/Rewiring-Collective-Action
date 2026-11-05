@@ -76,11 +76,9 @@ def analyze_network(G, name):
     except:
         metrics['Assortativity'] = np.nan
     
-    # Leiden, seed=42, unweighted: the same call the model makes
-    # (models_checks.py:1430) and the only method the manuscript names (L246, L394).
-    # Was greedy_modularity_communities until 2026-07-30, which is why the Q values
-    # in this table sat below the ones in SI Fig. S2 (Louvain): on FB at t=0,
-    # 0.5205 greedy vs 0.5759 Louvain vs 0.5773 Leiden.
+    # Leiden, seed=42, unweighted: the same call the model makes (models_checks.py,
+    # community detection at initialisation), so the table and SI Fig. S2 share one
+    # method. On FB at t=0: 0.5773 Leiden vs 0.5759 Louvain vs 0.5205 greedy (CNM).
     try:
         partition = leiden_partition(G)
         metrics['Modularity'] = nx.community.modularity(G, partition)
