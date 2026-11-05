@@ -19,11 +19,14 @@ from sweep_utils import get_sweep_id, save_sweep_config
 def init(lock_):
     models_checks.init_lock(lock_)
 
-# Per-condition timestep override for one-off horizon-corrected reruns.
-# bridge/diff/FB needs 270k (confirmed by the convergence diagnostic), not the
-# fixed 160k used elsewhere.
+# Per-condition horizons; everything else runs 160k.
+# bridge/diff/FB needs 270k (confirmed by the convergence diagnostic).
+# WTF runs switch between opposed and aligned states, so WTF runs 500k; per-run
+# values there match those at 1M (SI, WTF horizon).
 TIMESTEPS_OVERRIDE = {
     ("bridge", "diff", "FB"): 270000,
+    ("wtf", "None", "DPAH"): 500000,
+    ("wtf", "None", "Twitter"): 500000,
 }
 
 def get_optimal_process_count():
@@ -146,6 +149,9 @@ def parse_args():
                         "0 walks the whole cached list until a link forms)")
     p.add_argument("--pjoin", type=float, default=None,
                    help="link-creation probability per rewiring attempt (default: establishlinkprob in models_checks)")
+    p.add_argument("--timesteps", type=int, default=None,
+                   help="horizon for every selected condition, replacing TIMESTEPS_OVERRIDE and the 160k default "
+                        "(the WTF 1M horizon check; the p_join 0.25 arms at twice the horizon)")
     return p.parse_args()
 
 def main():
@@ -175,9 +181,9 @@ def main():
     
     combined_list = combined_list1 + combined_list_rand + combined_list2 + combined_list3 + combined_list4
     # One-off rerun: bridge/diff/FB needs the corrected 270k horizon (see
-    # TIMESTEPS_OVERRIDE above); every other condition is unaffected by the
-    # convergence diagnostic and stays at its existing 160k campaign result.
-    # Restore the full combined_list above to regenerate the whole campaign.
+    # TIMESTEPS_OVERRIDE above); WTF was re-run at 500k with --conditions; every
+    # other condition keeps its 160k campaign result.
+    # --conditions all regenerates the whole campaign.
     full_list = combined_list
     combined_list = [("bridge", "diff", "FB")]
     if cli.conditions == "all":
@@ -194,6 +200,8 @@ def main():
         base_args["wtf_attempts"] = cli.wtf_attempts
     if cli.pjoin is not None:
         base_args["establishlinkprob"] = cli.pjoin
+    if cli.timesteps is not None:
+        TIMESTEPS_OVERRIDE.update({c: cli.timesteps for c in combined_list})
     # record the settings of this run next to its outputs
     save_sweep_config(sweep_id, [], {}, combined_list, numberOfSimulations,
                       {**base_args, "network_cache": models_checks.USE_NETWORK_CACHE, "weight_batch": models_checks.WEIGHT_BATCH,
